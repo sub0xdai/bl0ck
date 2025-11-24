@@ -1,0 +1,12 @@
+[package]
+name = "privacy-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+blake2 = "0.10"
+
+[lib]
+name = "privacy_core"
+path = "src/lib.rs"
