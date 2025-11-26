@@ -7,7 +7,7 @@
 /**
  * Supported blockchain networks
  */
-export type SupportedChain = 'base' | 'ethereum' | 'polygon' | 'arbitrum' | 'optimism' | 'scroll';
+export type SupportedChain = 'base' | 'ethereum' | 'polygon' | 'arbitrum' | 'optimism' | 'scroll' | 'solana' | 'solana-devnet';
 
 /**
  * Chain UI configuration interface
@@ -115,6 +115,34 @@ export const CHAIN_UI_CONFIGS: Record<SupportedChain, ChainUIConfig> = {
     explorerUrl: 'https://scrollscan.com',
     color: '#FFEEDA', // Scroll beige
   },
+  solana: {
+    id: 'solana',
+    name: 'Solana',
+    displayName: 'Solana',
+    icon: '/assets/solana.svg',
+    walletIcon: '/assets/walletIcon/solana.svg',
+    nativeToken: {
+      symbol: 'SOL',
+      name: 'Solana',
+      icon: '/assets/solana.svg',
+    },
+    explorerUrl: 'https://solscan.io',
+    color: '#14F195', // Solana gradient green
+  },
+  'solana-devnet': {
+    id: 'solana-devnet',
+    name: 'Solana Devnet',
+    displayName: 'Solana (Devnet)',
+    icon: '/assets/solana.svg',
+    walletIcon: '/assets/walletIcon/solana.svg',
+    nativeToken: {
+      symbol: 'SOL',
+      name: 'Solana',
+      icon: '/assets/solana.svg',
+    },
+    explorerUrl: 'https://solscan.io',
+    color: '#9945FF', // Solana gradient purple
+  },
 };
 
 /**
@@ -173,7 +201,15 @@ export function getChainColor(chain: string): string {
  */
 export function getTxExplorerUrl(chain: string, txHash: string): string | null {
   const config = getChainConfig(chain);
-  return config ? `${config.explorerUrl}/tx/${txHash}` : null;
+  if (!config) return null;
+
+  // Solana uses different explorer URL format
+  if (chain === 'solana' || chain === 'solana-devnet') {
+    const cluster = chain === 'solana-devnet' ? '?cluster=devnet' : '';
+    return `${config.explorerUrl}/tx/${txHash}${cluster}`;
+  }
+
+  return `${config.explorerUrl}/tx/${txHash}`;
 }
 
 /**
@@ -181,7 +217,15 @@ export function getTxExplorerUrl(chain: string, txHash: string): string | null {
  */
 export function getAddressExplorerUrl(chain: string, address: string): string | null {
   const config = getChainConfig(chain);
-  return config ? `${config.explorerUrl}/address/${address}` : null;
+  if (!config) return null;
+
+  // Solana uses different explorer URL format
+  if (chain === 'solana' || chain === 'solana-devnet') {
+    const cluster = chain === 'solana-devnet' ? '?cluster=devnet' : '';
+    return `${config.explorerUrl}/account/${address}${cluster}`;
+  }
+
+  return `${config.explorerUrl}/address/${address}`;
 }
 
 /**
@@ -204,14 +248,21 @@ export function getChainDisplayName(chain: string): string {
  * Maps token symbol to icon path
  */
 export const TOKEN_ICONS: Record<string, string> = {
+  // EVM tokens
   ETH: '/assets/eth.svg',
   WETH: '/assets/eth.svg',
   MATIC: '/assets/polygon.svg',
   POL: '/assets/polygon.svg',
-  // Add more common tokens as needed
   USDC: '/assets/usdc.svg',
   USDT: '/assets/usdt.svg',
   DAI: '/assets/dai.svg',
+  // Solana tokens
+  SOL: '/assets/solana.svg',
+  'SOL-DEVNET': '/assets/solana.svg',
+  BONK: '/assets/bonk.svg',
+  JUP: '/assets/jup.svg',
+  'USDC-SOL': '/assets/usdc.svg', // USDC on Solana
+  'USDT-SOL': '/assets/usdt.svg', // USDT on Solana
 };
 
 /**
@@ -237,5 +288,19 @@ export function getTokenIcon(symbol: string, chain?: string): string | null {
   }
 
   return null;
+}
+
+/**
+ * Helper: Check if a chain is Solana (mainnet or devnet)
+ */
+export function isSolanaChain(chain: string): boolean {
+  return chain === 'solana' || chain === 'solana-devnet';
+}
+
+/**
+ * Helper: Check if a chain is EVM-based
+ */
+export function isEVMChain(chain: string): boolean {
+  return !isSolanaChain(chain) && isSupportedChain(chain);
 }
 

@@ -4,18 +4,22 @@ export default function Navbar() {
       <div className="w-full px-8 py-4 flex items-center justify-between">
         <div className="text-white font-bold text-xl">BL0CK</div>
         <div className="flex items-center gap-6">
-          <a href="#" className="text-gray-300 hover:text-white transition">
-            Features
+          <a
+            href="https://github.com/sub0xdai/bl0ck"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gray-300 hover:text-white transition"
+          >
+            GitHub
           </a>
-          <a href="#" className="text-gray-300 hover:text-white transition">
-            Pricing
+          <a
+            href={process.env.NEXT_PUBLIC_LINA_URL || "http://localhost:3000"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition"
+          >
+            Launch Lina
           </a>
-          <a href="#" className="text-gray-300 hover:text-white transition">
-            Docs
-          </a>
-          <button className="px-4 py-2 bg-white text-black rounded-lg font-semibold hover:bg-gray-100 transition">
-            Sign In
-          </button>
         </div>
       </div>
     </nav>

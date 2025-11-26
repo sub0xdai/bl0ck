@@ -6,7 +6,10 @@ import {
     type HandlerCallback,
     logger,
 } from "@elizaos/core";
+import { PublicKey } from "@solana/web3.js";
+import { getMint } from "@solana/spl-token";
 import { JupiterService } from "../services/jupiter.service";
+import { SolanaService } from "../../../plugin-solana-core/src/services/solana.service";
 import type { JupiterSwapResult } from "../types";
 
 // Common token mints (mainnet addresses)
@@ -25,6 +28,35 @@ const TOKEN_MINTS: Record<string, string> = {
 function getMintAddress(symbol: string): string {
     const upper = symbol.toUpperCase();
     return TOKEN_MINTS[upper] || symbol; // Fallback to raw address if not found
+}
+
+/**
+ * Get token decimals from mint address
+ * SOL (wrapped) uses 9 decimals
+ * Other tokens: fetch from on-chain mint metadata
+ */
+async function getTokenDecimals(
+    mintAddress: string,
+    service: JupiterService
+): Promise<number> {
+    // SOL wrapped mint uses 9 decimals
+    if (mintAddress === TOKEN_MINTS.SOL) {
+        return 9;
+    }
+
+    try {
+        const connection = (service as any).connection;
+        const mintPubkey = new PublicKey(mintAddress);
+        const mintInfo = await getMint(connection, mintPubkey);
+        return mintInfo.decimals;
+    } catch (error) {
+        logger.warn(
+            `[SOLANA_SWAP] Failed to fetch decimals for ${mintAddress}, defaulting to 9:`,
+            error instanceof Error ? error.message : String(error)
+        );
+        // Fallback to 9 decimals (common for SOL ecosystem)
+        return 9;
+    }
 }
 
 /**
@@ -99,12 +131,18 @@ export const jupiterSwap: Action = {
         try {
             logger.info("[SOLANA_SWAP] Processing token swap");
 
-            const service = runtime.getService(
+            const jupiterService = runtime.getService(
                 JupiterService.serviceType
             ) as JupiterService;
+            const solanaService = runtime.getService(
+                SolanaService.serviceType
+            ) as SolanaService;
 
-            if (!service) {
+            if (!jupiterService) {
                 throw new Error("JupiterService not initialized");
+            }
+            if (!solanaService) {
+                throw new Error("SolanaService not initialized");
             }
 
             const userId = message.entityId as string;

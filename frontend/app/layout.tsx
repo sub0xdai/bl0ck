@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "BL0CK",
-  description: "BL0CK - Interactive particle animation landing page",
+  title: "BL0CK - Privacy-First DeFi Ecosystem",
+  description: "Privacy-first DeFi ecosystem combining AI trading with zkVM privacy tech. Prove you belong. Never prove who you are.",
 };
 
 export default function RootLayout({
