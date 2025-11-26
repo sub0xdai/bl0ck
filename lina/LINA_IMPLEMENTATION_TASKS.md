@@ -8,10 +8,12 @@
 
 ## Phase 1: Core Infrastructure (MVP)
 
-### Task 1.1: Chain Configuration Extension
+### Batch 1: Core Infrastructure
+**Dependencies**: None (start here)
+
+#### Chain Configuration Extension
 **Component**: Chain configuration system
-**Files**:
-- `/home/m0xu/1-projects/lina/src/constants/chains.ts` (MODIFY)
+**Files**: `/home/m0xu/1-projects/lina/src/constants/chains.ts` (MODIFY)
 
 **Subtasks**:
 - [ ] Add `SolanaNetwork` and `SolanaChainConfig` types
@@ -26,12 +28,31 @@
 - Type guards correctly identify Solana networks
 - Configs return correct RPC/explorer URLs
 
+#### Dependencies Installation
+**Component**: NPM package management
+**Files**: `/home/m0xu/1-projects/lina/package.json` (MODIFY)
+
+**Subtasks**:
+- [ ] Add `@solana/web3.js: ^1.95.8`
+- [ ] Add `@solana/spl-token: ^0.4.9`
+- [ ] Add `@jup-ag/api: ^6.0.0`
+- [ ] Add `bs58: ^5.0.0`
+- [ ] Run `bun install`
+- [ ] Verify no dependency conflicts
+
+**Completion Criteria**:
+- All packages installed
+- Build succeeds
+- No version conflicts
+
 ---
 
-### Task 1.2: Solana Transaction Manager - Part 1 (Core Setup)
+### Batch 2: Solana Transaction Manager
+**Dependencies**: Batch 1 (chain config + dependencies)
+
+#### Part 1: Core Setup
 **Component**: Solana transaction manager singleton
-**Files**:
-- `/home/m0xu/1-projects/lina/src/managers/solana-transaction-manager.ts` (CREATE)
+**Files**: `/home/m0xu/1-projects/lina/src/managers/solana-transaction-manager.ts` (CREATE)
 
 **Subtasks**:
 - [ ] Create class with singleton pattern (`getInstance()`)
@@ -45,12 +66,9 @@
 - RPC connection established to devnet
 - Cache structures initialized
 
----
-
-### Task 1.3: Solana Transaction Manager - Part 2 (Wallet Management)
+#### Part 2: Wallet Management
 **Component**: Wallet creation and keypair management
-**Files**:
-- `/home/m0xu/1-projects/lina/src/managers/solana-transaction-manager.ts` (MODIFY)
+**Files**: `/home/m0xu/1-projects/lina/src/managers/solana-transaction-manager.ts` (MODIFY)
 
 **Subtasks**:
 - [ ] Implement `encryptSeedPhrase()` with AES-256-GCM
@@ -66,12 +84,9 @@
 - Same public key returned on subsequent calls
 - Cache invalidation works
 
----
-
-### Task 1.4: Solana Transaction Manager - Part 3 (Balance Queries)
+#### Part 3: Balance Queries
 **Component**: Token balance fetching
-**Files**:
-- `/home/m0xu/1-projects/lina/src/managers/solana-transaction-manager.ts` (MODIFY)
+**Files**: `/home/m0xu/1-projects/lina/src/managers/solana-transaction-manager.ts` (MODIFY)
 
 **Subtasks**:
 - [ ] Implement `getSOLBalance(publicKey)`
@@ -88,12 +103,9 @@
 - USD values calculated
 - Cache prevents excessive API calls
 
----
-
-### Task 1.5: Solana Transaction Manager - Part 4 (Transactions)
+#### Part 4: Transactions
 **Component**: Transaction execution (SOL and SPL tokens)
-**Files**:
-- `/home/m0xu/1-projects/lina/src/managers/solana-transaction-manager.ts` (MODIFY)
+**Files**: `/home/m0xu/1-projects/lina/src/managers/solana-transaction-manager.ts` (MODIFY)
 
 **Subtasks**:
 - [ ] Implement `sendSOL(userId, to, amount)` with pre-flight checks
@@ -112,7 +124,10 @@
 
 ---
 
-### Task 1.6: Plugin - solana-core (Structure)
+### Batch 3: Plugin - solana-core
+**Dependencies**: Batch 2 (SolanaTransactionManager)
+
+#### Structure Setup
 **Component**: Core Solana plugin package
 **Files**:
 - `/home/m0xu/1-projects/lina/src/plugins/plugin-solana-core/package.json` (CREATE)
@@ -131,9 +146,7 @@
 - TypeScript compiles
 - Package builds successfully
 
----
-
-### Task 1.7: Plugin - solana-core (Action: SOLANA_WALLET_INFO)
+#### Action: SOLANA_WALLET_INFO
 **Component**: Wallet info action
 **Files**:
 - `/home/m0xu/1-projects/lina/src/plugins/plugin-solana-core/src/actions/solana-wallet-info.ts` (CREATE)
@@ -152,9 +165,7 @@
 - Returns wallet info when invoked
 - Response formatted clearly with balances
 
----
-
-### Task 1.8: Plugin - solana-core (Action: SOLANA_TRANSFER)
+#### Action: SOLANA_TRANSFER
 **Component**: SOL transfer action
 **Files**:
 - `/home/m0xu/1-projects/lina/src/plugins/plugin-solana-core/src/actions/solana-transfer.ts` (CREATE)
@@ -174,9 +185,7 @@
 - SOL transfers execute successfully
 - Transaction signature returned
 
----
-
-### Task 1.9: Plugin - solana-core (Action: SOLANA_TOKEN_TRANSFER)
+#### Action: SOLANA_TOKEN_TRANSFER
 **Component**: SPL token transfer action
 **Files**:
 - `/home/m0xu/1-projects/lina/src/plugins/plugin-solana-core/src/actions/solana-token-transfer.ts` (CREATE)
@@ -198,7 +207,10 @@
 
 ---
 
-### Task 1.10: Plugin - jupiter (Structure)
+### Batch 4: Plugin - jupiter
+**Dependencies**: Batch 2 (SolanaTransactionManager)
+
+#### Structure Setup
 **Component**: Jupiter DEX plugin package
 **Files**:
 - `/home/m0xu/1-projects/lina/src/plugins/plugin-jupiter/package.json` (CREATE)
@@ -217,12 +229,9 @@
 - Dependencies installed
 - TypeScript compiles
 
----
-
-### Task 1.11: Plugin - jupiter (Jupiter Service)
+#### Jupiter Service
 **Component**: Jupiter API integration service
-**Files**:
-- `/home/m0xu/1-projects/lina/src/plugins/plugin-jupiter/src/services/jupiter.service.ts` (CREATE)
+**Files**: `/home/m0xu/1-projects/lina/src/plugins/plugin-jupiter/src/services/jupiter.service.ts` (CREATE)
 
 **Subtasks**:
 - [ ] Create JupiterService class
@@ -238,9 +247,7 @@
 - Swap execution completes successfully on devnet
 - Transaction signature returned
 
----
-
-### Task 1.12: Plugin - jupiter (Action: SOLANA_SWAP)
+#### Action: SOLANA_SWAP
 **Component**: Token swap action
 **Files**:
 - `/home/m0xu/1-projects/lina/src/plugins/plugin-jupiter/src/actions/jupiter-swap.ts` (CREATE)
@@ -263,10 +270,12 @@
 
 ---
 
-### Task 1.13: Character Configuration Update
+### Batch 5: Configuration & Registration
+**Dependencies**: Batches 3 & 4 (both plugins)
+
+#### Character Configuration Update
 **Component**: Lina agent character definition
-**Files**:
-- `/home/m0xu/1-projects/lina/src/character.ts` (MODIFY)
+**Files**: `/home/m0xu/1-projects/lina/src/character.ts` (MODIFY)
 
 **Subtasks**:
 - [ ] Change `name` field from "Otaku" to "Lina"
@@ -281,12 +290,9 @@
 - Agent responds to Solana queries
 - Safety protocols include Solana rules
 
----
-
-### Task 1.14: Plugin Registration
+#### Plugin Registration
 **Component**: Agent plugin initialization
-**Files**:
-- `/home/m0xu/1-projects/lina/src/index.ts` (MODIFY)
+**Files**: `/home/m0xu/1-projects/lina/src/index.ts` (MODIFY)
 
 **Subtasks**:
 - [ ] Import solanaPlugin from plugin-solana-core
@@ -301,12 +307,9 @@
 - Server starts without errors
 - Solana actions available in agent
 
----
-
-### Task 1.15: Environment Configuration
+#### Environment Configuration
 **Component**: Environment variables setup
-**Files**:
-- `/home/m0xu/1-projects/lina/.env.sample` (MODIFY)
+**Files**: `/home/m0xu/1-projects/lina/.env.sample` (MODIFY)
 
 **Subtasks**:
 - [ ] Add `SOLANA_NETWORK` variable (devnet/mainnet-beta)
@@ -322,10 +325,12 @@
 
 ---
 
-### Task 1.16: Frontend - Chain Selector Component
+### Batch 6: Frontend Integration
+**Dependencies**: Batch 2 (SolanaTransactionManager API)
+
+#### Chain Selector Component
 **Component**: Multi-chain selector UI
-**Files**:
-- `/home/m0xu/1-projects/lina/src/frontend/components/dashboard/ChainSelector.tsx` (CREATE)
+**Files**: `/home/m0xu/1-projects/lina/src/frontend/components/dashboard/ChainSelector.tsx` (CREATE)
 
 **Subtasks**:
 - [ ] Create React component with Radix UI Select
@@ -340,12 +345,9 @@
 - Selection updates global state
 - Visually matches existing UI design
 
----
-
-### Task 1.17: Frontend - Solana Wallet Hook
+#### Solana Wallet Hook
 **Component**: Solana wallet state management
-**Files**:
-- `/home/m0xu/1-projects/lina/src/frontend/hooks/useSolanaWallet.ts` (CREATE)
+**Files**: `/home/m0xu/1-projects/lina/src/frontend/hooks/useSolanaWallet.ts` (CREATE)
 
 **Subtasks**:
 - [ ] Create React hook
@@ -359,12 +361,9 @@
 - Balance updates on refetch
 - Integrates with existing auth system
 
----
-
-### Task 1.18: Frontend - Dashboard Integration
+#### Dashboard Integration
 **Component**: Add chain selector to dashboard
-**Files**:
-- `/home/m0xu/1-projects/lina/src/frontend/components/dashboard/Dashboard.tsx` (MODIFY)
+**Files**: `/home/m0xu/1-projects/lina/src/frontend/components/dashboard/Dashboard.tsx` (MODIFY)
 
 **Subtasks**:
 - [ ] Import ChainSelector component
@@ -380,30 +379,12 @@
 
 ---
 
-### Task 1.19: Dependencies Installation
-**Component**: NPM package management
-**Files**:
-- `/home/m0xu/1-projects/lina/package.json` (MODIFY)
+### Batch 7: Integration & Testing
+**Dependencies**: All previous batches (end-to-end validation)
 
-**Subtasks**:
-- [ ] Add `@solana/web3.js: ^1.95.8`
-- [ ] Add `@solana/spl-token: ^0.4.9`
-- [ ] Add `@jup-ag/api: ^6.0.0`
-- [ ] Add `bs58: ^5.0.0`
-- [ ] Run `bun install`
-- [ ] Verify no dependency conflicts
-
-**Completion Criteria**:
-- All packages installed
-- Build succeeds
-- No version conflicts
-
----
-
-### Task 1.20: Integration Testing - MVP
+#### Integration Testing - MVP
 **Component**: End-to-end testing of Phase 1
-**Files**:
-- Test scripts (manual or automated)
+**Files**: Test scripts (manual or automated)
 
 **Subtasks**:
 - [ ] Start server with Solana plugins
@@ -543,4 +524,4 @@
 - **Dependencies**: Ensure previous tasks complete before dependent tasks
 - **Rollback**: If task fails, debug before proceeding
 
-**Current Status**: Ready to begin Task 1.1
+**Current Status**: Ready to begin Batch 1 (Core Infrastructure)

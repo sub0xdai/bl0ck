@@ -4,6 +4,7 @@ import sqlPlugin from '@elizaos/plugin-sql';
 import bootstrapPlugin from './plugins/plugin-bootstrap/src/index.ts';
 import openaiPlugin from '@elizaos/plugin-openai';
 import cdpPlugin from './plugins/plugin-cdp/index.ts';
+import solanaPlugin from './plugins/plugin-solana-core/src/index.ts';
 import coingeckoPlugin from './plugins/plugin-coingecko/src/index.ts';
 import webSearchPlugin from './plugins/plugin-web-search/src/index.ts';
 import defiLlamaPlugin from './plugins/plugin-defillama/src/index.ts';
@@ -26,12 +27,13 @@ export const projectAgent: ProjectAgent = {
   init: async (runtime: IAgentRuntime) => await initCharacter({ runtime }),
   // Import actual plugin modules instead of using string names
   plugins: [
-    sqlPlugin, 
-    bootstrapPlugin, 
+    sqlPlugin,
+    bootstrapPlugin,
     openrouterPlugin,
-    openaiPlugin, 
-    cdpPlugin, 
-    coingeckoPlugin, 
+    openaiPlugin,
+    cdpPlugin,
+    solanaPlugin,
+    coingeckoPlugin,
     webSearchPlugin,
     defiLlamaPlugin,
     relayPlugin,
