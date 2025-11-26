@@ -1,6 +1,19 @@
 import { logger, type IAgentRuntime } from '@elizaos/core';
-import { Connection, PublicKey, Keypair } from '@solana/web3.js';
-import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import {
+  Connection,
+  PublicKey,
+  Keypair,
+  SystemProgram,
+  Transaction,
+  sendAndConfirmTransaction,
+  LAMPORTS_PER_SOL,
+} from '@solana/web3.js';
+import {
+  TOKEN_PROGRAM_ID,
+  getOrCreateAssociatedTokenAccount,
+  createTransferCheckedInstruction,
+  getMint,
+} from '@solana/spl-token';
 import { getSolanaRpcUrl, getSolanaCluster } from '@/constants/chains';
 import { randomBytes, createCipheriv, createDecipheriv } from 'crypto';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
@@ -85,6 +98,10 @@ export class SolanaTransactionManager {
   private readonly IV_LENGTH = 12; // GCM standard IV length
   private readonly AUTH_TAG_LENGTH = 16; // GCM authentication tag length
   private encryptionKey: Buffer | null = null;
+
+  // Transaction configuration (Task 1.5)
+  private readonly MIN_SOL_BUFFER = 0.01 * LAMPORTS_PER_SOL; // 0.01 SOL for fees/rent
+  private readonly CONFIRMATION_TIMEOUT = 60000; // 60s timeout
 
   // Private constructor to prevent direct instantiation
   private constructor() {
@@ -845,5 +862,328 @@ export class SolanaTransactionManager {
       return sum + (isNaN(value) ? 0 : value);
     }, 0);
     return isNaN(total) ? 0 : total;
+  }
+
+  // ============================================================================
+  // Transaction Methods (Task 1.5)
+  // ============================================================================
+
+  /**
+   * Send SOL or SPL tokens to a recipient
+   * - Auto-creates ATAs for SPL token recipients if needed
+   * - Validates balances before sending
+   * - Waits for finalized confirmation
+   * - Returns transaction signature and explorer URL
+   *
+   * @param params Transaction parameters
+   * @returns Transaction result with signature and explorer URL
+   */
+  public async sendToken(params: {
+    userId: string;
+    to: string; // Base58 recipient address
+    mint: string | null; // null = SOL, otherwise SPL token mint
+    amount: string; // Raw amount (lamports for SOL, base units for SPL)
+  }): Promise<{
+    transactionHash: string;
+    from: string;
+    to: string;
+    amount: string;
+    token: string;
+    network: string;
+    explorerUrl: string;
+  }> {
+    logger.info(
+      `[SolanaTransactionManager] User ${params.userId.substring(0, 8)}... sending ${params.mint || 'SOL'}...`
+    );
+
+    try {
+      // Step 1: Validate and prepare
+      const { senderKeypair, recipientPubkey, amountBigInt } =
+        await this.validateAndPrepareSend(params);
+
+      const connection = this.getConnection();
+
+      // Step 2: Build transaction (SOL or SPL)
+      let transaction: Transaction;
+      if (params.mint === null) {
+        logger.info('[SolanaTransactionManager] Building SOL transfer...');
+        transaction = await this.buildSOLTransferTransaction(
+          senderKeypair.publicKey,
+          recipientPubkey,
+          amountBigInt,
+          connection
+        );
+      } else {
+        logger.info(`[SolanaTransactionManager] Building SPL transfer for ${params.mint}...`);
+        transaction = await this.buildSPLTransferTransaction(
+          senderKeypair,
+          recipientPubkey,
+          new PublicKey(params.mint),
+          amountBigInt,
+          connection
+        );
+      }
+
+      // Step 3: Send and confirm
+      logger.info('[SolanaTransactionManager] Sending transaction...');
+      const signature = await this.sendAndConfirmTransactionWithRetry(
+        connection,
+        transaction,
+        [senderKeypair]
+      );
+
+      logger.info(`[SolanaTransactionManager] Transaction confirmed: ${signature}`);
+
+      // Step 4: Return structured result
+      return {
+        transactionHash: signature,
+        from: senderKeypair.publicKey.toBase58(),
+        to: params.to,
+        amount: params.amount,
+        token: params.mint || 'SOL',
+        network: this.network,
+        explorerUrl: this.buildExplorerUrl(signature, this.network),
+      };
+    } catch (error) {
+      logger.error(
+        '[SolanaTransactionManager] Transaction failed:',
+        error instanceof Error ? error.message : String(error)
+      );
+      throw error; // Re-throw for action layer handling
+    }
+  }
+
+  /**
+   * Validate transaction parameters and prepare for sending
+   * @param params Transaction parameters
+   * @returns Validated sender keypair, recipient pubkey, and amount
+   */
+  private async validateAndPrepareSend(params: {
+    userId: string;
+    to: string;
+    mint: string | null;
+    amount: string;
+  }): Promise<{
+    senderKeypair: Keypair;
+    recipientPubkey: PublicKey;
+    amountBigInt: bigint;
+  }> {
+    // Get sender wallet
+    const { keypair: senderKeypair } = await this.getOrCreateWallet(params.userId);
+
+    // Validate recipient address
+    let recipientPubkey: PublicKey;
+    try {
+      recipientPubkey = new PublicKey(params.to);
+    } catch (error) {
+      throw new Error(`Invalid Solana address: ${params.to}`);
+    }
+
+    // Validate amount
+    const amountBigInt = BigInt(params.amount);
+    if (amountBigInt <= 0n) {
+      throw new Error('Amount must be greater than 0');
+    }
+
+    // Check balances
+    const connection = this.getConnection();
+
+    if (params.mint === null) {
+      // SOL transfer - check SOL balance with buffer
+      const balance = await connection.getBalance(senderKeypair.publicKey);
+      const required = Number(amountBigInt) + this.MIN_SOL_BUFFER;
+
+      if (balance < required) {
+        throw new Error(
+          `Insufficient SOL. Have: ${balance / LAMPORTS_PER_SOL} SOL, Need: ${required / LAMPORTS_PER_SOL} SOL (includes 0.01 SOL buffer for fees)`
+        );
+      }
+    } else {
+      // SPL transfer - check token balance and SOL for potential ATA creation
+      const mintPubkey = new PublicKey(params.mint);
+
+      try {
+        const senderATA = await getOrCreateAssociatedTokenAccount(
+          connection,
+          senderKeypair,
+          mintPubkey,
+          senderKeypair.publicKey
+        );
+
+        if (BigInt(senderATA.amount.toString()) < amountBigInt) {
+          throw new Error(
+            `Insufficient token balance. Have: ${senderATA.amount.toString()}, Need: ${params.amount}`
+          );
+        }
+
+        // Check SOL for potential ATA creation fee
+        const solBalance = await connection.getBalance(senderKeypair.publicKey);
+        if (solBalance < this.MIN_SOL_BUFFER) {
+          throw new Error(
+            `Insufficient SOL for transaction fees. Need at least 0.01 SOL, have: ${solBalance / LAMPORTS_PER_SOL} SOL`
+          );
+        }
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Insufficient')) {
+          throw error;
+        }
+        throw new Error(
+          `Failed to validate token balance: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+
+    return { senderKeypair, recipientPubkey, amountBigInt };
+  }
+
+  /**
+   * Build SOL transfer transaction
+   * @param from Sender public key
+   * @param to Recipient public key
+   * @param amount Amount in lamports
+   * @param connection Solana connection
+   * @returns Built transaction
+   */
+  private async buildSOLTransferTransaction(
+    from: PublicKey,
+    to: PublicKey,
+    amount: bigint,
+    connection: Connection
+  ): Promise<Transaction> {
+    const transferInstruction = SystemProgram.transfer({
+      fromPubkey: from,
+      toPubkey: to,
+      lamports: Number(amount),
+    });
+
+    const { blockhash, lastValidBlockHeight } =
+      await connection.getLatestBlockhash('finalized');
+
+    const transaction = new Transaction({
+      recentBlockhash: blockhash,
+      lastValidBlockHeight,
+      feePayer: from,
+    }).add(transferInstruction);
+
+    return transaction;
+  }
+
+  /**
+   * Build SPL token transfer transaction
+   * @param senderKeypair Sender keypair
+   * @param recipient Recipient public key
+   * @param mint Token mint address
+   * @param amount Amount in base units
+   * @param connection Solana connection
+   * @returns Built transaction
+   */
+  private async buildSPLTransferTransaction(
+    senderKeypair: Keypair,
+    recipient: PublicKey,
+    mint: PublicKey,
+    amount: bigint,
+    connection: Connection
+  ): Promise<Transaction> {
+    // Get or create sender ATA (should already exist from validation)
+    const senderATA = await getOrCreateAssociatedTokenAccount(
+      connection,
+      senderKeypair,
+      mint,
+      senderKeypair.publicKey
+    );
+
+    // Get or create recipient ATA (may not exist - auto-create)
+    logger.info('[SolanaTransactionManager] Checking recipient ATA...');
+    const recipientATA = await getOrCreateAssociatedTokenAccount(
+      connection,
+      senderKeypair, // Payer (sender pays for recipient's ATA)
+      mint,
+      recipient // Owner
+    );
+
+    logger.info(
+      `[SolanaTransactionManager] Recipient ATA: ${recipientATA.address.toBase58()}`
+    );
+
+    // Get mint info for decimals
+    const mintInfo = await getMint(connection, mint);
+
+    // Create transfer instruction
+    const transferInstruction = createTransferCheckedInstruction(
+      senderATA.address, // Source ATA
+      mint, // Mint
+      recipientATA.address, // Destination ATA
+      senderKeypair.publicKey, // Owner (signer)
+      Number(amount), // Amount
+      mintInfo.decimals // Decimals (validation)
+    );
+
+    // Build transaction
+    const { blockhash, lastValidBlockHeight } =
+      await connection.getLatestBlockhash('finalized');
+
+    const transaction = new Transaction({
+      recentBlockhash: blockhash,
+      lastValidBlockHeight,
+      feePayer: senderKeypair.publicKey,
+    }).add(transferInstruction);
+
+    return transaction;
+  }
+
+  /**
+   * Send and confirm transaction with retry on blockhash expiration
+   * @param connection Solana connection
+   * @param transaction Transaction to send
+   * @param signers Signers for the transaction
+   * @returns Transaction signature
+   */
+  private async sendAndConfirmTransactionWithRetry(
+    connection: Connection,
+    transaction: Transaction,
+    signers: Keypair[]
+  ): Promise<string> {
+    try {
+      // Send and confirm (built-in method with finalized commitment)
+      const signature = await sendAndConfirmTransaction(connection, transaction, signers, {
+        commitment: 'finalized',
+        preflightCommitment: 'finalized',
+      });
+
+      return signature;
+    } catch (error) {
+      // Handle blockhash expiration
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('Blockhash not found') || errorMessage.includes('block height exceeded')) {
+        logger.warn('[SolanaTransactionManager] Blockhash expired, retrying...');
+
+        // Refresh blockhash and retry once
+        const { blockhash } = await connection.getLatestBlockhash('finalized');
+        transaction.recentBlockhash = blockhash;
+
+        const signature = await sendAndConfirmTransaction(connection, transaction, signers, {
+          commitment: 'finalized',
+          preflightCommitment: 'finalized',
+        });
+
+        return signature;
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Build explorer URL for transaction
+   * @param signature Transaction signature
+   * @param network Network identifier
+   * @returns Explorer URL
+   */
+  private buildExplorerUrl(signature: string, network: string): string {
+    if (network === 'solana') {
+      return `https://solscan.io/tx/${signature}`;
+    } else {
+      return `https://explorer.solana.com/tx/${signature}?cluster=devnet`;
+    }
   }
 }
