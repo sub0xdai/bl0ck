@@ -1,17 +1,27 @@
-# Otaku AI Agent
+# Lina AI Agent
 
-A DeFi-focused AI agent built on ElizaOS, featuring a modern React frontend, Coinbase Developer Platform (CDP) wallet integration, and comprehensive DeFi capabilities including swaps, bridging, analytics, and market data.
+A multi-chain DeFi AI agent built on ElizaOS, featuring a modern React frontend, Coinbase Developer Platform (CDP) wallet integration for EVM chains, and comprehensive DeFi capabilities including swaps, bridging, analytics, and market data. Now expanding to support **Solana** with Jupiter DEX integration, SPL token management, and NFT capabilities.
 
 ## Features
 
-- **AI Agent Interface** - Real-time chat with Otaku, a DeFi analyst agent
+### Current Features
+- **AI Agent Interface** - Real-time chat with Lina, a multi-chain DeFi analyst agent
 - **CDP Wallet Integration** - Secure authentication and wallet management via Coinbase Developer Platform
-- **Multi-Chain Support** - Interact with Ethereum, Base, Polygon, Arbitrum, and more
+- **Multi-Chain EVM Support** - Interact with Ethereum, Base, Polygon, Arbitrum, Optimism, and more
 - **DeFi Actions** - Token swaps, transfers, bridging, and NFT operations
 - **Market Data** - Real-time token prices, trending tokens/collections, and DeFi protocol analytics
 - **Web Search** - Web search and crypto news integration
 - **Modern UI** - Responsive design with Tailwind CSS, Radix UI components, and smooth animations
 - **Real-time Communication** - WebSocket-powered instant messaging via Socket.IO
+
+### 🚀 In Progress: Solana Integration
+- **Solana Wallet Management** - Agent-managed Solana wallets with encrypted seed phrase storage
+- **Jupiter DEX** - Token swaps on Solana via Jupiter aggregator
+- **SPL Token Support** - SOL and SPL token transfers with automatic ATA creation
+- **Multi-Chain UI** - Unified dashboard for EVM and Solana chains
+- **Coming Soon**: Metaplex NFT integration, pump.fun token launches, DeFi protocols (Marinade, Jito, MarginFi)
+
+See [LINA_IMPLEMENTATION_TASKS.md](./LINA_IMPLEMENTATION_TASKS.md) for detailed Solana integration roadmap.
 
 
 ## Architecture
@@ -32,7 +42,7 @@ This is a monorepo workspace project built with:
 ```
 ├── src/
 │   ├── index.ts              # Main entry point (agent & plugin config)
-│   ├── character.ts          # Otaku agent character definition
+│   ├── character.ts          # Lina agent character definition
 │   ├── frontend/             # React application
 │   │   ├── App.tsx           # Main App component with CDP integration
 │   │   ├── components/       # React components
@@ -162,7 +172,7 @@ Coinbase Developer Platform integration providing wallet and payment functionali
 - "Swap 100 USDC for ETH"
 - "Transfer NFT #123 from collection 0x..."
 
-**Further Reading:** See the x402 payments integration guide in [`docs/x402-payments.md`](./docs/x402-payments.md) for details on running paid jobs against `otaku.so` using automatic USDC payments.
+**Further Reading:** See the x402 payments integration guide in [`docs/x402-payments.md`](./docs/x402-payments.md) for details on running paid jobs using automatic USDC payments.
 
 ### CoinGecko Plugin (plugin-coingecko)
 
@@ -234,7 +244,7 @@ Transaction verification and confirmation checking.
 
 ### Bootstrap Plugin (plugin-bootstrap)
 
-Otaku ships with a custom build of the ElizaOS bootstrap plugin providing essential agent capabilities plus advanced multi-step planning and reasoning frameworks:
+Lina ships with a custom build of the ElizaOS bootstrap plugin providing essential agent capabilities plus advanced multi-step planning and reasoning frameworks:
 - Action execution
 - Message evaluation
 - State management
@@ -244,9 +254,9 @@ Otaku ships with a custom build of the ElizaOS bootstrap plugin providing essent
 
 Database integration for persistent storage of messages, memories, and agent state.
 
-## Agent: Otaku
+## Agent: Lina
 
-Otaku is a DeFi-focused AI agent designed to provide:
+Lina is a multi-chain DeFi AI agent designed to provide:
 
 - **Clear, evidence-based guidance** - Uses on-chain and market data to inform conclusions
 - **Portfolio diagnostics** - Analyzes and optimizes DeFi portfolios
@@ -345,7 +355,7 @@ socketManager.onMessage((data) => {
 
 ### Modifying the Agent
 
-Edit `src/character.ts` to customize Otaku's personality, system prompt, bio, topics, and message examples.
+Edit `src/character.ts` to customize Lina's personality, system prompt, bio, topics, and message examples.
 
 ### Customizing the UI
 
@@ -393,7 +403,7 @@ cd src/packages/api-client && bun run build
 
 ## Deploying to Railway
 
-The production deployment at `otaku.so` runs on [Railway](https://railway.app) using two services: a Postgres database with the pgvector extension and the Otaku web service. The screenshots above show the `pgvector` service (with a persistent volume) and the `otaku-fe` service connected to the `master` branch.
+Production deployment runs on [Railway](https://railway.app) using two services: a Postgres database with the pgvector extension and the Lina web service. Configure the database with a persistent volume and connect the web service to your repository branch.
 
 ### Prerequisites
 
@@ -408,9 +418,9 @@ The production deployment at `otaku.so` runs on [Railway](https://railway.app) u
 3. Railway will expose a `DATABASE_URL`. Copy it—you will map this to the `POSTGRES_URL` environment variable for the app service.
 4. (Recommended) Attach a volume to the database service so the data survives restarts, matching the `pgvector-volume` in the screenshot.
 
-### 2. Add the Otaku service
+### 2. Add the Lina service
 
-1. Click **New Service → Deploy from GitHub** and select the Otaku repository/branch (e.g. `master`).
+1. Click **New Service → Deploy from GitHub** and select the Lina repository/branch (e.g. `master`).
 2. In the **Deployments → Build & Deploy** panel set:
    - **Build Command:** `bun run build`
    - **Start Command:** `SERVER_PORT=$PORT bun run start`
