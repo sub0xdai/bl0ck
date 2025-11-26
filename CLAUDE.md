@@ -1,22 +1,63 @@
-# CLAUDE.md
+# bl0ck Ecosystem - Monorepo
 
-**$BL0CK Shadow Pass Protocol** – Multi-chain zero-knowledge status system. Prove wallet wealth across Solana + Zcash without revealing addresses. Soulbound NFT + $BL0CK staking = active status + yield.
+**Vision:** Privacy-first DeFi ecosystem combining AI trading with zkVM privacy tech
 
-**Core:** "Prove you belong across ALL chains. Never prove who you are."
+This monorepo contains two main products:
+1. **lina** - AI DeFi agent with Solana + EVM support
+2. **bl0ck** - Multi-chain zero-knowledge privacy protocol (Shadow Pass + Phantom Wrapper)
 
-**Status:** Multi-chain integration (90-day timeline) | Launch: Feb 2026
+**Core Principle:** "Prove you belong. Never prove who you are."
 
-## Repository
+## Repository Structure
 
 ```
-bl0ck/
-├── blk-prd.md               # Original PRD (Solana-only)
-├── circuit/                 # Solana Ed25519 proof system (monerochan-rs)
-├── zcash-prover/            # Zcash holdings proof system (monerochan-rs)
-├── frontend/                # Next.js unified UI (both chains)
-├── contracts/               # Anchor multi-chain verifier
-└── archive/                 # Deprecated protocol docs
+bl0ck/ (monorepo root)
+├── frontend/                # Landing page for entire ecosystem
+├── lina/                    # AI DeFi Agent (ElizaOS + Solana + EVM)
+│   ├── src/                 # Agent source code
+│   ├── package.json         # Bun workspace
+│   └── LINA_IMPLEMENTATION_TASKS.md
+└── bl0ck/                   # Privacy Protocol (zkVM + Anchor)
+    ├── circuit/             # Solana Ed25519 proof system (monerochan-rs)
+    ├── zcash-prover/        # Zcash holdings proof system
+    ├── contracts/           # Anchor programs (Shadow Pass + Phantom Wrapper)
+    ├── archive/             # Deprecated docs
+    ├── blk-prd.md           # Original Shadow Pass PRD
+    └── PHANTOM_WRAPPER_PLAN.md  # Anonymous wrapping spec
 ```
+
+## Product Overview
+
+### lina (AI DeFi Agent)
+**Status:** Phase 1 in progress (Solana integration)
+**Timeline:** 2-4 weeks to Solana MVP
+**Stack:** Bun + ElizaOS + React + CDP wallet + Socket.IO
+
+**Current Features:**
+- EVM chains: Base, Ethereum, Polygon, Arbitrum, Optimism
+- DEX swaps, cross-chain bridging, NFT operations
+- Market data, DeFi analytics, crypto news
+
+**In Progress:**
+- Solana support (Jupiter swaps, wallet management, SPL tokens)
+- See `lina/LINA_IMPLEMENTATION_TASKS.md` for detailed roadmap
+
+### bl0ck (Privacy Protocol)
+**Status:** Design phase (10-15% complete)
+**Timeline:** 90-day roadmap (flexible)
+**Stack:** monerochan-rs zkVM + Anchor + Rust + Next.js
+
+**Components:**
+
+**Shadow Pass** - Multi-chain status system:
+- Prove wallet wealth across Solana + Zcash without revealing addresses
+- Soulbound NFT + $BL0CK staking = active status + yield
+- Multi-chain tier bonuses (Ghost, Leviathan, Apex, Apex+)
+
+**Phantom Wrapper** (Future) - Anonymous token wrapping:
+- Wrap SOL/SPL tokens into private commitments
+- Unwrap to any address without linkability
+- See `bl0ck/PHANTOM_WRAPPER_PLAN.md` for full spec
 
 ## Core Flow (Multi-Chain)
 
@@ -56,11 +97,26 @@ $BL0CK (SPL) | 1B supply | pump.fun | 0% tax | Authorities revoked day 1 | LP bu
 
 ## Development
 
-**Frontend:** `cd frontend && npm run dev`
+**Frontend (Landing Page):**
+```bash
+cd frontend
+npm run dev
+```
+
+**lina (AI Agent):**
+```bash
+cd lina
+bun install
+bun run dev  # Starts ElizaOS server + React frontend
+```
+
+See `lina/CLAUDE.md` for detailed lina development guide.
+
+**bl0ck Privacy Protocol:**
 
 **Solana Circuit:**
 ```bash
-cd circuit
+cd bl0ck/circuit
 cargo build --release
 cargo test
 cd script && cargo run --release -- --execute  # Test locally
@@ -68,20 +124,20 @@ cd script && cargo run --release -- --execute  # Test locally
 
 **Zcash Prover:**
 ```bash
-cd zcash-prover
+cd bl0ck/zcash-prover
 cargo build --release
 cargo test -p lib
 ```
 
 **Shared Privacy Library:**
 ```bash
-cd circuit/crates/privacy-core
+cd bl0ck/circuit/crates/privacy-core
 cargo test
 ```
 
 **Anchor (TODO):**
 ```bash
-cd contracts
+cd bl0ck/contracts
 anchor init shadow-pass && anchor build && anchor test
 anchor deploy --provider.cluster devnet
 ```
@@ -104,8 +160,49 @@ anchor deploy --provider.cluster devnet
 
 ## Architecture
 
-**circuit/**: Solana Ed25519 proof system (replace fibonacci with wallet verification) | **zcash-prover/**: Zcash holdings proof (already implemented, extract patterns) | **circuit/crates/privacy-core**: Shared nullifier, snapshot, Merkle utilities | **contracts/**: Anchor program (multi-chain verifier + SBT minting + staking) | **frontend/**: Next.js UI (unified wallet connection for both chains) | **archive/**: Deprecated DeFi protocol docs
+### lina (AI Agent)
+See `lina/CLAUDE.md` for full architecture documentation.
+
+**Plugin System:**
+- EVM: CDP wallet integration (Base, Ethereum, Polygon, etc.)
+- Solana: (In progress) Jupiter DEX, SPL tokens, wallet management
+- DeFi: CoinGecko, DeFiLlama, Relay bridging
+- Future: Privacy plugin using bl0ck WASM library
+
+### bl0ck (Privacy Protocol)
+
+**bl0ck/circuit/**: Solana Ed25519 proof system (monerochan-rs zkVM - replace fibonacci with wallet verification)
+
+**bl0ck/zcash-prover/**: Zcash holdings proof (52 Rust files, Orchard/Sapling note commitments, Merkle sharding)
+
+**bl0ck/circuit/crates/privacy-core**: Shared privacy library (nullifiers, snapshots, Merkle utilities)
+- Exports to WASM for lina integration
+- Used by both Solana circuit and Zcash prover
+
+**bl0ck/contracts/**: Anchor programs
+- Shadow Pass: Multi-chain verifier + soulbound NFT minting + $BL0CK staking
+- Phantom Wrapper (Future): Anonymous token wrapping
+
+**frontend/**: Next.js landing page for entire bl0ck ecosystem (lina + privacy protocol)
+
+**bl0ck/archive/**: Deprecated DeFi protocol docs
+
+## Technology Integration
+
+**lina uses bl0ck privacy features via WASM:**
+```
+1. Build privacy-core as WASM in bl0ck/circuit/crates/privacy-core/wasm/
+2. lina imports @bl0ck/privacy-core as local dependency
+3. Optional privacy plugin in lina enables:
+   - Nullifier anti-replay for trades
+   - Anonymous balance proofs
+   - Phantom wrapper integration
+```
 
 ## References
 
-`blk-prd.md` (original Solana-only PRD) | `frontend/CLAUDE.md` (landing page architecture) | `archive/` (deprecated wrapper token concepts)
+**lina:** `lina/CLAUDE.md` (agent architecture), `lina/LINA_IMPLEMENTATION_TASKS.md` (Solana roadmap)
+
+**bl0ck:** `bl0ck/blk-prd.md` (Shadow Pass PRD), `bl0ck/PHANTOM_WRAPPER_PLAN.md` (anonymous wrapping spec), `bl0ck/archive/` (deprecated wrapper concepts)
+
+**Frontend:** `frontend/CLAUDE.md` (if exists - landing page architecture)
