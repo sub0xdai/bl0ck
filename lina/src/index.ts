@@ -5,6 +5,7 @@ import bootstrapPlugin from './plugins/plugin-bootstrap/src/index.ts';
 import openaiPlugin from '@elizaos/plugin-openai';
 import cdpPlugin from './plugins/plugin-cdp/index.ts';
 import solanaPlugin from './plugins/plugin-solana-core/src/index.ts';
+import jupiterPlugin from './plugins/plugin-jupiter/src/index.ts';
 import coingeckoPlugin from './plugins/plugin-coingecko/src/index.ts';
 import webSearchPlugin from './plugins/plugin-web-search/src/index.ts';
 import defiLlamaPlugin from './plugins/plugin-defillama/src/index.ts';
@@ -33,6 +34,7 @@ export const projectAgent: ProjectAgent = {
     openaiPlugin,
     cdpPlugin,
     solanaPlugin,
+    jupiterPlugin,
     coingeckoPlugin,
     webSearchPlugin,
     defiLlamaPlugin,

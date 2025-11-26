@@ -1,0 +1,46 @@
+{
+  "name": "@elizaos/plugin-jupiter",
+  "version": "1.0.0",
+  "description": "Jupiter DEX aggregator plugin for ElizaOS providing Solana token swaps",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun run build.ts",
+    "dev": "bun run build.ts --watch",
+    "typecheck": "tsc --project tsconfig.build.json --noEmit"
+  },
+  "dependencies": {
+    "@elizaos/core": "alpha",
+    "@solana/web3.js": "^1.95.8",
+    "@jup-ag/api": "^6.0.0"
+  },
+  "peerDependencies": {
+    "@elizaos/core": "alpha"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.21",
+    "@types/node": "^22.15.3",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "bun": ">=1.2.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "workspaces": {
+      "preserveIfPresent": true
+    }
+  }
+}
