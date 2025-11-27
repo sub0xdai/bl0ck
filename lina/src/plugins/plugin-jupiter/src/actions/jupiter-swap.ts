@@ -173,13 +173,49 @@ export const jupiterSwap: Action = {
             const inputMint = getMintAddress(inputToken);
             const outputMint = getMintAddress(outputToken);
 
-            // Convert amount to raw units
-            // NOTE: This assumes 9 decimals for all tokens (typical for SOL)
-            // For production, fetch actual decimals from token metadata
-            const amount = Math.floor(parseFloat(amountStr) * 1e9).toString();
-
-            if (isNaN(parseFloat(amountStr)) || parseFloat(amountStr) <= 0) {
+            // Validate amount
+            const amountNum = parseFloat(amountStr);
+            if (isNaN(amountNum) || amountNum <= 0) {
                 throw new Error(`Invalid amount: ${amountStr}`);
+            }
+
+            // Fetch actual token decimals from on-chain metadata
+            const decimals = await getTokenDecimals(inputMint, jupiterService);
+            logger.info(
+                `[SOLANA_SWAP] Input token ${inputToken} has ${decimals} decimals`
+            );
+
+            // Convert amount to raw units using actual decimals
+            const amount = Math.floor(amountNum * Math.pow(10, decimals)).toString();
+
+            // Pre-flight: Check balance
+            const balances = await solanaService.getTokenBalances(userId);
+
+            // Find balance for input token
+            let inputBalance: { symbol: string; balance: string; mintAddress?: string | null } | undefined;
+            if (inputMint === TOKEN_MINTS.SOL) {
+                inputBalance = balances.tokens.find((t) => t.symbol === "SOL");
+            } else {
+                inputBalance = balances.tokens.find(
+                    (t) => t.mintAddress?.toLowerCase() === inputMint.toLowerCase()
+                );
+            }
+
+            if (!inputBalance) {
+                throw new Error(
+                    `No balance found for token ${inputToken}. You may need to add this token to your wallet.`
+                );
+            }
+
+            const balanceRaw = parseFloat(inputBalance.balance);
+            const balanceHuman = balanceRaw / Math.pow(10, decimals);
+            const requiredRaw = parseFloat(amount);
+
+            if (balanceRaw < requiredRaw) {
+                const shortfall = (requiredRaw - balanceRaw) / Math.pow(10, decimals);
+                throw new Error(
+                    `Insufficient ${inputToken} balance. Have ${balanceHuman.toFixed(decimals)} ${inputToken}, need ${amountNum.toFixed(decimals)} ${inputToken} (short ${shortfall.toFixed(decimals)} ${inputToken})`
+                );
             }
 
             // Execute swap
@@ -187,7 +223,7 @@ export const jupiterSwap: Action = {
                 `[SOLANA_SWAP] Swapping ${amountStr} ${inputToken} -> ${outputToken} (${slippageBps} bps slippage)`
             );
 
-            const result = await service.executeSwap({
+            const result = await jupiterService.executeSwap({
                 userId,
                 inputMint,
                 outputMint,

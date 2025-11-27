@@ -43,14 +43,28 @@ import { resolveCdpUserInfo, type CdpUser } from "@/lib/cdpUser";
  * ```
  */
 export function useCDPWallet() {
+  // Check if CDP is properly configured first (before calling hooks)
+  const cdpProjectId = import.meta.env.VITE_CDP_PROJECT_ID;
+  const isCdpConfigured = Boolean(cdpProjectId && cdpProjectId.trim() !== '');
+
+  // If CDP not configured, return safe defaults without calling CDP hooks
+  if (!isCdpConfigured) {
+    return {
+      isInitialized: true,
+      isSignedIn: false,
+      isCdpConfigured: false,
+      userEmail: null,
+      userName: null,
+      currentUser: undefined,
+      signOut: () => {},
+    };
+  }
+
+  // CDP is configured, safe to use hooks
   const { isInitialized } = useIsInitialized();
   const { isSignedIn } = useIsSignedIn();
   const { signOut } = useSignOut();
   const { currentUser } = useCurrentUser();
-
-  // Check if CDP is properly configured
-  const cdpProjectId = import.meta.env.VITE_CDP_PROJECT_ID;
-  const isCdpConfigured = Boolean(cdpProjectId);
 
   // Normalize user info using shared helper (DRY) - memoized to prevent excessive re-renders
   const { email: userEmail, username: userName } = useMemo(

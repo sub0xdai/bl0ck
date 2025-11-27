@@ -19,7 +19,9 @@
   "scripts": {
     "build": "bun run build.ts",
     "dev": "bun run build.ts --watch",
-    "typecheck": "tsc --project tsconfig.build.json --noEmit"
+    "typecheck": "tsc --project tsconfig.build.json --noEmit",
+    "test": "vitest",
+    "test:watch": "vitest --watch"
   },
   "dependencies": {
     "@elizaos/core": "alpha",
@@ -32,7 +34,8 @@
   "devDependencies": {
     "@types/bun": "^1.2.21",
     "@types/node": "^22.15.3",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^2.0.0"
   },
   "engines": {
     "bun": ">=1.2.0"
