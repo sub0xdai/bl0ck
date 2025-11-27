@@ -136,21 +136,55 @@ function App() {
 
   // Initialize authentication when CDP sign-in completes
   useEffect(() => {
-    // If CDP is not configured, show error (authentication required)
+    // DEVELOPMENT MODE: If CDP is not configured, use dev auth
     if (!import.meta.env.VITE_CDP_PROJECT_ID) {
-      console.error(' CDP_PROJECT_ID not configured - authentication unavailable');
-      return;
+      console.warn('⚠️  CDP not configured - using DEVELOPMENT mode');
+
+      const getDevUserId = () => {
+        let devId = localStorage.getItem('dev-user-id');
+        if (!devId) {
+          devId = crypto.randomUUID();
+          localStorage.setItem('dev-user-id', devId);
+        }
+        return devId;
+      };
+
+      async function initDevAuth() {
+        try {
+          const devUserId = getDevUserId();
+          console.log('🔐 Authenticating dev user:', devUserId);
+
+          const { token, userId } = await elizaClient.auth.login({
+            email: `dev-${devUserId.substring(0, 8)}@local.dev`,
+            username: 'DevUser',
+            cdpUserId: devUserId,
+          });
+
+          localStorage.setItem('auth-token', token);
+          elizaClient.setAuthToken(token);
+          setUserId(userId);
+
+          console.log('✅ Dev mode authentication complete:', userId);
+        } catch (error) {
+          console.error('❌ Dev auth failed:', error);
+          setUserId(null);
+        }
+      }
+
+      initDevAuth();
+      return; // Skip CDP flow
     }
 
+    // PRODUCTION MODE: Original CDP flow
     // Wait for CDP to initialize
     if (!isInitialized) {
-      console.log(' Waiting for CDP wallet to initialize...');
+      console.log('⏳ Waiting for CDP wallet to initialize...');
       return;
     }
 
     // If user is not signed in, clear state and show sign-in modal
     if (!isSignedIn) {
-      console.log(' User not signed in, waiting for authentication...');
+      console.log('⏳ User not signed in, waiting for authentication...');
       setUserId(null);
       elizaClient.clearAuthToken();
       return;
@@ -167,7 +201,7 @@ function App() {
         const { userId, token } = await authenticateUser(emailForAuth, usernameForAuth, currentUser);
         setUserId(userId);
       } catch (error) {
-        console.error(' Failed to authenticate:', error);
+        console.error('❌ Failed to authenticate:', error);
         setUserId(null);
       }
     }
@@ -751,7 +785,7 @@ function AppContent({
 // Wrap App with CDP Provider (if configured) and LoadingPanelProvider
 export default function AppWithCDP() {
   const cdpProjectId = import.meta.env.VITE_CDP_PROJECT_ID;
-  const isCdpConfigured = cdpProjectId;
+  const isCdpConfigured = Boolean(cdpProjectId && cdpProjectId.trim() !== '');
 
   // If CDP is not configured, just return App without the CDP provider
   if (!isCdpConfigured) {

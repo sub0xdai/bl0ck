@@ -46,28 +46,25 @@ export function useSolanaWallet(userId?: string, enabled: boolean = true): Solan
       setError(null);
 
       try {
-        // TODO: Replace with actual API endpoint when backend is ready
-        // For now, using placeholder data structure
+        if (!userId) {
+          throw new Error('User ID required');
+        }
 
-        // Example API call (uncomment when backend is ready):
-        // const response = await elizaClient.get(`/api/solana/wallet${userId ? `?userId=${userId}` : ''}`);
-        // const data = response.data;
-
-        // Placeholder data for development
-        const data = {
-          publicKey: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
-          solBalance: 0,
-          tokens: [],
-          totalUSD: 0
-        };
+        const data = await elizaClient.solana.getWallet(userId);
 
         setPublicKey(data.publicKey);
         setSolBalance(data.solBalance);
         setTokens(data.tokens);
         setTotalUSD(data.totalUSD);
+        setError(null);
       } catch (err) {
         console.error('Failed to fetch Solana wallet:', err);
-        setError(err instanceof Error ? err : new Error('Failed to fetch Solana wallet'));
+        setError(err instanceof Error ? err : new Error('Failed to fetch'));
+        // Set safe defaults on error
+        setPublicKey(null);
+        setSolBalance(0);
+        setTokens([]);
+        setTotalUSD(0);
       } finally {
         setIsLoading(false);
       }
