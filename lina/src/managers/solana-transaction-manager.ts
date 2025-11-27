@@ -1059,11 +1059,11 @@ export class SolanaTransactionManager {
     const { blockhash, lastValidBlockHeight } =
       await connection.getLatestBlockhash('finalized');
 
-    const transaction = new Transaction({
-      recentBlockhash: blockhash,
-      lastValidBlockHeight,
-      feePayer: from,
-    }).add(transferInstruction);
+    const transaction = new Transaction();
+    transaction.recentBlockhash = blockhash;
+    transaction.lastValidBlockHeight = lastValidBlockHeight;
+    transaction.feePayer = from;
+    transaction.add(transferInstruction);
 
     return transaction;
   }
@@ -1122,11 +1122,11 @@ export class SolanaTransactionManager {
     const { blockhash, lastValidBlockHeight } =
       await connection.getLatestBlockhash('finalized');
 
-    const transaction = new Transaction({
-      recentBlockhash: blockhash,
-      lastValidBlockHeight,
-      feePayer: senderKeypair.publicKey,
-    }).add(transferInstruction);
+    const transaction = new Transaction();
+    transaction.recentBlockhash = blockhash;
+    transaction.lastValidBlockHeight = lastValidBlockHeight;
+    transaction.feePayer = senderKeypair.publicKey;
+    transaction.add(transferInstruction);
 
     return transaction;
   }
