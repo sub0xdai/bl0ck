@@ -14,7 +14,7 @@ import etherscanPlugin from './plugins/plugin-etherscan/src/index.ts';
 import clankerPlugin from './plugins/plugin-clanker/src/index.ts';
 
 import analyticsPlugin from '@elizaos/plugin-analytics';
-// import openrouterPlugin from '@elizaos/plugin-openrouter'; // Disabled - using DeepSeek via OpenAI plugin
+import openrouterPlugin from '@elizaos/plugin-openrouter';
 import mcpPlugin from '@elizaos/plugin-mcp';
 import morphoPlugin from './plugins/plugin-morpho/src/index.ts';
 
@@ -30,7 +30,7 @@ export const projectAgent: ProjectAgent = {
   plugins: [
     sqlPlugin,
     bootstrapPlugin,
-    // openrouterPlugin, // Disabled - using DeepSeek via OpenAI plugin
+    openrouterPlugin,
     openaiPlugin,
     cdpPlugin,
     solanaPlugin,
