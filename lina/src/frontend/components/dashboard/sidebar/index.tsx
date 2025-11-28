@@ -148,10 +148,10 @@ export function DashboardSidebar({
           className="flex gap-3 flex-row flex-1 group cursor-pointer hover:opacity-80 transition-opacity"
         >
           <div className="flex overflow-clip size-12 shrink-0 items-center justify-center rounded bg-sidebar-primary-foreground/10 transition-colors group-hover:bg-sidebar-primary text-sidebar-primary-foreground">
-            <img src="/avatars/otaku-pfp.png" alt="Otaku" className="size-11.5 group-hover:scale-[1.7] origin-top-left transition-transform bg-transparent" />
+            <img src="/avatars/otaku-pfp.png" alt="Lina" className="size-11.5 group-hover:scale-[1.7] origin-top-left transition-transform bg-transparent" />
           </div>
           <div className="grid flex-1 text-left text-sm leading-tight">
-            <span className="text-2xl font-display">OTAKU</span>
+            <span className="text-2xl font-display">LINA</span>
             <span className="text-xs uppercase">DEFI TRADING AGENT</span>
           </div>
         </button>

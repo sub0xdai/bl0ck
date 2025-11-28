@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Otaku is a DeFi-focused AI agent built on ElizaOS with a custom React frontend. It's a monorepo workspace project using Bun, featuring real-time chat via Socket.IO, CDP wallet integration, and comprehensive DeFi capabilities.
+Lina is a DeFi-focused AI agent built on ElizaOS with a custom React frontend. It's a monorepo workspace project using Bun, featuring real-time chat via Socket.IO, CDP wallet integration, and comprehensive DeFi capabilities.
 
 **Runtime**: Bun 1.2.21 (required)
 **Build System**: Turbo (monorepo task runner)
@@ -89,7 +89,7 @@ The project uses Bun workspaces with three key areas:
 
 ### Agent Architecture
 
-The Otaku agent (`src/character.ts`) is configured with:
+The Lina agent (`src/character.ts`) is configured with:
 - **System prompt** with strict transaction safety protocols
 - **Nansen MCP integration** for blockchain analytics via `settings.mcp.servers`
 - **Plugin array** registered via `projectAgent.plugins` in `src/index.ts`
@@ -149,7 +149,7 @@ Optional keys in `.env.sample` control plugin features, RPC overrides, x402 paym
 
 ### Transaction Safety Protocol
 
-Otaku has strict rules to prevent unintended transactions:
+Lina has strict rules to prevent unintended transactions:
 
 **Question Detection** (NEVER execute):
 - Phrases: "how do I", "can you", "should I", "what if", "how about", "could you"
@@ -312,7 +312,7 @@ SERVER_PORT=3001
 ## Key Files Reference
 
 - `src/index.ts` - Agent and plugin registration
-- `src/character.ts` - Otaku character definition
+- `src/character.ts` - Lina character definition
 - `src/frontend/App.tsx` - Main React app with CDP integration
 - `src/frontend/lib/elizaClient.ts` - API client singleton
 - `src/frontend/lib/socketManager.ts` - WebSocket manager

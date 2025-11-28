@@ -672,7 +672,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                         <div className="flex items-center w-full">
                           <Loader2 className="h-4 w-4 animate-spin text-blue-500 mr-2" />
                           <div className="flex items-center gap-1">
-                            OTAKU is thinking<AnimatedDots />
+                            LINA is thinking<AnimatedDots />
                           </div>
                         </div>
                       )
@@ -915,7 +915,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
             className="h-10"
           />
           <div className="ml-auto text-[10px] text-muted-foreground text-right max-w-xs">
-            Otaku is in beta. We recommend starting with smaller amounts for testing.
+            Lina is in beta. We recommend starting with smaller amounts for testing.
           </div>
         </div>
       </div>

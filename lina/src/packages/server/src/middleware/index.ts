@@ -1,5 +1,5 @@
 /**
- * Consolidated middleware for the Otaku server
+ * Consolidated middleware for the Lina server
  * All middleware is organized into logical modules for better maintainability
  */
 
@@ -9,6 +9,7 @@ export { apiKeyAuthMiddleware } from './auth';
 // JWT authentication middleware (user sessions, admin roles)
 export {
   generateAuthToken,
+  generateWalletAuthToken,
   requireAuth,
   optionalAuth,
   requireAuthOrApiKey,

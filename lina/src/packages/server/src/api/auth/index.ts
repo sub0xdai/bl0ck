@@ -1,8 +1,39 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { logger } from '@elizaos/core';
+import { SiweMessage } from 'siwe';
+import { PublicKey } from '@solana/web3.js';
+import nacl from 'tweetnacl';
+import bs58 from 'bs58';
 import { sendError, sendSuccess } from '../shared/response-utils';
-import { generateAuthToken, type AuthenticatedRequest } from '../../middleware';
+import { generateAuthToken, generateWalletAuthToken, type AuthenticatedRequest } from '../../middleware';
+
+// In-memory nonce store (in production, use Redis or database)
+const nonceStore = new Map<string, { nonce: string; createdAt: number }>();
+const NONCE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Clean up expired nonces periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of nonceStore.entries()) {
+    if (now - value.createdAt > NONCE_TTL) {
+      nonceStore.delete(key);
+    }
+  }
+}, 60 * 1000); // Clean every minute
+
+/**
+ * Derive deterministic userId from wallet address
+ */
+function deriveUserId(chain: 'evm' | 'solana', walletAddress: string): string {
+  return crypto
+    .createHash('sha256')
+    .update(`lina:${chain}:${walletAddress.toLowerCase()}`)
+    .digest('hex')
+    .slice(0, 32);
+}
+
 export function createAuthRouter(): express.Router {
   const router = express.Router();
   
@@ -173,6 +204,159 @@ export function createAuthRouter(): express.Router {
     }
   });
   
+  // ============================================
+  // WALLET-BASED AUTH (SIWE/SIWS)
+  // ============================================
+
+  /**
+   * GET /api/auth/nonce
+   *
+   * Generate a random nonce for wallet signature.
+   * Nonce expires after 5 minutes.
+   *
+   * Response:
+   * - nonce: string (random hex string)
+   */
+  router.get('/nonce', async (req, res) => {
+    try {
+      const nonce = crypto.randomBytes(32).toString('hex');
+      const clientId = req.ip || 'unknown';
+
+      // Store nonce with timestamp
+      nonceStore.set(clientId, { nonce, createdAt: Date.now() });
+
+      logger.debug(`[Auth] Generated nonce for client: ${clientId}`);
+
+      return sendSuccess(res, { nonce });
+    } catch (error: any) {
+      logger.error('[Auth] Nonce generation error:', error);
+      return sendError(res, 500, 'NONCE_ERROR', error.message);
+    }
+  });
+
+  /**
+   * POST /api/auth/verify
+   *
+   * Verify wallet signature and issue JWT token.
+   * Supports both EVM (SIWE) and Solana (SIWS) signatures.
+   *
+   * Request body:
+   * - message: string (the signed message)
+   * - signature: string (the signature)
+   * - chain: 'evm' | 'solana'
+   *
+   * Response:
+   * - token: string (JWT token)
+   * - userId: string (derived from wallet address)
+   * - walletAddress: string
+   * - chain: string
+   * - expiresIn: string
+   */
+  router.post('/verify', async (req, res) => {
+    try {
+      const { message, signature, chain } = req.body;
+
+      // Validate inputs
+      if (!message || typeof message !== 'string') {
+        return sendError(res, 400, 'INVALID_REQUEST', 'Message is required');
+      }
+
+      if (!signature || typeof signature !== 'string') {
+        return sendError(res, 400, 'INVALID_REQUEST', 'Signature is required');
+      }
+
+      if (!chain || !['evm', 'solana'].includes(chain)) {
+        return sendError(res, 400, 'INVALID_REQUEST', 'Chain must be "evm" or "solana"');
+      }
+
+      let walletAddress: string;
+
+      if (chain === 'evm') {
+        // Verify EVM signature using SIWE
+        try {
+          const siweMessage = new SiweMessage(message);
+          const { data: fields } = await siweMessage.verify({ signature });
+          walletAddress = fields.address;
+
+          // Verify nonce if we stored one
+          const clientId = req.ip || 'unknown';
+          const storedNonce = nonceStore.get(clientId);
+          if (storedNonce && storedNonce.nonce !== fields.nonce) {
+            return sendError(res, 401, 'INVALID_NONCE', 'Nonce mismatch');
+          }
+
+          // Clear used nonce
+          nonceStore.delete(clientId);
+
+        } catch (error: any) {
+          logger.warn(`[Auth] SIWE verification failed: ${error.message}`);
+          return sendError(res, 401, 'INVALID_SIGNATURE', 'EVM signature verification failed');
+        }
+      } else {
+        // Verify Solana signature
+        try {
+          // Parse the message to extract wallet address
+          // Expected format: "Sign in to Lina\nWallet: <address>\nNonce: <nonce>\nTimestamp: <ts>"
+          const addressMatch = message.match(/Wallet:\s*([1-9A-HJ-NP-Za-km-z]{32,44})/);
+          if (!addressMatch) {
+            return sendError(res, 400, 'INVALID_MESSAGE', 'Could not extract wallet address from message');
+          }
+
+          walletAddress = addressMatch[1];
+
+          // Verify the signature
+          const publicKey = new PublicKey(walletAddress);
+          const messageBytes = new TextEncoder().encode(message);
+          const signatureBytes = bs58.decode(signature);
+
+          const isValid = nacl.sign.detached.verify(
+            messageBytes,
+            signatureBytes,
+            publicKey.toBytes()
+          );
+
+          if (!isValid) {
+            return sendError(res, 401, 'INVALID_SIGNATURE', 'Solana signature verification failed');
+          }
+
+          // Verify nonce if present in message
+          const nonceMatch = message.match(/Nonce:\s*([a-f0-9]+)/i);
+          if (nonceMatch) {
+            const clientId = req.ip || 'unknown';
+            const storedNonce = nonceStore.get(clientId);
+            if (storedNonce && storedNonce.nonce !== nonceMatch[1]) {
+              return sendError(res, 401, 'INVALID_NONCE', 'Nonce mismatch');
+            }
+            nonceStore.delete(clientId);
+          }
+
+        } catch (error: any) {
+          logger.warn(`[Auth] Solana signature verification failed: ${error.message}`);
+          return sendError(res, 401, 'INVALID_SIGNATURE', 'Solana signature verification failed');
+        }
+      }
+
+      // Derive userId from wallet address
+      const userId = deriveUserId(chain, walletAddress);
+
+      // Generate JWT token
+      const token = generateWalletAuthToken(userId, walletAddress, chain);
+
+      logger.info(`[Auth] Wallet authenticated: ${walletAddress.substring(0, 8)}... (${chain}) -> userId: ${userId.substring(0, 8)}...`);
+
+      return sendSuccess(res, {
+        token,
+        userId,
+        walletAddress,
+        chain,
+        expiresIn: '7d'
+      });
+    } catch (error: any) {
+      logger.error('[Auth] Verify error:', error);
+      return sendError(res, 500, 'VERIFY_ERROR', error.message);
+    }
+  });
+
   return router;
 }
 

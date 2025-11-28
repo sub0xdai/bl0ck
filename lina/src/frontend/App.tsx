@@ -69,7 +69,7 @@ interface Channel {
   createdAt?: number;
 }
 
-const ABOUT_MODAL_ID = 'about-otaku-modal';
+const ABOUT_MODAL_ID = 'about-lina-modal';
 
 function App() {
   const { isInitialized, isSignedIn, userEmail, userName, signOut, currentUser } = useCDPWallet();
@@ -808,7 +808,7 @@ export default function AppWithCDP() {
         ethereum: {
           createOnLogin: "smart"
         },
-        appName: "Otaku AI Agent",
+        appName: "Lina AI Agent",
         authMethods: ["email", "sms", "oauth:google", "oauth:apple", "oauth:twitter", "oauth:discord"] as any, // Enable all auth methods including Google OAuth
       }}
     >

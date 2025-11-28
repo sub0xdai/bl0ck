@@ -1,6 +1,6 @@
-# Contributing to Otaku
+# Contributing to Lina
 
-Thanks for your interest in improving Otaku! We welcome pull requests, bug reports, and feature proposals from the community. This document outlines how to get started.
+Thanks for your interest in improving Lina! We welcome pull requests, bug reports, and feature proposals from the community. This document outlines how to get started.
 
 ## Table of Contents
 - [Code of Conduct](#code-of-conduct)

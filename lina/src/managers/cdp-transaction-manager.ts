@@ -2112,7 +2112,7 @@ export class CdpTransactionManager {
             headers: {
               'Accept': 'application/json',
               ...(isPro && apiKey ? { 'x-cg-pro-api-key': apiKey } : {}),
-              'User-Agent': 'Otaku-CDP-Wallet/1.0',
+              'User-Agent': 'Lina-CDP-Wallet/1.0',
             },
             signal: controller.signal,
           });
@@ -2188,7 +2188,7 @@ export class CdpTransactionManager {
           headers: {
             'Accept': 'application/json',
             ...(isPro && apiKey ? { 'x-cg-pro-api-key': apiKey } : {}),
-            'User-Agent': 'Otaku-CDP-Wallet/1.0',
+            'User-Agent': 'Lina-CDP-Wallet/1.0',
           },
           signal: controller.signal,
         });
@@ -2216,7 +2216,7 @@ export class CdpTransactionManager {
               headers: {
                 'Accept': 'application/json',
                 ...(isPro && apiKey ? { 'x-cg-pro-api-key': apiKey } : {}),
-                'User-Agent': 'Otaku-CDP-Wallet/1.0',
+                'User-Agent': 'Lina-CDP-Wallet/1.0',
               },
               signal: detailController.signal,
             });

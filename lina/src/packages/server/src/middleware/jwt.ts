@@ -10,8 +10,10 @@ if (!JWT_SECRET) {
 
 export interface AuthTokenPayload {
   userId: string;
-  email: string;
-  username: string;
+  email?: string;
+  username?: string;
+  walletAddress?: string;
+  chain?: 'evm' | 'solana';
   isAdmin?: boolean;
   iat: number;
   exp: number;
@@ -21,6 +23,8 @@ export interface AuthenticatedRequest extends Request {
   userId?: string;
   userEmail?: string;
   username?: string;
+  walletAddress?: string;
+  chain?: 'evm' | 'solana';
   isAdmin?: boolean;
   isServerAuthenticated?: boolean;
 }
@@ -45,6 +49,38 @@ export function generateAuthToken(userId: string, email: string, username: strin
     ...(computedIsAdmin && { isAdmin: true }),
   };
   
+  return jwt.sign(
+    payload,
+    JWT_SECRET,
+    { expiresIn: '7d' } // Token expires in 7 days
+  );
+}
+
+/**
+ * Generate JWT authentication token for wallet-based auth
+ * Uses wallet address as the primary identifier
+ */
+export function generateWalletAuthToken(
+  userId: string,
+  walletAddress: string,
+  chain: 'evm' | 'solana',
+  isAdmin?: boolean
+): string {
+  if (!JWT_SECRET) {
+    throw new Error('JWT_SECRET not configured');
+  }
+
+  // Check if wallet is admin based on environment variable
+  const adminWallets = process.env.ADMIN_WALLETS?.split(',').map(w => w.trim().toLowerCase()) || [];
+  const computedIsAdmin = isAdmin || adminWallets.includes(walletAddress.toLowerCase());
+
+  const payload: Omit<AuthTokenPayload, 'iat' | 'exp'> = {
+    userId,
+    walletAddress,
+    chain,
+    ...(computedIsAdmin && { isAdmin: true }),
+  };
+
   return jwt.sign(
     payload,
     JWT_SECRET,
@@ -87,11 +123,16 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
     req.userId = decoded.userId;
     req.userEmail = decoded.email;
     req.username = decoded.username;
+    req.walletAddress = decoded.walletAddress;
+    req.chain = decoded.chain;
     req.isAdmin = decoded.isAdmin || false;
-    
+
     // Log successful auth (debug level to avoid spam)
-    logger.debug(`[Auth] Authenticated request from user: ${decoded.username} (${decoded.userId.substring(0, 8)}...)${req.isAdmin ? ' [ADMIN]' : ''}`);
-    
+    const identifier = decoded.walletAddress
+      ? `wallet: ${decoded.walletAddress.substring(0, 8)}... (${decoded.chain})`
+      : `user: ${decoded.username}`;
+    logger.debug(`[Auth] Authenticated request from ${identifier} (${decoded.userId.substring(0, 8)}...)${req.isAdmin ? ' [ADMIN]' : ''}`);
+
     next();
   } catch (error: any) {
     logger.warn(`[Auth] Token verification failed: ${error.message}`);
@@ -139,12 +180,14 @@ export function optionalAuth(req: AuthenticatedRequest, next: NextFunction) {
     req.userId = decoded.userId;
     req.userEmail = decoded.email;
     req.username = decoded.username;
+    req.walletAddress = decoded.walletAddress;
+    req.chain = decoded.chain;
     req.isAdmin = decoded.isAdmin || false;
   } catch (error) {
     // Ignore invalid tokens for optional auth
     logger.debug('[Auth] Optional auth - invalid token ignored');
   }
-  
+
   next();
 }
 
@@ -175,8 +218,13 @@ export function requireAuthOrApiKey(req: AuthenticatedRequest, res: Response, ne
       req.userId = decoded.userId;
       req.userEmail = decoded.email;
       req.username = decoded.username;
+      req.walletAddress = decoded.walletAddress;
+      req.chain = decoded.chain;
       req.isAdmin = decoded.isAdmin || false;
-      logger.debug(`[Auth] Authenticated via JWT: ${decoded.username} (${decoded.userId.substring(0, 8)}...)${req.isAdmin ? ' [ADMIN]' : ''}`);
+      const identifier = decoded.walletAddress
+        ? `wallet: ${decoded.walletAddress.substring(0, 8)}... (${decoded.chain})`
+        : `user: ${decoded.username}`;
+      logger.debug(`[Auth] Authenticated via JWT: ${identifier} (${decoded.userId.substring(0, 8)}...)${req.isAdmin ? ' [ADMIN]' : ''}`);
       return next();
     } catch (error: any) {
       logger.warn(`[Auth] JWT verification failed in requireAuthOrApiKey: ${error.message}`);

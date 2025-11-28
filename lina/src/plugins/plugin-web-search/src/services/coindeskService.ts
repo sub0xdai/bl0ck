@@ -141,7 +141,7 @@ export class CoinDeskService extends Service {
                 headers: {
                     'Accept': 'application/json',
                     'X-API-Key': this.apiKey,
-                    'User-Agent': 'Otaku-ElizaOS/1.0',
+                    'User-Agent': 'Lina-ElizaOS/1.0',
                 },
             });
 

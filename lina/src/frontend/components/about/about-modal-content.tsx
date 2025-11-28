@@ -133,7 +133,7 @@ const pluginItems: PluginItem[] = [
   {
     name: 'SQL',
     category: 'Database',
-    summary: "Query Otaku's structured DeFi dataset for trades, logs, and historical insights.",
+    summary: "Query Lina's structured DeFi dataset for trades, logs, and historical insights.",
     points: [
       'Pull portfolio summaries or transaction histories instantly.',
       'Validate trade ideas with custom metrics or cohort analysis.',
@@ -145,10 +145,10 @@ const pluginItems: PluginItem[] = [
     category: 'Memory',
     summary: 'Persistent reasoning, memory recall, and adaptive response logic across sessions.',
     points: [
-      'Otaku remembers preferences, risk tolerances, and previous moves.',
+      'Lina remembers preferences, risk tolerances, and previous moves.',
       'Plans multi-step workflows without losing context mid-task.',
     ],
-    example: 'Otaku adjusts recommendations based on your past trades and risk appetite.',
+    example: 'Lina adjusts recommendations based on your past trades and risk appetite.',
   },
 ];
 
@@ -172,14 +172,14 @@ export function AboutModalContent({ onClose }: AboutModalContentProps) {
           <div className="space-y-4">
             <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
               <Bullet className="size-2.5" />
-              About Otaku
+              About Lina
             </div>
             <div className="space-y-3">
               <h2 className="text-3xl font-display leading-none sm:text-4xl">
                 DeFi intelligence, on demand.
               </h2>
               <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
-                Otaku is your autonomous DeFi trading and intelligence agent. She connects deep on-chain
+                Lina is your autonomous DeFi trading and intelligence agent. She connects deep on-chain
                 data with secure execution tools so you can research, plan, and act inside a single conversation.
               </p>
               <div className="flex flex-wrap items-center gap-2 text-xs uppercase text-muted-foreground/80">
@@ -282,7 +282,7 @@ export function AboutModalContent({ onClose }: AboutModalContentProps) {
           </div>
           <div className="rounded-lg border border-border/60 bg-background/80 p-4">
             <p className="text-sm text-foreground/90">
-              Ask Otaku to build multi-step playbooks—she remembers previous trades, adapts to your risk
+              Ask Lina to build multi-step playbooks—she remembers previous trades, adapts to your risk
               settings, and can execute when you are ready.
             </p>
           </div>

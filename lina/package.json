@@ -1,7 +1,7 @@
 {
-  "name": "@elizaos/otaku",
+  "name": "@elizaos/lina",
   "version": "1.0.0",
-  "description": "Otaku is a DeFi-focused ElizaOS agent powered by custom bootstrap plugin and custom build of the ElizaOS server",
+  "description": "Lina is a DeFi-focused ElizaOS agent powered by custom bootstrap plugin and custom build of the ElizaOS server",
   "type": "module",
   "main": "dist/src/index.js",
   "imports": {

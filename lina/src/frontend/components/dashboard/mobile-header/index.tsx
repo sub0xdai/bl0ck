@@ -23,14 +23,14 @@ export function MobileHeader({
         {/* Left: Sidebar Menu */}
         <SidebarTrigger />
 
-        {/* Center: Otaku Logo + Time */}
+        {/* Center: Lina Logo + Time */}
         <button 
           onClick={onHomeClick}
           className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
         >
           <div className="flex items-center gap-2">
             <div className="h-8 w-16 bg-primary rounded flex items-center justify-center">
-              <img src="/avatars/otaku-pfp.png" alt="Otaku" className="size-8 text-primary-foreground bg-transparent" />
+              <img src="/avatars/otaku-pfp.png" alt="Lina" className="size-8 text-primary-foreground bg-transparent" />
             </div>
           </div>
         </button>
