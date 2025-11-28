@@ -10,8 +10,10 @@ import { NFTDetailModalContent } from './NFTDetailModal';
 import { FundModalContent } from './FundModal';
 import { elizaClient } from '../../../lib/elizaClient';
 import { formatTokenBalance } from '../../../lib/number-format';
-import { getTokenIconBySymbol, SUPPORTED_CHAINS, CHAIN_UI_CONFIGS, getChainWalletIcon } from '../../../constants/chains';
+import { getTokenIconBySymbol, SUPPORTED_CHAINS, CHAIN_UI_CONFIGS, getChainWalletIcon, isSolanaChain, isEVMChain } from '../../../constants/chains';
 import { useModal } from '../../../contexts/ModalContext';
+
+type WalletView = 'evm' | 'solana';
 
 interface Token {
   symbol: string;
@@ -75,9 +77,14 @@ export interface CDPWalletCardRef {
 export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
   ({ userId, walletAddress, onBalanceChange, onActionClick }, ref) => {
   const { showModal } = useModal();
-  
+
+  // Wallet view state (EVM or Solana)
+  const [walletView, setWalletView] = useState<WalletView>('evm');
+  const [solanaAddress, setSolanaAddress] = useState<string | null>(null);
+
   // Format address for display (shortened)
-  const shortAddress = walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : '';
+  const currentAddress = walletView === 'evm' ? walletAddress : solanaAddress;
+  const shortAddress = currentAddress ? `${currentAddress.slice(0, 6)}...${currentAddress.slice(-4)}` : '';
   const [isCopied, setIsCopied] = useState(false);
   const [copiedChain, setCopiedChain] = useState<string | null>(null);
   const [showAddressPopup, setShowAddressPopup] = useState(false);
@@ -154,25 +161,61 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
     },
   }));
 
-  // Calculate total USD value whenever tokens change
+  // Fetch Solana address on mount
+  useEffect(() => {
+    if (!userId) return;
+
+    const fetchSolanaAddress = async () => {
+      try {
+        const { address } = await elizaClient.wallet.getAddress('solana');
+        setSolanaAddress(address);
+      } catch (err) {
+        console.error('Error fetching Solana address:', err);
+      }
+    };
+
+    fetchSolanaAddress();
+  }, [userId]);
+
+  // Filter tokens based on current wallet view
+  const filteredTokens = tokens.filter(token => {
+    if (walletView === 'solana') {
+      return isSolanaChain(token.chain);
+    }
+    return isEVMChain(token.chain);
+  });
+
+  // Filter chains for address popup based on wallet view
+  const filteredChains = SUPPORTED_CHAINS.filter(chain => {
+    if (walletView === 'solana') {
+      return isSolanaChain(chain);
+    }
+    return isEVMChain(chain);
+  });
+
+  // Calculate total USD value and update parent (based on ALL tokens, not filtered)
   useEffect(() => {
     const total = tokens.reduce((sum, token) => sum + (token.usdValue || 0), 0);
     setTotalUsdValue(total);
-  }, [tokens]);
+    if (onBalanceChange) {
+      onBalanceChange(total);
+    }
+  }, [tokens, onBalanceChange]);
 
   // Sync tokens (force refresh) concurrently across all chains with progressive updates
   const syncTokens = async () => {
     if (!userId) return;
-    
+
     setIsLoadingTokens(true);
     setTokensError(null);
-    
+
     try {
       // Fetch all chains concurrently with sync and update as each completes
       const chainPromises = SUPPORTED_CHAINS.map(async (chain) => {
         try {
-          const data = await elizaClient.cdp.syncTokens(chain);
-          
+          // Use unified wallet API for all chains (EVM + Solana)
+          const data = await elizaClient.wallet.syncTokens(chain);
+
           // Update UI immediately when this chain returns
           if (data && data.tokens) {
             setTokens(prevTokens => {
@@ -183,7 +226,7 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
               return sortTokensByUsdValueDesc(mergedTokens);
             });
           }
-          
+
           return data;
         } catch (err) {
           console.error(`Error syncing tokens for ${chain}:`, err);
@@ -249,16 +292,17 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
   // Fetch tokens concurrently across all chains with progressive chain-by-chain updates
   const fetchTokens = async () => {
     if (!userId) return;
-    
+
     setIsLoadingTokens(true);
     setTokensError(null);
-    
+
     try {
       // Fetch all chains concurrently and update UI as each chain completes
       const chainPromises = SUPPORTED_CHAINS.map(async (chain) => {
         try {
-          const data = await elizaClient.cdp.getTokens(chain);
-          
+          // Use unified wallet API for all chains (EVM + Solana)
+          const data = await elizaClient.wallet.getTokens(chain);
+
           // Update UI immediately when this chain returns
           if (data && data.tokens) {
             setTokens(prevTokens => {
@@ -269,7 +313,7 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
               return sortTokensByUsdValueDesc(mergedTokens);
             });
           }
-          
+
           return data;
         } catch (err) {
           console.error(`Error fetching tokens for ${chain}:`, err);
@@ -375,9 +419,10 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
   // Refresh all data using sync APIs with concurrent chain-by-chain updates
   const handleManualRefresh = async () => {
     if (!userId) return;
-    
+
     setIsRefreshing(true);
     try {
+      // Refresh data based on active tab
       if (activeTab === 'tokens') {
         await syncTokens();
       } else if (activeTab === 'collections') {
@@ -552,33 +597,59 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
         <CardHeader className="flex items-center justify-between pl-3 pr-1 relative z-10">
           <CardTitle className="flex items-center gap-2.5 text-sm font-medium uppercase">
             <Bullet />
-            <div className="flex items-center gap-1">
-              Wallet
-              {/* Copy Address Popup */}
-              <div 
-                className="relative inline-flex z-50"
-                onMouseEnter={handleShowPopup}
-                onMouseLeave={handleHidePopup}
-              >
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 text-muted-foreground hover:bg-muted"
+            <div className="flex items-center gap-2">
+              {/* Wallet View Toggle */}
+              <div className="flex items-center bg-muted rounded-md p-0.5">
+                <button
+                  onClick={() => setWalletView('evm')}
+                  className={`px-2 py-1 text-[10px] font-medium rounded transition-colors ${
+                    walletView === 'evm'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
                 >
-                  <Copy className="w-3 h-3" />
-                </Button>
-              
-              {/* Popup with all chain addresses */}
-              {showAddressPopup && walletAddress && (
-                <div 
+                  EVM
+                </button>
+                <button
+                  onClick={() => setWalletView('solana')}
+                  className={`px-2 py-1 text-[10px] font-medium rounded transition-colors ${
+                    walletView === 'solana'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  SOL
+                </button>
+              </div>
+              {/* Copy Address Popup */}
+              {(
+                <div
+                  className="relative inline-flex z-50"
+                  onMouseEnter={handleShowPopup}
+                  onMouseLeave={handleHidePopup}
+                >
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-muted-foreground hover:bg-muted"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </Button>
+
+                {/* Popup with chain addresses for current view */}
+                {showAddressPopup && currentAddress && (
+                <div
                   className="absolute -left-16 top-full mt-1 bg-popover border border-border rounded-lg shadow-lg p-2 z-50 w-[230px] max-w-[230px] md:w-[calc(25vw-2rem)]"
                   onMouseEnter={handleShowPopup}
                   onMouseLeave={handleHidePopup}
                 >
                   <div className="space-y-0.5 max-h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
-                    {SUPPORTED_CHAINS.map((chain) => {
+                    {filteredChains.map((chain) => {
                       const config = CHAIN_UI_CONFIGS[chain];
                       const chainWalletIcon = getChainWalletIcon(chain);
+                      // Use correct address for chain type
+                      const addressForChain = isSolanaChain(chain) ? solanaAddress : walletAddress;
+                      if (!addressForChain) return null;
                       return (
                         <div
                           key={chain}
@@ -588,8 +659,8 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
                           <div className="flex items-center gap-1.5 shrink-0">
                             <div className="w-5 h-5 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center overflow-hidden bg-white">
                               {chainWalletIcon ? (
-                                <img 
-                                  src={chainWalletIcon} 
+                                <img
+                                  src={chainWalletIcon}
                                   alt={config.name}
                                   className="w-full h-full object-contain"
                                 />
@@ -601,11 +672,15 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
                             </div>
                             <span className="text-[10px] sm:text-[11px]">{config.displayName}</span>
                           </div>
-                          
+
                           {/* Second Group: Address & Copy Button */}
-                          <div className="flex items-center gap-1 min-w-0" onClick={() => handleCopyChainAddress(chain)}>
+                          <div className="flex items-center gap-1 min-w-0" onClick={() => {
+                            navigator.clipboard.writeText(addressForChain);
+                            setCopiedChain(chain);
+                            setTimeout(() => setCopiedChain(null), 2000);
+                          }}>
                             <span className="text-[9px] text-muted-foreground font-mono cursor-pointer">
-                              {`${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`}
+                              {`${addressForChain.slice(0, 6)}...${addressForChain.slice(-4)}`}
                             </span>
                             <Button
                               variant="ghost"
@@ -625,8 +700,9 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
                   </div>
                 </div>
               )}
+                </div>
+              )}
             </div>
-          </div>
         </CardTitle>
         <Button
           onClick={handleManualRefresh}
@@ -691,7 +767,7 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
                 
                 showModal(
                   <SendModalContent
-                    tokens={tokens as any}
+                    tokens={filteredTokens as any}
                     userId={userId}
                     onSuccess={() => {
                       fetchTokens();
@@ -704,18 +780,18 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
               className="flex-1"
               variant="outline"
               size="sm"
-              disabled={tokens.length === 0 || isLoadingTokens}
+              disabled={filteredTokens.length === 0 || isLoadingTokens}
             >
               Send
             </Button>
-            <Button 
+            <Button
               onClick={() => {
                 // Close parent container (Sheet/Sidebar) if callback provided
                 onActionClick?.();
-                
+
                 showModal(
                   <SwapModalContent
-                    tokens={tokens}
+                    tokens={filteredTokens}
                     userId={userId}
                     onSuccess={() => {
                       fetchTokens();
@@ -728,7 +804,7 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
               className="flex-1"
               variant="outline"
               size="sm"
-              disabled={tokens.length === 0 || isLoadingTokens}
+              disabled={filteredTokens.length === 0 || isLoadingTokens}
             >
               Swap
             </Button>
@@ -738,42 +814,42 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
         <div className="mt-2 space-y-4 bg-background rounded-lg p-3 sm:p-4 border border-border/30 w-full overflow-hidden">
           {/* Tabs */}
           <div className="flex gap-1 border-b border-border overflow-x-auto scrollbar-hide">
-            <button
-              onClick={() => setActiveTab('tokens')}
-              className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
-                activeTab === 'tokens'
-                  ? 'text-foreground border-b-2 border-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Tokens
-            </button>
-            <button
-              onClick={() => setActiveTab('collections')}
-              className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
-                activeTab === 'collections'
-                  ? 'text-foreground border-b-2 border-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Collections
-            </button>
-            <button
-              onClick={() => setActiveTab('history')}
-              className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
-                activeTab === 'history'
-                  ? 'text-foreground border-b-2 border-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              History
-            </button>
-          </div>
+              <button
+                onClick={() => setActiveTab('tokens')}
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
+                  activeTab === 'tokens'
+                    ? 'text-foreground border-b-2 border-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Tokens
+              </button>
+              <button
+                onClick={() => setActiveTab('collections')}
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
+                  activeTab === 'collections'
+                    ? 'text-foreground border-b-2 border-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Collections
+              </button>
+              <button
+                onClick={() => setActiveTab('history')}
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
+                  activeTab === 'history'
+                    ? 'text-foreground border-b-2 border-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                History
+              </button>
+            </div>
 
-          {/* Tab Content - Fixed height with smooth scrolling */}
+          {/* Content */}
           <div className="space-y-2 h-[250px] overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
             {activeTab === 'tokens' ? (
-              isLoadingTokens && tokens.length === 0 ? (
+              isLoadingTokens && filteredTokens.length === 0 ? (
                 // Loading skeletons
                 Array.from({ length: 3 }).map((_, i) => (
                   <div key={i} className="flex items-center justify-between p-2 rounded hover:bg-muted/50">
@@ -787,13 +863,13 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
                     <div className="h-4 w-16 bg-muted animate-pulse rounded"></div>
                   </div>
                 ))
-              ) : tokens.length === 0 ? (
+              ) : filteredTokens.length === 0 ? (
                 <div className="text-center py-8 text-sm text-muted-foreground">
-                  No tokens found
+                  No {walletView === 'solana' ? 'Solana' : 'EVM'} tokens found
                 </div>
               ) : (
                 // Token list
-                tokens.map((token, index) => (
+                filteredTokens.map((token, index) => (
                   <button
                     key={`${token.chain}-${token.contractAddress || token.symbol}-${index}`}
                     onClick={() => {

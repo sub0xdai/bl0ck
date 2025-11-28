@@ -13,6 +13,7 @@ import { CdpService } from './services/cdp';
 import { AuthService } from './services/auth';
 import { JobsService } from './services/jobs';
 import { SolanaService } from './services/solana';
+import { WalletService } from './services/wallet';
 
 export class ElizaClient {
   public readonly agents: AgentsService;
@@ -29,6 +30,7 @@ export class ElizaClient {
   public readonly auth: AuthService;
   public readonly jobs: JobsService;
   public readonly solana: SolanaService;
+  public readonly wallet: WalletService;
 
   private services: any[];
 
@@ -48,6 +50,7 @@ export class ElizaClient {
     this.auth = new AuthService(config);
     this.jobs = new JobsService(config);
     this.solana = new SolanaService(config);
+    this.wallet = new WalletService(config);
 
     // Keep track of all services for bulk operations
     this.services = [
@@ -65,6 +68,7 @@ export class ElizaClient {
       this.auth,
       this.jobs,
       this.solana,
+      this.wallet,
     ];
   }
 

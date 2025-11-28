@@ -41,6 +41,8 @@ export type {
   SendNFTRequest,
   SendNFTResponse,
 } from './services/cdp';
+export { WalletService } from './services/wallet';
+export type { WalletAddressResponse } from './services/wallet';
 
 // Base client and error
 export { BaseApiClient, ApiError } from './lib/base-client';

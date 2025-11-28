@@ -4,16 +4,17 @@ import { Badge } from "@/components/ui/badge";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Sheet, SheetContent, SheetTrigger, SheetClose, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { CDPWalletCard } from "@/components/dashboard/cdp-wallet-card";
-import { useCDPWallet } from "@/hooks/useCDPWallet";
 import { Wallet } from "lucide-react";
 
 interface MobileHeaderProps {
   onHomeClick?: () => void;
+  userId?: string;
 }
 
-export function MobileHeader({ onHomeClick }: MobileHeaderProps) {
-  const { currentUser } = useCDPWallet();
-  const userId = currentUser?.userId || '';
+export function MobileHeader({
+  onHomeClick,
+  userId
+}: MobileHeaderProps) {
   const [isSheetOpen, setIsSheetOpen] = React.useState(false);
 
   return (
@@ -71,7 +72,7 @@ export function MobileHeader({ onHomeClick }: MobileHeaderProps) {
               {/* Wallet Content */}
               <div className="flex-1 overflow-y-auto p-4 bg-muted">
                 {userId && (
-                  <CDPWalletCard 
+                  <CDPWalletCard
                     userId={userId}
                     onActionClick={() => setIsSheetOpen(false)}
                   />

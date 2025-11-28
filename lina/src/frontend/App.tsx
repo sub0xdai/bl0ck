@@ -84,10 +84,10 @@ function App() {
   const [totalBalance, setTotalBalance] = useState(0);
   const [isLoadingUserProfile, setIsLoadingUserProfile] = useState(true);
   const [isNewChatMode, setIsNewChatMode] = useState(false); // Track if we're in "new chat" mode (no channel yet)
-  
+
   // Ref to access wallet's refresh functions
   const walletRef = useRef<CDPWalletCardRef>(null);
-  
+
   // Stabilize balance change callback to prevent wallet re-renders
   const handleBalanceChange = useCallback((balance: number) => {
     setTotalBalance(balance);
@@ -687,10 +687,13 @@ function AppContent({
       )}
       
       {/* Mobile Header */}
-      <MobileHeader onHomeClick={() => setCurrentView('chat')} />
+      <MobileHeader
+        onHomeClick={() => setCurrentView('chat')}
+        userId={userId || undefined}
+      />
 
       {/* Desktop Layout - 3 columns */}
-      <div className="w-full min-h-[100dvh] h-[100dvh] lg:min-h-screen lg:h-screen grid grid-cols-1 lg:grid-cols-12 gap-gap lg:px-sides">
+      <div className="w-full min-h-[100dvh] lg:min-h-screen grid grid-cols-1 lg:grid-cols-12 gap-gap lg:px-sides">
         {/* Left Sidebar - Chat History */}
         <div className="hidden lg:block col-span-2 top-0 relative">
           <DashboardSidebar
@@ -708,7 +711,7 @@ function AppContent({
         </div>
 
         {/* Center - Chat Interface / Account */}
-        <div className="col-span-1 lg:col-span-7 h-full overflow-auto lg:overflow-hidden">
+        <div className="col-span-1 lg:col-span-7 lg:h-screen lg:overflow-hidden">
           {currentView === 'account' ? (
             <AccountPage 
               totalBalance={totalBalance} 
@@ -716,7 +719,7 @@ function AppContent({
               onUpdateProfile={updateUserProfile}
             />
           ) : (
-            <div className="flex flex-col relative w-full gap-1 min-h-0 h-full">
+            <div className="flex flex-col relative w-full gap-1 lg:min-h-0 lg:h-full">
               {/* Header */}
               <div className="flex items-center lg:items-baseline gap-2.5 md:gap-4 px-4 md:px-6 py-3 md:pb-4 lg:pt-7 ring-2 ring-pop sticky top-header-mobile lg:top-0 bg-background z-10">
                <h1 className="text-xl lg:text-4xl font-display leading-none mb-1">
@@ -769,9 +772,9 @@ function AppContent({
           )}
         </div>
 
-        {/* Right Sidebar - Widget & CDP Wallet & Notifications */}
+        {/* Right Sidebar - Chain Selector & Widget & CDP Wallet & Notifications */}
         <div className="col-span-3 hidden lg:block">
-          <div className="space-y-gap py-sides min-h-screen max-h-screen sticky top-0 overflow-clip">
+          <div className="space-y-gap py-sides min-h-screen max-h-screen sticky top-0 overflow-visible">
             <Widget />
             {userId && <CDPWalletCard ref={walletRef} userId={userId} walletAddress={userProfile?.walletAddress} onBalanceChange={handleBalanceChange} />}
             <CollapsibleNotifications />
