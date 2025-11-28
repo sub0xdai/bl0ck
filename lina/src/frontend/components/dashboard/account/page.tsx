@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useLoadingPanel } from "@/contexts/LoadingPanelContext";
 import { useModal } from "@/contexts/ModalContext";
-import { useCDPWallet } from '@/hooks/useCDPWallet';
 import { Copy, Check, Upload } from 'lucide-react';
 
 interface AccountPageProps {
@@ -25,6 +24,8 @@ interface AccountPageProps {
     displayName?: string;
     bio?: string;
   }) => Promise<void>;
+  onSignOut: () => Promise<void>;
+  onBack: () => void;
 }
 
 // Compress and convert image to base64
@@ -139,8 +140,7 @@ function AvatarPickerModal({ currentAvatar, onSelectAvatar, onUploadCustom }: Av
   );
 }
 
-export default function AccountPage({ totalBalance = 0, userProfile, onUpdateProfile }: AccountPageProps) {
-  const { signOut } = useCDPWallet();
+export default function AccountPage({ totalBalance = 0, userProfile, onUpdateProfile, onSignOut, onBack }: AccountPageProps) {
   const { showLoading, showSuccess, showError } = useLoadingPanel();
   const { showModal, hideModal } = useModal();
   const [isCopied, setIsCopied] = useState(false);
@@ -294,8 +294,8 @@ export default function AccountPage({ totalBalance = 0, userProfile, onUpdatePro
         header={{
           title: "Account",
           description: "Your profile and account information",
-          // icon: MonkeyIcon,
         }}
+        onBack={onBack}
       >
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1">
@@ -441,10 +441,10 @@ export default function AccountPage({ totalBalance = 0, userProfile, onUpdatePro
                     <div className="font-medium text-sm">Sign Out</div>
                     <div className="text-xs text-muted-foreground">Sign out from your CDP wallet</div>
                   </div>
-                  <Button 
-                    variant="destructive" 
+                  <Button
+                    variant="destructive"
                     size="sm"
-                    onClick={signOut}
+                    onClick={onSignOut}
                   >
                     Sign Out
                   </Button>

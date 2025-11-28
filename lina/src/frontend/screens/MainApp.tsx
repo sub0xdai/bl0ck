@@ -208,6 +208,16 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
         setIsLoadingUserProfile(false);
       } catch (error) {
         console.error('[MainApp] Error syncing user entity:', error);
+        // Don't block app on entity sync failure - set default profile
+        setUserProfile({
+          avatarUrl: '/avatars/user_krimson.png',
+          displayName: walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : 'User',
+          bio: 'DeFi Enthusiast',
+          email: '',
+          walletAddress: walletAddress || '',
+          memberSince: new Date().toISOString(),
+        });
+        setIsLoadingUserProfile(false);
       }
     };
 
@@ -575,6 +585,8 @@ function AppContent({
               totalBalance={totalBalance}
               userProfile={userProfile}
               onUpdateProfile={updateUserProfile}
+              onSignOut={signOut}
+              onBack={() => setCurrentView('chat')}
             />
           ) : (
             <div className="flex flex-col relative w-full gap-1 lg:min-h-0 lg:h-full">

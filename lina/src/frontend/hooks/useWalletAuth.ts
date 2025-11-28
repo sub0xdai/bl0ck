@@ -68,6 +68,7 @@ export function useWalletAuth(): WalletAuthState {
     : null;
 
   // Check for existing token on mount - determines initial auth state
+  // IMPORTANT: Only restore session if wallet is also connected
   useEffect(() => {
     const existingToken = localStorage.getItem('auth-token');
 
@@ -78,7 +79,16 @@ export function useWalletAuth(): WalletAuthState {
       return;
     }
 
-    // Token exists - validate it
+    // Token exists but wallet not connected - require re-auth
+    if (!isConnected) {
+      console.log('[WalletAuth] Token exists but wallet not connected - requiring fresh auth');
+      localStorage.removeItem('auth-token');
+      elizaClient.clearAuthToken();
+      setAuthStatus('none');
+      return;
+    }
+
+    // Token exists AND wallet connected - validate token
     elizaClient.setAuthToken(existingToken);
     elizaClient.auth
       .me()
@@ -97,7 +107,7 @@ export function useWalletAuth(): WalletAuthState {
         setToken(null);
         console.log('[WalletAuth] Token expired, showing re-auth prompt');
       });
-  }, []);
+  }, [isConnected]);
 
   // Open AppKit modal
   const connect = useCallback(() => {

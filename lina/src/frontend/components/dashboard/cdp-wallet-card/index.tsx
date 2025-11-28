@@ -80,10 +80,11 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
 
   // Wallet view state (EVM or Solana)
   const [walletView, setWalletView] = useState<WalletView>('evm');
+  const [evmAddress, setEvmAddress] = useState<string | null>(null);
   const [solanaAddress, setSolanaAddress] = useState<string | null>(null);
 
-  // Format address for display (shortened)
-  const currentAddress = walletView === 'evm' ? walletAddress : solanaAddress;
+  // Format address for display (shortened) - use server-managed wallet addresses, not auth wallet
+  const currentAddress = walletView === 'evm' ? evmAddress : solanaAddress;
   const shortAddress = currentAddress ? `${currentAddress.slice(0, 6)}...${currentAddress.slice(-4)}` : '';
   const [isCopied, setIsCopied] = useState(false);
   const [copiedChain, setCopiedChain] = useState<string | null>(null);
@@ -161,11 +162,20 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
     },
   }));
 
-  // Fetch Solana address on mount
+  // Fetch wallet addresses on mount (CDP-managed wallets, not auth wallet)
   useEffect(() => {
     if (!userId) return;
 
-    const fetchSolanaAddress = async () => {
+    const fetchWalletAddresses = async () => {
+      // Fetch EVM address (same for all EVM chains)
+      try {
+        const { address } = await elizaClient.wallet.getAddress('base');
+        setEvmAddress(address);
+      } catch (err) {
+        console.error('Error fetching EVM address:', err);
+      }
+
+      // Fetch Solana address
       try {
         const { address } = await elizaClient.wallet.getAddress('solana');
         setSolanaAddress(address);
@@ -174,7 +184,7 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
       }
     };
 
-    fetchSolanaAddress();
+    fetchWalletAddresses();
   }, [userId]);
 
   // Filter tokens based on current wallet view
@@ -455,10 +465,11 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
 
   // Handle copy address for a specific chain
   const handleCopyChainAddress = async (chain: string) => {
-    if (!walletAddress) return;
-    
+    const addressToCopy = isSolanaChain(chain) ? solanaAddress : evmAddress;
+    if (!addressToCopy) return;
+
     try {
-      await navigator.clipboard.writeText(walletAddress);
+      await navigator.clipboard.writeText(addressToCopy);
       setCopiedChain(chain);
       setTimeout(() => setCopiedChain(null), 2000);
     } catch (err) {
@@ -621,7 +632,33 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
                   SOL
                 </button>
               </div>
-              {/* Copy Address Popup */}
+              {/* Wallet Address Display */}
+              {currentAddress && (
+                <button
+                  onClick={async () => {
+                    if (!currentAddress) return;
+                    try {
+                      await navigator.clipboard.writeText(currentAddress);
+                      setIsCopied(true);
+                      setTimeout(() => setIsCopied(false), 2000);
+                    } catch (err) {
+                      console.error('Failed to copy:', err);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                  title={currentAddress}
+                >
+                  <span className="text-[10px] font-mono">
+                    {currentAddress.slice(0, 6)}...{currentAddress.slice(-4)}
+                  </span>
+                  {isCopied ? (
+                    <Check className="w-3 h-3 text-green-500" />
+                  ) : (
+                    <Copy className="w-3 h-3" />
+                  )}
+                </button>
+              )}
+              {/* Copy Address Popup (for all chains) */}
               {(
                 <div
                   className="relative inline-flex z-50"
@@ -632,6 +669,7 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
                     variant="ghost"
                     size="sm"
                     className="h-6 w-6 p-0 text-muted-foreground hover:bg-muted"
+                    title="View all chain addresses"
                   >
                     <Copy className="w-3 h-3" />
                   </Button>
@@ -647,8 +685,8 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
                     {filteredChains.map((chain) => {
                       const config = CHAIN_UI_CONFIGS[chain];
                       const chainWalletIcon = getChainWalletIcon(chain);
-                      // Use correct address for chain type
-                      const addressForChain = isSolanaChain(chain) ? solanaAddress : walletAddress;
+                      // Use correct address for chain type (CDP-managed wallets)
+                      const addressForChain = isSolanaChain(chain) ? solanaAddress : evmAddress;
                       if (!addressForChain) return null;
                       return (
                         <div
@@ -746,8 +784,8 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
                 onActionClick?.();
                 
                 showModal(
-                  <FundModalContent 
-                    walletAddress={walletAddress}
+                  <FundModalContent
+                    walletAddress={currentAddress || ''}
                     shortAddress={shortAddress}
                   />,
                   'fund-modal',

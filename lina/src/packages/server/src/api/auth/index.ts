@@ -25,13 +25,18 @@ setInterval(() => {
 
 /**
  * Derive deterministic userId from wallet address
+ * Returns a valid UUID v4 format (required by ElizaOS entity API)
  */
 function deriveUserId(chain: 'evm' | 'solana', walletAddress: string): string {
-  return crypto
+  const hash = crypto
     .createHash('sha256')
     .update(`lina:${chain}:${walletAddress.toLowerCase()}`)
     .digest('hex')
     .slice(0, 32);
+
+  // Format as UUID v4: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+  // Set version (4) and variant bits
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-${['8', '9', 'a', 'b'][parseInt(hash[16], 16) % 4]}${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
 }
 
 export function createAuthRouter(): express.Router {

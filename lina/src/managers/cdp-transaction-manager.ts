@@ -143,12 +143,64 @@ export class CdpTransactionManager {
 
     const apiKeyId = process.env.CDP_API_KEY_ID;
     // Handle escaped newlines in PEM key (common in .env files)
-    const apiKeySecret = process.env.CDP_API_KEY_SECRET?.replace(/\\n/g, '\n');
-    const walletSecret = process.env.CDP_WALLET_SECRET;
+    const rawSecret = process.env.CDP_API_KEY_SECRET;
+    let apiKeySecret = rawSecret?.replace(/\\n/g, '\n');
+    let walletSecret = process.env.CDP_WALLET_SECRET;
 
     if (!apiKeyId || !apiKeySecret || !walletSecret) {
       logger.warn('[CdpTransactionManager] Missing CDP credentials in environment variables');
       return;
+    }
+
+    const crypto = require('crypto');
+
+    // Convert SEC1 EC key format to PKCS8 if needed
+    // CDP SDK's jose library requires PKCS8 format (-----BEGIN PRIVATE KEY-----)
+    // but Coinbase often provides SEC1 format (-----BEGIN EC PRIVATE KEY-----)
+    if (apiKeySecret.includes('BEGIN EC PRIVATE KEY')) {
+      try {
+        const keyObject = crypto.createPrivateKey({
+          key: apiKeySecret,
+          format: 'pem',
+        });
+        apiKeySecret = keyObject.export({
+          type: 'pkcs8',
+          format: 'pem',
+        });
+        logger.info('[CdpTransactionManager] Converted API key from SEC1 to PKCS8 format');
+      } catch (conversionError) {
+        logger.error('[CdpTransactionManager] Failed to convert API key format:', conversionError instanceof Error ? conversionError.message : String(conversionError));
+      }
+    }
+
+    // Convert wallet secret from hex to PKCS8 DER base64 if needed
+    // CDP portal may provide raw 32-byte hex, but SDK expects base64-encoded PKCS8 DER
+    if (/^[a-f0-9]{64}$/i.test(walletSecret)) {
+      try {
+        const privateKeyBytes = Buffer.from(walletSecret, 'hex');
+
+        // Compute public key from private key using P-256 curve
+        const ecdh = crypto.createECDH('prime256v1');
+        ecdh.setPrivateKey(privateKeyBytes);
+        const publicKeyUncompressed = ecdh.getPublicKey();
+
+        // Build JWK
+        const d = privateKeyBytes.toString('base64url');
+        const x = publicKeyUncompressed.subarray(1, 33).toString('base64url');
+        const y = publicKeyUncompressed.subarray(33, 65).toString('base64url');
+
+        // Create key and export as PKCS8 DER
+        const keyObject = crypto.createPrivateKey({
+          key: { kty: 'EC', crv: 'P-256', d, x, y },
+          format: 'jwk',
+        });
+        const pkcs8Der = keyObject.export({ type: 'pkcs8', format: 'der' });
+        walletSecret = pkcs8Der.toString('base64');
+
+        logger.info('[CdpTransactionManager] Converted wallet secret from hex to PKCS8 DER base64');
+      } catch (conversionError) {
+        logger.error('[CdpTransactionManager] Failed to convert wallet secret format:', conversionError instanceof Error ? conversionError.message : String(conversionError));
+      }
     }
 
     try {
