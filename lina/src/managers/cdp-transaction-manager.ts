@@ -142,7 +142,8 @@ export class CdpTransactionManager {
     }
 
     const apiKeyId = process.env.CDP_API_KEY_ID;
-    const apiKeySecret = process.env.CDP_API_KEY_SECRET;
+    // Handle escaped newlines in PEM key (common in .env files)
+    const apiKeySecret = process.env.CDP_API_KEY_SECRET?.replace(/\\n/g, '\n');
     const walletSecret = process.env.CDP_WALLET_SECRET;
 
     if (!apiKeyId || !apiKeySecret || !walletSecret) {

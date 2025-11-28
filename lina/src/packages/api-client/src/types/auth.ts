@@ -32,7 +32,40 @@ export interface RefreshTokenResponse {
  */
 export interface CurrentUserResponse {
   userId: string;
-  email: string;
-  username: string; // User's display name
+  email?: string;
+  username?: string;
+  walletAddress?: string;
+  chain?: 'evm' | 'solana';
+}
+
+// ============================================
+// WALLET-BASED AUTH TYPES
+// ============================================
+
+/**
+ * Response from /api/auth/nonce endpoint
+ */
+export interface NonceResponse {
+  nonce: string;
+}
+
+/**
+ * Request body for wallet signature verification
+ */
+export interface WalletVerifyRequest {
+  message: string;
+  signature: string;
+  chain: 'evm' | 'solana';
+}
+
+/**
+ * Response from /api/auth/verify endpoint
+ */
+export interface WalletVerifyResponse {
+  token: string;
+  userId: string;
+  walletAddress: string;
+  chain: 'evm' | 'solana';
+  expiresIn: string;
 }
 

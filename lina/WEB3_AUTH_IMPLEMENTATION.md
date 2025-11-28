@@ -47,15 +47,17 @@ bun add siwe tweetnacl
 
 ---
 
-## Phase 2: Frontend Auth Components (TODO)
+## Phase 2: Frontend Auth Components ✅ COMPLETE
 
-### 2.1 Install AppKit Dependencies
+### 2.1 Install AppKit Dependencies ✅
 
 ```bash
-bun add @reown/appkit @reown/appkit-adapter-solana @reown/appkit-adapter-wagmi wagmi viem @tanstack/react-query
+bun add @reown/appkit @reown/appkit-adapter-wagmi wagmi viem @tanstack/react-query siwe
 ```
 
-### 2.2 Create Web3Provider
+**Note:** Solana adapter (`@reown/appkit-adapter-solana`) not installed yet - EVM-only for now.
+
+### 2.2 Create Web3Provider ✅
 
 **File:** `src/frontend/providers/Web3Provider.tsx`
 
@@ -98,7 +100,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
 }
 ```
 
-### 2.3 Create WalletConnectModal
+### 2.3 Create WalletConnectModal ✅
 
 **File:** `src/frontend/components/auth/WalletConnectModal.tsx`
 
@@ -171,7 +173,7 @@ export function WalletConnectModal() {
 }
 ```
 
-### 2.4 Create useWalletAuth Hook
+### 2.4 Create useWalletAuth Hook ✅
 
 **File:** `src/frontend/hooks/useWalletAuth.ts`
 
@@ -230,7 +232,7 @@ export function useWalletAuth(): WalletAuth {
 }
 ```
 
-### 2.5 Update App.tsx
+### 2.5 Update App.tsx ✅
 
 **File:** `src/frontend/App.tsx`
 
@@ -326,25 +328,17 @@ Keep `@coinbase/cdp-sdk` for agent wallet management.
 - `src/frontend/components/auth/SignInModal.tsx`
 - `src/frontend/hooks/useCDPWallet.ts`
 
-### 4.3 Update API Client
+### 4.3 Update API Client ✅ (Moved to Phase 2)
 
 **File:** `src/packages/api-client/src/services/auth.ts`
 
-Remove:
+Added:
 ```typescript
-login(email: string, username: string, cdpUserId: string)
+getNonce(): Promise<NonceResponse>
+verifyWalletSignature(request: WalletVerifyRequest): Promise<WalletVerifyResponse>
 ```
 
-Add:
-```typescript
-getNonce(): Promise<{ nonce: string }>
-verifySignature(message: string, signature: string, chain: 'evm' | 'solana'): Promise<{
-  token: string;
-  userId: string;
-  walletAddress: string;
-  chain: string;
-}>
-```
+**Note:** Old `login()` method retained for backwards compatibility during migration.
 
 ---
 
