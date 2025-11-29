@@ -1,4 +1,4 @@
-import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Bullet } from '../../ui/bullet';
@@ -9,403 +9,60 @@ import { SwapModalContent } from './SwapModal';
 import { TokenDetailModalContent } from './TokenDetailModal';
 import { NFTDetailModalContent } from './NFTDetailModal';
 import { FundModalContent } from './FundModal';
-import { elizaClient } from '../../../lib/elizaClient';
 import { formatTokenBalance } from '../../../lib/number-format';
 import { cn } from '../../../lib/utils';
-import { getTokenIconBySymbol, SUPPORTED_CHAINS, CHAIN_UI_CONFIGS, getChainWalletIcon, isSolanaChain, isEVMChain } from '../../../constants/chains';
+import { getTokenIconBySymbol, SUPPORTED_CHAINS, CHAIN_UI_CONFIGS, getChainWalletIcon, isSolanaChain } from '../../../constants/chains';
 import { useModal } from '../../../contexts/ModalContext';
-
-type WalletView = 'evm' | 'solana';
-
-interface Token {
-  symbol: string;
-  name: string;
-  balance: string;
-  balanceFormatted: string;
-  usdValue: number | null;
-  usdPrice: number | null;
-  contractAddress: string | null;
-  chain: string;
-  decimals: number;
-  icon?: string; // Token icon URL from CoinGecko
-}
-
-interface NFT {
-  chain: string;
-  contractAddress: string;
-  tokenId: string;
-  name: string;
-  description: string;
-  image: string;
-  contractName: string;
-  tokenType: string;
-  balance?: string; // For ERC1155
-  attributes?: Array<{
-    trait_type: string;
-    value: string | number;
-  }>; // NFT traits/attributes
-}
-
-interface Transaction {
-  chain: string;
-  hash: string;
-  from: string;
-  to: string;
-  value: string;
-  asset: string;
-  category: string;
-  timestamp: number;
-  blockNum: string;
-  explorerUrl: string;
-  direction: 'sent' | 'received';
-  icon?: string | null;
-  contractAddress?: string | null;
-}
+import { useAgentWallet, type Token, type NFT, type Transaction } from '../../../contexts/AgentWalletContext';
 
 interface CDPWalletCardProps {
   userId: string;
   walletAddress?: string;
   onBalanceChange?: (balance: number) => void;
-  onActionClick?: () => void; // Optional callback to close parent container (Sheet/Sidebar)
+  onActionClick?: () => void;
 }
 
-// Expose refresh methods via ref
-export interface CDPWalletCardRef {
-  refreshTokens: () => Promise<void>;
-  refreshNFTs: () => Promise<void>;
-  refreshAll: () => Promise<void>;
-}
-
-export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
-  ({ userId, walletAddress, onBalanceChange, onActionClick }, ref) => {
+export function CDPWalletCard({ userId, walletAddress, onBalanceChange, onActionClick }: CDPWalletCardProps) {
   const { showModal } = useModal();
+  const {
+    // State
+    evmAddress,
+    solanaAddress,
+    walletView,
+    tokens,
+    totalUsdValue,
+    isLoadingTokens,
+    tokensError,
+    nfts,
+    isLoadingNfts,
+    nftsError,
+    transactions,
+    isLoadingHistory,
+    historyError,
+    isRefreshing,
 
-  // Wallet view state (EVM or Solana)
-  const [walletView, setWalletView] = useState<WalletView>('evm');
-  const [evmAddress, setEvmAddress] = useState<string | null>(null);
-  const [solanaAddress, setSolanaAddress] = useState<string | null>(null);
+    // Derived
+    currentAddress,
+    filteredTokens,
+    filteredChains,
 
-  // Format address for display (shortened) - use server-managed wallet addresses, not auth wallet
-  const currentAddress = walletView === 'evm' ? evmAddress : solanaAddress;
-  const shortAddress = currentAddress ? `${currentAddress.slice(0, 6)}...${currentAddress.slice(-4)}` : '';
+    // Actions
+    setWalletView,
+    syncTokens,
+    syncNfts,
+    fetchNfts,
+    fetchHistory,
+  } = useAgentWallet();
+
+  // Local UI state
   const [isCopied, setIsCopied] = useState(false);
   const [copiedChain, setCopiedChain] = useState<string | null>(null);
   const [showAddressPopup, setShowAddressPopup] = useState(false);
   const [hidePopupTimeout, setHidePopupTimeout] = useState<NodeJS.Timeout | null>(null);
   const [activeTab, setActiveTab] = useState<'tokens' | 'collections' | 'history'>('tokens');
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  
-  // Tokens state
-  const [tokens, setTokens] = useState<Token[]>([]);
-  const [totalUsdValue, setTotalUsdValue] = useState(0);
-  const [isLoadingTokens, setIsLoadingTokens] = useState(true);
-  const [tokensError, setTokensError] = useState<string | null>(null);
-  
-  // NFTs state
-  const [nfts, setNfts] = useState<NFT[]>([]);
-  const [isLoadingNfts, setIsLoadingNfts] = useState(false);
-  const [nftsError, setNftsError] = useState<string | null>(null);
-  
-  // Transaction history state
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [historyError, setHistoryError] = useState<string | null>(null);
 
-  const getChainSortOrder = (chain: string): number => {
-    const index = SUPPORTED_CHAINS.indexOf(chain as (typeof SUPPORTED_CHAINS)[number]);
-    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
-  };
-
-  // Helper: Sort tokens by USD value (highest first), fallback to chain order then symbol
-  const sortTokensByUsdValueDesc = (tokensToSort: Token[]): Token[] => {
-    return [...tokensToSort].sort((a, b) => {
-      const valueA = a.usdValue ?? 0;
-      const valueB = b.usdValue ?? 0;
-
-      if (valueB !== valueA) {
-        return valueB - valueA;
-      }
-
-      const chainOrderA = getChainSortOrder(a.chain);
-      const chainOrderB = getChainSortOrder(b.chain);
-      if (chainOrderA !== chainOrderB) {
-        return chainOrderA - chainOrderB;
-      }
-
-      return a.symbol.localeCompare(b.symbol);
-    });
-  };
-
-  // Helper: Sort NFTs by chain order (matches SUPPORTED_CHAINS order)
-  const sortNftsByChainOrder = (nftsToSort: NFT[]): NFT[] => {
-    return nftsToSort.sort((a, b) => {
-      const aIndex = SUPPORTED_CHAINS.indexOf(a.chain as any);
-      const bIndex = SUPPORTED_CHAINS.indexOf(b.chain as any);
-      // If chain not found, put it at the end
-      const aOrder = aIndex === -1 ? 999 : aIndex;
-      const bOrder = bIndex === -1 ? 999 : bIndex;
-      return aOrder - bOrder;
-    });
-  };
-
-  // Expose refresh methods via ref
-  useImperativeHandle(ref, () => ({
-    refreshTokens: async () => {
-      console.log(' Refreshing tokens via ref...');
-      await syncTokens();
-    },
-    refreshNFTs: async () => {
-      console.log(' Refreshing NFTs via ref...');
-      await syncNfts();
-    },
-    refreshAll: async () => {
-      console.log(' Refreshing all wallet data via ref...');
-      await Promise.all([syncTokens(), syncNfts()]);
-    },
-  }));
-
-  // Fetch wallet addresses on mount (CDP-managed wallets, not auth wallet)
-  useEffect(() => {
-    if (!userId) return;
-
-    const fetchWalletAddresses = async () => {
-      // Fetch EVM address (same for all EVM chains)
-      try {
-        const { address } = await elizaClient.wallet.getAddress('base');
-        setEvmAddress(address);
-      } catch (err) {
-        console.error('Error fetching EVM address:', err);
-      }
-
-      // Fetch Solana address
-      try {
-        const { address } = await elizaClient.wallet.getAddress('solana');
-        setSolanaAddress(address);
-      } catch (err) {
-        console.error('Error fetching Solana address:', err);
-      }
-    };
-
-    fetchWalletAddresses();
-  }, [userId]);
-
-  // Filter tokens based on current wallet view
-  const filteredTokens = tokens.filter(token => {
-    if (walletView === 'solana') {
-      return isSolanaChain(token.chain);
-    }
-    return isEVMChain(token.chain);
-  });
-
-  // Filter chains for address popup based on wallet view
-  const filteredChains = SUPPORTED_CHAINS.filter(chain => {
-    if (walletView === 'solana') {
-      return isSolanaChain(chain);
-    }
-    return isEVMChain(chain);
-  });
-
-  // Calculate total USD value and update parent (based on ALL tokens, not filtered)
-  useEffect(() => {
-    const total = tokens.reduce((sum, token) => sum + (token.usdValue || 0), 0);
-    setTotalUsdValue(total);
-    if (onBalanceChange) {
-      onBalanceChange(total);
-    }
-  }, [tokens, onBalanceChange]);
-
-  // Sync tokens (force refresh) concurrently across all chains with progressive updates
-  const syncTokens = async () => {
-    if (!userId) return;
-
-    setIsLoadingTokens(true);
-    setTokensError(null);
-
-    try {
-      // Fetch all chains concurrently with sync and update as each completes
-      const chainPromises = SUPPORTED_CHAINS.map(async (chain) => {
-        try {
-          // Use unified wallet API for all chains (EVM + Solana)
-          const data = await elizaClient.wallet.syncTokens(chain);
-
-          // Update UI immediately when this chain returns
-          if (data && data.tokens) {
-            setTokens(prevTokens => {
-              // Remove old tokens from this chain
-              const otherChainTokens = prevTokens.filter(token => token.chain !== chain);
-              // Add new tokens from this chain
-              const mergedTokens = [...otherChainTokens, ...data.tokens];
-              return sortTokensByUsdValueDesc(mergedTokens);
-            });
-          }
-
-          return data;
-        } catch (err) {
-          console.error(`Error syncing tokens for ${chain}:`, err);
-          return null;
-        }
-      });
-
-      // Wait for all chain syncs to complete
-      await Promise.all(chainPromises);
-    } catch (error) {
-      console.error('Error syncing tokens:', error);
-      setTokensError('Failed to sync tokens');
-      setTokens([]);
-    } finally {
-      setIsLoadingTokens(false);
-    }
-  };
-
-  // Sync NFTs (force refresh) concurrently across all chains with progressive updates
-  const syncNfts = async () => {
-    if (!userId) return;
-    
-    setIsLoadingNfts(true);
-    setNftsError(null);
-    
-    try {
-      // Fetch all chains concurrently with sync and update as each completes
-      const chainPromises = SUPPORTED_CHAINS.map(async (chain) => {
-        try {
-          const data = await elizaClient.cdp.syncNFTs(chain);
-          
-          // Update UI immediately when this chain returns
-          if (data && data.nfts) {
-            // Replace only this chain's NFTs, keep others intact
-            setNfts(prevNfts => {
-              // Remove old NFTs from this chain
-              const otherChainNfts = prevNfts.filter(nft => nft.chain !== chain);
-              // Add new NFTs from this chain
-              const mergedNfts = [...otherChainNfts, ...data.nfts];
-              // Sort by chain order to maintain consistent display
-              return sortNftsByChainOrder(mergedNfts);
-            });
-          }
-          
-          return data;
-        } catch (err) {
-          console.error(`Error syncing NFTs for ${chain}:`, err);
-          return null;
-        }
-      });
-
-      // Wait for all chain syncs to complete
-      await Promise.all(chainPromises);
-    } catch (error) {
-      console.error('Error syncing NFTs:', error);
-      setNftsError('Failed to sync NFTs');
-      setNfts([]);
-    } finally {
-      setIsLoadingNfts(false);
-    }
-  };
-
-  // Fetch tokens concurrently across all chains with progressive chain-by-chain updates
-  const fetchTokens = async () => {
-    if (!userId) return;
-
-    setIsLoadingTokens(true);
-    setTokensError(null);
-
-    try {
-      // Fetch all chains concurrently and update UI as each chain completes
-      const chainPromises = SUPPORTED_CHAINS.map(async (chain) => {
-        try {
-          // Use unified wallet API for all chains (EVM + Solana)
-          const data = await elizaClient.wallet.getTokens(chain);
-
-          // Update UI immediately when this chain returns
-          if (data && data.tokens) {
-            setTokens(prevTokens => {
-              // Remove old tokens from this chain
-              const otherChainTokens = prevTokens.filter(token => token.chain !== chain);
-              // Add new tokens from this chain
-              const mergedTokens = [...otherChainTokens, ...data.tokens];
-              return sortTokensByUsdValueDesc(mergedTokens);
-            });
-          }
-
-          return data;
-        } catch (err) {
-          console.error(`Error fetching tokens for ${chain}:`, err);
-          return null;
-        }
-      });
-
-      // Wait for all chains to complete (but UI already updated progressively)
-      await Promise.all(chainPromises);
-    } catch (error) {
-      console.error('Error fetching tokens:', error);
-      setTokensError('Failed to fetch tokens');
-      setTokens([]);
-    } finally {
-      setIsLoadingTokens(false);
-    }
-  };
-
-  // Fetch NFTs concurrently across all chains with progressive chain-by-chain updates
-  const fetchNfts = async () => {
-    if (!userId) return;
-    
-    setIsLoadingNfts(true);
-    setNftsError(null);
-    
-    try {
-      // Fetch all chains concurrently and update UI as each chain completes
-      const chainPromises = SUPPORTED_CHAINS.map(async (chain) => {
-        try {
-          const data = await elizaClient.cdp.getNFTs(chain);
-          
-          // Update UI immediately when this chain returns
-          if (data && data.nfts) {
-            // Replace only this chain's NFTs, keep others intact
-            setNfts(prevNfts => {
-              // Remove old NFTs from this chain
-              const otherChainNfts = prevNfts.filter(nft => nft.chain !== chain);
-              // Add new NFTs from this chain
-              const mergedNfts = [...otherChainNfts, ...data.nfts];
-              // Sort by chain order to maintain consistent display
-              return sortNftsByChainOrder(mergedNfts);
-            });
-          }
-          
-          return data;
-        } catch (err) {
-          console.error(`Error fetching NFTs for ${chain}:`, err);
-          return null;
-        }
-      });
-
-      // Wait for all chains to complete (but UI already updated progressively)
-      await Promise.all(chainPromises);
-    } catch (error) {
-      console.error('Error fetching NFTs:', error);
-      setNftsError('Failed to fetch NFTs');
-      setNfts([]);
-    } finally {
-      setIsLoadingNfts(false);
-    }
-  };
-
-  // Fetch transaction history
-  const fetchHistory = async () => {
-    if (!userId) return;
-    
-    setIsLoadingHistory(true);
-    setHistoryError(null);
-    
-    try {
-      const data = await elizaClient.cdp.getHistory();
-      setTransactions(data.transactions || []);
-    } catch (error) {
-      console.error('Error fetching history:', error);
-      setHistoryError('Failed to fetch transaction history');
-      setTransactions([]);
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  };
+  // Format address for display
+  const shortAddress = currentAddress ? `${currentAddress.slice(0, 6)}...${currentAddress.slice(-4)}` : '';
 
   // Notify parent of balance changes
   useEffect(() => {
@@ -414,38 +71,25 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
     }
   }, [totalUsdValue, onBalanceChange]);
 
-  // Initial load
-  useEffect(() => {
-    fetchTokens();
-  }, [userId]);
-
-  // Load data based on active tab
+  // Load data based on active tab (lazy loading)
   useEffect(() => {
     if (activeTab === 'collections' && nfts.length === 0 && !isLoadingNfts && !nftsError) {
       fetchNfts();
     } else if (activeTab === 'history' && transactions.length === 0 && !isLoadingHistory && !historyError) {
       fetchHistory();
     }
-  }, [activeTab]);
+  }, [activeTab, nfts.length, isLoadingNfts, nftsError, transactions.length, isLoadingHistory, historyError, fetchNfts, fetchHistory]);
 
-  // Refresh all data using sync APIs with concurrent chain-by-chain updates
+  // Manual refresh handler
   const handleManualRefresh = async () => {
     if (!userId) return;
 
-    setIsRefreshing(true);
-    try {
-      // Refresh data based on active tab
-      if (activeTab === 'tokens') {
-        await syncTokens();
-      } else if (activeTab === 'collections') {
-        await syncNfts();
-      } else if (activeTab === 'history') {
-        await fetchHistory();
-      }
-    } catch (error) {
-      console.error('Error syncing data:', error);
-    } finally {
-      setIsRefreshing(false);
+    if (activeTab === 'tokens') {
+      await syncTokens();
+    } else if (activeTab === 'collections') {
+      await syncNfts();
+    } else if (activeTab === 'history') {
+      await fetchHistory();
     }
   };
 
@@ -457,11 +101,11 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
 
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
-    
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: '2-digit', 
-      year: 'numeric' 
+
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric'
     });
   };
 
@@ -492,11 +136,11 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
   const handleHidePopup = () => {
     const timeout = setTimeout(() => {
       setShowAddressPopup(false);
-    }, 200); // 200ms delay
+    }, 200);
     setHidePopupTimeout(timeout);
   };
 
-  // Group transactions by date (sorted by most recent first)
+  // Group transactions by date
   const groupedTransactions = transactions.reduce<Record<string, Transaction[]>>((groups, tx) => {
     const dateKey = formatDate(tx.timestamp);
     if (!groups[dateKey]) {
@@ -506,9 +150,8 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
     return groups;
   }, {});
 
-  // Preserve the date order (most recent first)
+  // Order dates by most recent first
   const orderedDates = Object.keys(groupedTransactions).sort((a, b) => {
-    // Get the first transaction's timestamp from each group to determine order
     const aTime = groupedTransactions[a][0]?.timestamp || 0;
     const bTime = groupedTransactions[b][0]?.timestamp || 0;
     return bTime - aTime;
@@ -516,15 +159,13 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
 
   // Get token icon - returns JSX element
   const getTokenIcon = (token: Token) => {
-    // If token has icon from API, use it
     if (token.icon) {
       return (
-        <img 
-          src={token.icon} 
-          alt={token.symbol} 
+        <img
+          src={token.icon}
+          alt={token.symbol}
           className="w-full h-full object-contain p-0.5"
           onError={(e) => {
-            // Fallback to circle with first letter if image fails to load
             const parent = e.currentTarget.parentElement;
             if (parent) {
               parent.innerHTML = `<span class="text-xs sm:text-sm font-bold text-muted-foreground uppercase">${token.symbol.charAt(0)}</span>`;
@@ -534,19 +175,17 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
       );
     }
 
-    // Try to get icon from constants
     const iconPath = getTokenIconBySymbol(token.symbol);
     if (iconPath) {
       return (
-        <img 
-          src={iconPath} 
-          alt={token.symbol} 
+        <img
+          src={iconPath}
+          alt={token.symbol}
           className="w-full h-full object-contain p-0.5"
         />
       );
     }
 
-    // Fallback: gray circle with first letter
     return (
       <span className="text-xs sm:text-sm font-bold text-muted-foreground uppercase">
         {token.symbol.charAt(0)}
@@ -556,15 +195,13 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
 
   // Get transaction icon - returns JSX element
   const getTransactionIcon = (tx: Transaction) => {
-    // If transaction has icon from API, use it
     if (tx.icon) {
       return (
-        <img 
-          src={tx.icon} 
-          alt={tx.asset} 
+        <img
+          src={tx.icon}
+          alt={tx.asset}
           className="w-full h-full object-contain p-0.5"
           onError={(e) => {
-            // Fallback to circle with first letter if image fails to load
             const parent = e.currentTarget.parentElement;
             if (parent) {
               parent.innerHTML = `<span class="text-xs sm:text-sm font-bold text-muted-foreground uppercase">${tx.asset.charAt(0)}</span>`;
@@ -574,19 +211,17 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
       );
     }
 
-    // Try to get icon from constants based on asset symbol
     const iconPath = getTokenIconBySymbol(tx.asset);
     if (iconPath) {
       return (
-        <img 
-          src={iconPath} 
-          alt={tx.asset} 
+        <img
+          src={iconPath}
+          alt={tx.asset}
           className="w-full h-full object-contain p-0.5"
         />
       );
     }
 
-    // Fallback: gray circle with first letter
     return (
       <span className="text-xs sm:text-sm font-bold text-muted-foreground uppercase">
         {tx.asset.charAt(0)}
@@ -596,7 +231,7 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
 
   return (
     <>
-      {/* Preload chain icons to prevent flash on hover */}
+      {/* Preload chain icons */}
       <div className="hidden">
         {SUPPORTED_CHAINS.map((chain) => {
           const chainWalletIcon = getChainWalletIcon(chain);
@@ -687,7 +322,6 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
                     {filteredChains.map((chain) => {
                       const config = CHAIN_UI_CONFIGS[chain];
                       const chainWalletIcon = getChainWalletIcon(chain);
-                      // Use correct address for chain type (CDP-managed wallets)
                       const addressForChain = isSolanaChain(chain) ? solanaAddress : evmAddress;
                       if (!addressForChain) return null;
                       return (
@@ -785,11 +419,10 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
               </div>
             )}
           </div>
-          {/* Action Buttons - Before tabs */}
+          {/* Action Buttons */}
           <div className="grid grid-cols-3 gap-2">
             <Button
               onClick={() => {
-                // Close parent container (Sheet/Sidebar) if callback provided
                 onActionClick?.();
 
                 showModal(
@@ -810,17 +443,16 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
             >
               Fund
             </Button>
-            <Button 
+            <Button
               onClick={() => {
-                // Close parent container (Sheet/Sidebar) if callback provided
                 onActionClick?.();
-                
+
                 showModal(
                   <SendModalContent
                     tokens={filteredTokens as any}
                     userId={userId}
                     onSuccess={() => {
-                      fetchTokens();
+                      syncTokens();
                     }}
                   />,
                   'send-modal',
@@ -836,7 +468,6 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
             </Button>
             <Button
               onClick={() => {
-                // Close parent container (Sheet/Sidebar) if callback provided
                 onActionClick?.();
 
                 showModal(
@@ -844,7 +475,7 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
                     tokens={filteredTokens}
                     userId={userId}
                     onSuccess={() => {
-                      fetchTokens();
+                      syncTokens();
                     }}
                   />,
                   'swap-modal',
@@ -957,7 +588,6 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
             ) : activeTab === 'collections' ? (
               // NFT List
               isLoadingNfts ? (
-                // Loading state
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
@@ -981,10 +611,10 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
                           }}
                         />,
                         'nft-detail-modal',
-                        { 
-                          closeOnBackdropClick: true, 
+                        {
+                          closeOnBackdropClick: true,
                           className: 'max-w-2xl mx-4 shadow-xl',
-                          showCloseButton: false  // NFT modal has its own close button in header
+                          showCloseButton: false
                         }
                       );
                     }}
@@ -992,12 +622,11 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
                   >
                     <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-muted flex items-center justify-center overflow-hidden shrink-0 border border-border/30">
                       {nft.image ? (
-                        <img 
-                          src={nft.image} 
+                        <img
+                          src={nft.image}
                           alt={nft.name}
                           className="w-full h-full object-cover"
                           onError={(e) => {
-                            // Fallback to emoji if image fails to load
                             const parent = e.currentTarget.parentElement;
                             if (parent) {
                               parent.innerHTML = `<span class="text-2xl"></span>`;
@@ -1058,8 +687,7 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
                           {txs.map((tx, index) => {
                             const isReceived = tx.direction === 'received';
                             const amount = parseFloat(tx.value || '0');
-                            
-                            // Format amount with truncation
+
                             let amountStr = amount.toFixed(4);
                             if (amountStr.length > 10) {
                               amountStr = amount.toFixed(2);
@@ -1087,7 +715,7 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
                                       </span>
                                     </div>
                                     <span className="text-xs text-muted-foreground truncate">
-                                      {isReceived 
+                                      {isReceived
                                         ? `From: ${tx.from?.slice(0, 6)}...${tx.from?.slice(-4)}`
                                         : `To: ${tx.to?.slice(0, 6)}...${tx.to?.slice(-4)}`
                                       }
@@ -1120,7 +748,14 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
     </Card>
     </>
   );
-});
+}
 
 // Add display name for debugging
 CDPWalletCard.displayName = 'CDPWalletCard';
+
+// Legacy export for backward compatibility (ref is no longer used)
+export type CDPWalletCardRef = {
+  refreshTokens: () => Promise<void>;
+  refreshNFTs: () => Promise<void>;
+  refreshAll: () => Promise<void>;
+};

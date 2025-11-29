@@ -3,6 +3,7 @@ import { WagmiProvider, type Config } from 'wagmi';
 import { mainnet, base, arbitrum, optimism, polygon, solana } from '@reown/appkit/networks';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
 import { SolanaAdapter } from '@reown/appkit-adapter-solana';
+import { createStorage } from '@wagmi/core';
 import type { ReactNode } from 'react';
 
 // Get WalletConnect project ID from environment
@@ -22,13 +23,16 @@ const solanaNetworks = [solana] as [typeof solana];
 const allNetworks = [...evmNetworks, ...solanaNetworks] as [typeof mainnet, ...Array<typeof mainnet | typeof solana>];
 
 // Wagmi adapter for EVM chains
-// Note: We handle session persistence ourselves via JWT, not wagmi storage
+// Persist wallet connection in localStorage for session restoration
 const wagmiAdapter = new WagmiAdapter({
   networks: [...evmNetworks],
   projectId: projectId || '',
   ssr: false,
-  // Don't persist wallet connection - we manage auth via JWT
-  storage: null,
+  // Persist wallet connection for seamless page refresh experience
+  storage: createStorage({
+    storage: localStorage,
+    key: 'lina-wallet',
+  }),
 });
 
 // Solana adapter - auto-discovers installed wallets (Phantom, Solflare, etc.)
@@ -54,7 +58,7 @@ if (projectId) {
       email: false,
       socials: false, // Disable social logins - we want wallet-only
     },
-    // Don't auto-connect to last wallet - user should choose each time
+    // Auto-reconnect to last wallet for seamless session restoration
     enableWalletConnect: true,
     themeMode: 'dark',
     themeVariables: {

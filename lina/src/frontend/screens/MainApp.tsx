@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { elizaClient } from '../lib/elizaClient';
 import { socketManager } from '../lib/socketManager';
@@ -6,12 +6,13 @@ import { ChatInterface } from '../components/chat/chat-interface';
 import { SidebarProvider, useSidebar } from '../components/ui/sidebar';
 import { DashboardSidebar } from '../components/dashboard/sidebar';
 import Widget from '../components/dashboard/widget';
-import { CDPWalletCard, type CDPWalletCardRef } from '../components/dashboard/cdp-wallet-card';
+import { CDPWalletCard } from '../components/dashboard/cdp-wallet-card';
 import CollapsibleNotifications from '../components/dashboard/notifications/collapsible-notifications';
 import AccountPage from '../components/dashboard/account/page';
 import { MobileHeader } from '../components/dashboard/mobile-header';
 import { LoadingPanelProvider, useLoadingPanel } from '../contexts/LoadingPanelContext';
 import { ModalProvider, useModal } from '../contexts/ModalContext';
+import { AgentWalletProvider, useAgentWallet } from '../contexts/AgentWalletContext';
 import { Info } from 'lucide-react';
 import { UUID } from '@elizaos/core';
 import { AboutModalContent } from '../components/about/about-modal-content';
@@ -60,9 +61,6 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
   const [isNewUser, setIsNewUser] = useState(false);
   const [agentEvmAddress, setAgentEvmAddress] = useState<string | null>(null);
   const [agentSolanaAddress, setAgentSolanaAddress] = useState<string | null>(null);
-
-  // Ref to access wallet's refresh functions
-  const walletRef = useRef<CDPWalletCardRef>(null);
 
   // Stabilize balance change callback to prevent wallet re-renders
   const handleBalanceChange = useCallback((balance: number) => {
@@ -507,36 +505,37 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
   }
 
   return (
-    <SidebarProvider>
-      <AppContent
-        agent={agent}
-        userId={userId}
-        connected={connected}
-        channels={channels}
-        activeChannelId={activeChannelId}
-        isCreatingChannel={isCreatingChannel}
-        isNewChatMode={isNewChatMode}
-        currentView={currentView}
-        userProfile={userProfile}
-        totalBalance={totalBalance}
-        isLoadingChannels={isLoadingChannels}
-        walletRef={walletRef}
-        handleNewChat={handleNewChat}
-        handleChannelSelect={handleChannelSelect}
-        handleBalanceChange={handleBalanceChange}
-        setCurrentView={setCurrentView}
-        setChannels={setChannels}
-        setActiveChannelId={setActiveChannelId}
-        setIsNewChatMode={setIsNewChatMode}
-        updateUserProfile={updateUserProfile}
-        signOut={onSignOut}
-        // Onboarding props
-        shouldShowOnboarding={checkOnboarding()}
-        isNewUser={isNewUser}
-        agentEvmAddress={agentEvmAddress}
-        agentSolanaAddress={agentSolanaAddress}
-      />
-    </SidebarProvider>
+    <AgentWalletProvider userId={userId}>
+      <SidebarProvider>
+        <AppContent
+          agent={agent}
+          userId={userId}
+          connected={connected}
+          channels={channels}
+          activeChannelId={activeChannelId}
+          isCreatingChannel={isCreatingChannel}
+          isNewChatMode={isNewChatMode}
+          currentView={currentView}
+          userProfile={userProfile}
+          totalBalance={totalBalance}
+          isLoadingChannels={isLoadingChannels}
+          handleNewChat={handleNewChat}
+          handleChannelSelect={handleChannelSelect}
+          handleBalanceChange={handleBalanceChange}
+          setCurrentView={setCurrentView}
+          setChannels={setChannels}
+          setActiveChannelId={setActiveChannelId}
+          setIsNewChatMode={setIsNewChatMode}
+          updateUserProfile={updateUserProfile}
+          signOut={onSignOut}
+          // Onboarding props
+          shouldShowOnboarding={checkOnboarding()}
+          isNewUser={isNewUser}
+          agentEvmAddress={agentEvmAddress}
+          agentSolanaAddress={agentSolanaAddress}
+        />
+      </SidebarProvider>
+    </AgentWalletProvider>
   );
 }
 
@@ -553,7 +552,6 @@ function AppContent({
   userProfile,
   totalBalance,
   isLoadingChannels,
-  walletRef,
   handleNewChat,
   handleChannelSelect,
   handleBalanceChange,
@@ -571,6 +569,7 @@ function AppContent({
 }: any) {
   const { setOpenMobile } = useSidebar();
   const { showModal, hideModal } = useModal();
+  const { refreshAll } = useAgentWallet();
   const hasShownOnboarding = useRef(false);
 
   useEffect(() => {
@@ -707,7 +706,7 @@ function AppContent({
                       }}
                       onActionCompleted={async () => {
                         console.log('[MainApp] Agent action completed - refreshing wallet...');
-                        await walletRef.current?.refreshAll();
+                        await refreshAll();
                       }}
                     />
                   </div>
@@ -721,7 +720,7 @@ function AppContent({
         <div className="col-span-3 hidden lg:block">
           <div className="space-y-gap py-sides min-h-screen max-h-screen sticky top-0 overflow-visible">
             <Widget />
-            <CDPWalletCard ref={walletRef} userId={userId} walletAddress={userProfile?.walletAddress} onBalanceChange={handleBalanceChange} />
+            <CDPWalletCard userId={userId} walletAddress={userProfile?.walletAddress} onBalanceChange={handleBalanceChange} />
             <CollapsibleNotifications />
           </div>
         </div>
