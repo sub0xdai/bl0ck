@@ -3,6 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Bullet } from '../../ui/bullet';
 import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip';
+import { AssetIcon, NFTImage, formatAddress } from '../../ui/asset-icon';
 import { Copy, Check } from 'lucide-react';
 import { SendModalContent } from './SendModal';
 import { SwapModalContent } from './SwapModal';
@@ -11,9 +12,9 @@ import { NFTDetailModalContent } from './NFTDetailModal';
 import { FundModalContent } from './FundModal';
 import { formatTokenBalance } from '../../../lib/number-format';
 import { cn } from '../../../lib/utils';
-import { getTokenIconBySymbol, SUPPORTED_CHAINS, CHAIN_UI_CONFIGS, getChainWalletIcon, isSolanaChain } from '../../../constants/chains';
+import { SUPPORTED_CHAINS, CHAIN_UI_CONFIGS, getChainWalletIcon, isSolanaChain } from '../../../constants/chains';
 import { useModal } from '../../../contexts/ModalContext';
-import { useAgentWallet, type Token, type NFT, type Transaction } from '../../../contexts/AgentWalletContext';
+import { useAgentWallet, type Token, type Transaction } from '../../../contexts/AgentWalletContext';
 
 interface CDPWalletCardProps {
   userId: string;
@@ -157,77 +158,14 @@ export function CDPWalletCard({ userId, walletAddress, onBalanceChange, onAction
     return bTime - aTime;
   });
 
-  // Get token icon - returns JSX element
-  const getTokenIcon = (token: Token) => {
-    if (token.icon) {
-      return (
-        <img
-          src={token.icon}
-          alt={token.symbol}
-          className="w-full h-full object-contain p-0.5"
-          onError={(e) => {
-            const parent = e.currentTarget.parentElement;
-            if (parent) {
-              parent.innerHTML = `<span class="text-xs sm:text-sm font-bold text-muted-foreground uppercase">${token.symbol.charAt(0)}</span>`;
-            }
-          }}
-        />
-      );
-    }
+  // Render helpers using XSS-safe AssetIcon component
+  const renderTokenIcon = (token: Token) => (
+    <AssetIcon iconUrl={token.icon} symbol={token.symbol} alt={token.symbol} />
+  );
 
-    const iconPath = getTokenIconBySymbol(token.symbol);
-    if (iconPath) {
-      return (
-        <img
-          src={iconPath}
-          alt={token.symbol}
-          className="w-full h-full object-contain p-0.5"
-        />
-      );
-    }
-
-    return (
-      <span className="text-xs sm:text-sm font-bold text-muted-foreground uppercase">
-        {token.symbol.charAt(0)}
-      </span>
-    );
-  };
-
-  // Get transaction icon - returns JSX element
-  const getTransactionIcon = (tx: Transaction) => {
-    if (tx.icon) {
-      return (
-        <img
-          src={tx.icon}
-          alt={tx.asset}
-          className="w-full h-full object-contain p-0.5"
-          onError={(e) => {
-            const parent = e.currentTarget.parentElement;
-            if (parent) {
-              parent.innerHTML = `<span class="text-xs sm:text-sm font-bold text-muted-foreground uppercase">${tx.asset.charAt(0)}</span>`;
-            }
-          }}
-        />
-      );
-    }
-
-    const iconPath = getTokenIconBySymbol(tx.asset);
-    if (iconPath) {
-      return (
-        <img
-          src={iconPath}
-          alt={tx.asset}
-          className="w-full h-full object-contain p-0.5"
-        />
-      );
-    }
-
-    return (
-      <span className="text-xs sm:text-sm font-bold text-muted-foreground uppercase">
-        {tx.asset.charAt(0)}
-      </span>
-    );
-  };
+  const renderTransactionIcon = (tx: Transaction) => (
+    <AssetIcon iconUrl={tx.icon} symbol={tx.asset} alt={tx.asset} />
+  );
 
   return (
     <>
@@ -565,7 +503,7 @@ export function CDPWalletCard({ userId, walletAddress, onBalanceChange, onAction
                   >
                     <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                       <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0">
-                        {getTokenIcon(token)}
+                        {renderTokenIcon(token)}
                       </div>
                       <div className="flex flex-col min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
@@ -621,21 +559,7 @@ export function CDPWalletCard({ userId, walletAddress, onBalanceChange, onAction
                     className="w-full flex items-center gap-2 sm:gap-3 p-2 rounded hover:bg-muted/50 transition-colors min-w-0 cursor-pointer text-left"
                   >
                     <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-muted flex items-center justify-center overflow-hidden shrink-0 border border-border/30">
-                      {nft.image ? (
-                        <img
-                          src={nft.image}
-                          alt={nft.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            const parent = e.currentTarget.parentElement;
-                            if (parent) {
-                              parent.innerHTML = `<span class="text-2xl"></span>`;
-                            }
-                          }}
-                        />
-                      ) : (
-                        <span className="text-2xl"></span>
-                      )}
+                      <NFTImage imageUrl={nft.image} alt={nft.name} />
                     </div>
                     <div className="flex flex-col min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
@@ -703,7 +627,7 @@ export function CDPWalletCard({ userId, walletAddress, onBalanceChange, onAction
                               >
                                 <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                                   <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0">
-                                    {getTransactionIcon(tx)}
+                                    {renderTransactionIcon(tx)}
                                   </div>
                                   <div className="flex flex-col min-w-0 flex-1">
                                     <div className="flex items-center gap-1.5 sm:gap-2">

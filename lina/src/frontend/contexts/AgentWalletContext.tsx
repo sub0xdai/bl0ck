@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode, useMemo } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode, useMemo, useRef } from 'react';
 import { elizaClient } from '../lib/elizaClient';
 import { SUPPORTED_CHAINS, isSolanaChain, isEVMChain } from '../constants/chains';
 
@@ -97,12 +97,13 @@ interface AgentWalletContextType extends AgentWalletState {
 
 const AgentWalletContext = createContext<AgentWalletContextType | undefined>(undefined);
 
-// Helper: Sort tokens by USD value (highest first), fallback to chain order then symbol
+// Helper: Get chain sort order
 const getChainSortOrder = (chain: string): number => {
   const index = SUPPORTED_CHAINS.indexOf(chain as (typeof SUPPORTED_CHAINS)[number]);
   return index === -1 ? Number.MAX_SAFE_INTEGER : index;
 };
 
+// Helper: Sort tokens by USD value (highest first), fallback to chain order then symbol
 const sortTokensByUsdValueDesc = (tokensToSort: Token[]): Token[] => {
   return [...tokensToSort].sort((a, b) => {
     const valueA = a.usdValue ?? 0;
@@ -124,14 +125,36 @@ const sortTokensByUsdValueDesc = (tokensToSort: Token[]): Token[] => {
 
 // Helper: Sort NFTs by chain order
 const sortNftsByChainOrder = (nftsToSort: NFT[]): NFT[] => {
-  return nftsToSort.sort((a, b) => {
-    const aIndex = SUPPORTED_CHAINS.indexOf(a.chain as any);
-    const bIndex = SUPPORTED_CHAINS.indexOf(b.chain as any);
-    const aOrder = aIndex === -1 ? 999 : aIndex;
-    const bOrder = bIndex === -1 ? 999 : bIndex;
+  return [...nftsToSort].sort((a, b) => {
+    const aOrder = getChainSortOrder(a.chain);
+    const bOrder = getChainSortOrder(b.chain);
     return aOrder - bOrder;
   });
 };
+
+// Generic helper to fetch data for all chains and collect results
+// Fixes race condition by collecting all results before returning
+async function fetchForAllChains<T>(
+  fetcher: (chain: string) => Promise<T | null>,
+  extractor: (data: T) => any[]
+): Promise<any[]> {
+  const results = await Promise.all(
+    SUPPORTED_CHAINS.map(async (chain) => {
+      try {
+        const data = await fetcher(chain);
+        if (data) {
+          return extractor(data);
+        }
+        return [];
+      } catch (err) {
+        console.error(`[AgentWalletContext] Error fetching for ${chain}:`, err);
+        return [];
+      }
+    })
+  );
+  // Flatten all chain results into single array
+  return results.flat();
+}
 
 interface AgentWalletProviderProps {
   children: ReactNode;
@@ -164,6 +187,17 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
   // General refresh state
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Track mounted state to prevent stale updates
+  const isMountedRef = useRef(true);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // Computed values
   const totalUsdValue = useMemo(() => {
     return tokens.reduce((sum, token) => sum + (token.usdValue || 0), 0);
@@ -195,11 +229,15 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
   useEffect(() => {
     if (!userId) return;
 
+    let cancelled = false;
+
     const fetchWalletAddresses = async () => {
       // Fetch EVM address
       try {
         const { address } = await elizaClient.wallet.getAddress('base');
-        setEvmAddress(address);
+        if (!cancelled && isMountedRef.current) {
+          setEvmAddress(address);
+        }
       } catch (err) {
         console.error('[AgentWalletContext] Error fetching EVM address:', err);
       }
@@ -207,16 +245,22 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
       // Fetch Solana address
       try {
         const { address } = await elizaClient.wallet.getAddress('solana');
-        setSolanaAddress(address);
+        if (!cancelled && isMountedRef.current) {
+          setSolanaAddress(address);
+        }
       } catch (err) {
         console.error('[AgentWalletContext] Error fetching Solana address:', err);
       }
     };
 
     fetchWalletAddresses();
+
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
 
-  // Sync tokens (force refresh) concurrently across all chains
+  // Sync tokens (force refresh) - collects all results then sets state once
   const syncTokens = useCallback(async () => {
     if (!userId) return;
 
@@ -224,36 +268,28 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
     setTokensError(null);
 
     try {
-      const chainPromises = SUPPORTED_CHAINS.map(async (chain) => {
-        try {
-          const data = await elizaClient.wallet.syncTokens(chain);
+      const allTokens = await fetchForAllChains(
+        (chain) => elizaClient.wallet.syncTokens(chain),
+        (data) => data?.tokens || []
+      );
 
-          if (data && data.tokens) {
-            setTokens(prevTokens => {
-              const otherChainTokens = prevTokens.filter(token => token.chain !== chain);
-              const mergedTokens = [...otherChainTokens, ...data.tokens];
-              return sortTokensByUsdValueDesc(mergedTokens);
-            });
-          }
-
-          return data;
-        } catch (err) {
-          console.error(`[AgentWalletContext] Error syncing tokens for ${chain}:`, err);
-          return null;
-        }
-      });
-
-      await Promise.all(chainPromises);
+      if (isMountedRef.current) {
+        setTokens(sortTokensByUsdValueDesc(allTokens));
+      }
     } catch (error) {
       console.error('[AgentWalletContext] Error syncing tokens:', error);
-      setTokensError('Failed to sync tokens');
-      setTokens([]);
+      if (isMountedRef.current) {
+        setTokensError('Failed to sync tokens');
+        setTokens([]);
+      }
     } finally {
-      setIsLoadingTokens(false);
+      if (isMountedRef.current) {
+        setIsLoadingTokens(false);
+      }
     }
   }, [userId]);
 
-  // Fetch tokens (cache-first) concurrently across all chains
+  // Fetch tokens (cache-first) - collects all results then sets state once
   const fetchTokens = useCallback(async () => {
     if (!userId) return;
 
@@ -261,36 +297,28 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
     setTokensError(null);
 
     try {
-      const chainPromises = SUPPORTED_CHAINS.map(async (chain) => {
-        try {
-          const data = await elizaClient.wallet.getTokens(chain);
+      const allTokens = await fetchForAllChains(
+        (chain) => elizaClient.wallet.getTokens(chain),
+        (data) => data?.tokens || []
+      );
 
-          if (data && data.tokens) {
-            setTokens(prevTokens => {
-              const otherChainTokens = prevTokens.filter(token => token.chain !== chain);
-              const mergedTokens = [...otherChainTokens, ...data.tokens];
-              return sortTokensByUsdValueDesc(mergedTokens);
-            });
-          }
-
-          return data;
-        } catch (err) {
-          console.error(`[AgentWalletContext] Error fetching tokens for ${chain}:`, err);
-          return null;
-        }
-      });
-
-      await Promise.all(chainPromises);
+      if (isMountedRef.current) {
+        setTokens(sortTokensByUsdValueDesc(allTokens));
+      }
     } catch (error) {
       console.error('[AgentWalletContext] Error fetching tokens:', error);
-      setTokensError('Failed to fetch tokens');
-      setTokens([]);
+      if (isMountedRef.current) {
+        setTokensError('Failed to fetch tokens');
+        setTokens([]);
+      }
     } finally {
-      setIsLoadingTokens(false);
+      if (isMountedRef.current) {
+        setIsLoadingTokens(false);
+      }
     }
   }, [userId]);
 
-  // Sync NFTs (force refresh)
+  // Sync NFTs (force refresh) - collects all results then sets state once
   const syncNfts = useCallback(async () => {
     if (!userId) return;
 
@@ -298,36 +326,28 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
     setNftsError(null);
 
     try {
-      const chainPromises = SUPPORTED_CHAINS.map(async (chain) => {
-        try {
-          const data = await elizaClient.cdp.syncNFTs(chain);
+      const allNfts = await fetchForAllChains(
+        (chain) => elizaClient.cdp.syncNFTs(chain),
+        (data) => data?.nfts || []
+      );
 
-          if (data && data.nfts) {
-            setNfts(prevNfts => {
-              const otherChainNfts = prevNfts.filter(nft => nft.chain !== chain);
-              const mergedNfts = [...otherChainNfts, ...data.nfts];
-              return sortNftsByChainOrder(mergedNfts);
-            });
-          }
-
-          return data;
-        } catch (err) {
-          console.error(`[AgentWalletContext] Error syncing NFTs for ${chain}:`, err);
-          return null;
-        }
-      });
-
-      await Promise.all(chainPromises);
+      if (isMountedRef.current) {
+        setNfts(sortNftsByChainOrder(allNfts));
+      }
     } catch (error) {
       console.error('[AgentWalletContext] Error syncing NFTs:', error);
-      setNftsError('Failed to sync NFTs');
-      setNfts([]);
+      if (isMountedRef.current) {
+        setNftsError('Failed to sync NFTs');
+        setNfts([]);
+      }
     } finally {
-      setIsLoadingNfts(false);
+      if (isMountedRef.current) {
+        setIsLoadingNfts(false);
+      }
     }
   }, [userId]);
 
-  // Fetch NFTs (cache-first)
+  // Fetch NFTs (cache-first) - collects all results then sets state once
   const fetchNfts = useCallback(async () => {
     if (!userId) return;
 
@@ -335,32 +355,24 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
     setNftsError(null);
 
     try {
-      const chainPromises = SUPPORTED_CHAINS.map(async (chain) => {
-        try {
-          const data = await elizaClient.cdp.getNFTs(chain);
+      const allNfts = await fetchForAllChains(
+        (chain) => elizaClient.cdp.getNFTs(chain),
+        (data) => data?.nfts || []
+      );
 
-          if (data && data.nfts) {
-            setNfts(prevNfts => {
-              const otherChainNfts = prevNfts.filter(nft => nft.chain !== chain);
-              const mergedNfts = [...otherChainNfts, ...data.nfts];
-              return sortNftsByChainOrder(mergedNfts);
-            });
-          }
-
-          return data;
-        } catch (err) {
-          console.error(`[AgentWalletContext] Error fetching NFTs for ${chain}:`, err);
-          return null;
-        }
-      });
-
-      await Promise.all(chainPromises);
+      if (isMountedRef.current) {
+        setNfts(sortNftsByChainOrder(allNfts));
+      }
     } catch (error) {
       console.error('[AgentWalletContext] Error fetching NFTs:', error);
-      setNftsError('Failed to fetch NFTs');
-      setNfts([]);
+      if (isMountedRef.current) {
+        setNftsError('Failed to fetch NFTs');
+        setNfts([]);
+      }
     } finally {
-      setIsLoadingNfts(false);
+      if (isMountedRef.current) {
+        setIsLoadingNfts(false);
+      }
     }
   }, [userId]);
 
@@ -373,13 +385,19 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
 
     try {
       const data = await elizaClient.cdp.getHistory();
-      setTransactions(data.transactions || []);
+      if (isMountedRef.current) {
+        setTransactions(data.transactions || []);
+      }
     } catch (error) {
       console.error('[AgentWalletContext] Error fetching history:', error);
-      setHistoryError('Failed to fetch transaction history');
-      setTransactions([]);
+      if (isMountedRef.current) {
+        setHistoryError('Failed to fetch transaction history');
+        setTransactions([]);
+      }
     } finally {
-      setIsLoadingHistory(false);
+      if (isMountedRef.current) {
+        setIsLoadingHistory(false);
+      }
     }
   }, [userId]);
 
@@ -395,7 +413,9 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
     } catch (error) {
       console.error('[AgentWalletContext] Error refreshing wallet data:', error);
     } finally {
-      setIsRefreshing(false);
+      if (isMountedRef.current) {
+        setIsRefreshing(false);
+      }
     }
   }, [userId, syncTokens, syncNfts]);
 
@@ -410,15 +430,29 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
     } catch (error) {
       console.error('[AgentWalletContext] Error refreshing active data:', error);
     } finally {
-      setIsRefreshing(false);
+      if (isMountedRef.current) {
+        setIsRefreshing(false);
+      }
     }
   }, [userId, syncTokens]);
 
   // Initial token load
   useEffect(() => {
-    if (userId) {
-      fetchTokens();
-    }
+    if (!userId) return;
+
+    let cancelled = false;
+
+    const loadInitialTokens = async () => {
+      if (!cancelled) {
+        await fetchTokens();
+      }
+    };
+
+    loadInitialTokens();
+
+    return () => {
+      cancelled = true;
+    };
   }, [userId, fetchTokens]);
 
   const value = useMemo<AgentWalletContextType>(() => ({

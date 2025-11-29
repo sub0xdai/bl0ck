@@ -87,6 +87,12 @@ export function useWalletAuth(): WalletAuthState {
   // Check for existing token on mount - determines initial auth state
   // Handles race condition: wallet may still be reconnecting on page load
   useEffect(() => {
+    // Clear any existing timeout on effect re-run (prevents memory leak)
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
     const existingToken = localStorage.getItem('auth-token');
 
     if (!existingToken) {
@@ -99,6 +105,9 @@ export function useWalletAuth(): WalletAuthState {
 
     // Token exists AND wallet connected - validate immediately
     if (isConnected) {
+      // Clear the timeout since wallet connected successfully
+      hasCheckedSession.current = true;
+
       elizaClient.setAuthToken(existingToken);
       elizaClient.auth
         .me()
@@ -106,7 +115,6 @@ export function useWalletAuth(): WalletAuthState {
           setAuthStatus('authenticated');
           setUserId(user.userId);
           setToken(existingToken);
-          hasCheckedSession.current = true;
           console.log('[WalletAuth] Restored session for:', user.userId?.substring(0, 8));
         })
         .catch(() => {
@@ -116,7 +124,6 @@ export function useWalletAuth(): WalletAuthState {
           setAuthStatus('expired');
           setUserId(null);
           setToken(null);
-          hasCheckedSession.current = true;
           console.log('[WalletAuth] Token expired, showing re-auth prompt');
         });
       return;
@@ -128,9 +135,6 @@ export function useWalletAuth(): WalletAuthState {
       console.log('[WalletAuth] Token exists, waiting for wallet to reconnect...');
       // Stay in loading state - wallet storage exists, should reconnect soon
       // Set a timeout to fall back to 'none' if wallet doesn't reconnect
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
       reconnectTimeoutRef.current = setTimeout(() => {
         if (!hasCheckedSession.current) {
           console.log('[WalletAuth] Wallet reconnect timeout - requiring fresh auth');
@@ -139,6 +143,7 @@ export function useWalletAuth(): WalletAuthState {
           setAuthStatus('none');
           hasCheckedSession.current = true;
         }
+        reconnectTimeoutRef.current = null;
       }, 3000); // Give wallet 3 seconds to reconnect
       return;
     }
@@ -152,9 +157,11 @@ export function useWalletAuth(): WalletAuthState {
       hasCheckedSession.current = true;
     }
 
+    // Cleanup function - always runs on unmount or before next effect
     return () => {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
     };
   }, [isConnected, hasPersistedWallet]);
