@@ -28,6 +28,8 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
     // State
     evmAddress,
     solanaAddress,
+    isLoadingAddresses,
+    addressError,
     walletView,
     tokens,
     totalUsdValue,
@@ -181,7 +183,9 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
                 </button>
               </div>
               {/* Wallet Address Display - Click to copy */}
-              {currentAddress && (
+              {isLoadingAddresses ? (
+                <span className="text-[10px] text-muted-foreground animate-pulse">Loading...</span>
+              ) : currentAddress ? (
                 <button
                   onClick={copyAddress}
                   className="flex items-center gap-1.5 px-2 py-1 rounded bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
@@ -196,6 +200,10 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
                     <Copy className="w-3 h-3" />
                   )}
                 </button>
+              ) : (
+                <span className="text-[10px] text-red-400" title={addressError || 'No address available'}>
+                  No address
+                </span>
               )}
             </div>
         </CardTitle>
