@@ -19,4 +19,3 @@
 
 ## 4. Sidebar & Navigation
 - [ ] **Smart History:** Use LLM summarization to auto-title chat sessions (e.g., "SOL Bridge Debugging") instead of generic timestamps like "Yesterday".
-- [ ] **Connection State:** Add a status dot (Green/Red) next to the user avatar to indicate WebSocket/Node connection health.

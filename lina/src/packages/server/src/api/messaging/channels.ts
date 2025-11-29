@@ -1039,7 +1039,13 @@ Respond with just the title, nothing else.
           });
         }
 
-        const cleanTitle = newTitle.trim().replace(/^["']|["']$/g, ''); // Remove quotes if present
+        const MAX_TITLE_LENGTH = 50;
+        let cleanTitle = newTitle.trim().replace(/^["']|["']$/g, ''); // Remove quotes if present
+
+        // Truncate overly long titles (LLM may ignore length constraints)
+        if (cleanTitle.length > MAX_TITLE_LENGTH) {
+          cleanTitle = cleanTitle.substring(0, MAX_TITLE_LENGTH).trim();
+        }
 
         logger.info(`[TITLE GENERATION] Generated title: "${cleanTitle}"`);
 

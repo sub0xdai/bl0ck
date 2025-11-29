@@ -167,6 +167,63 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   
   const MAX_TEXTAREA_HEIGHT = 160
+  const MAX_TITLE_LENGTH = 50
+  const SOCKET_READY_DELAY_MS = 100
+
+  // Helper function to create a new channel with LLM-generated title
+  const createChannelWithGeneratedTitle = useCallback(async (message: string): Promise<void> => {
+    console.log('[ChatInterface] Creating channel with generated title...')
+    setIsCreatingChannel(true)
+    setIsTyping(true)
+
+    try {
+      // Generate title from user's message using LLM
+      console.log('[ChatInterface] Generating title from message:', message)
+      const titleResponse = await elizaClient.messaging.generateChannelTitle(
+        message,
+        agent.id as UUID
+      )
+      const generatedTitle = titleResponse.title || message.substring(0, MAX_TITLE_LENGTH)
+      console.log('[ChatInterface] Generated title:', generatedTitle)
+
+      // Create channel with the generated title
+      const now = Date.now()
+      const newChannel = await elizaClient.messaging.createGroupChannel({
+        name: generatedTitle,
+        participantIds: [userId as UUID, agent.id as UUID],
+        metadata: {
+          server_id: serverId,
+          type: 'DM',
+          isDm: true,
+          user1: userId,
+          user2: agent.id,
+          forAgent: agent.id,
+          createdAt: new Date(now).toISOString(),
+        },
+      })
+      console.log('[ChatInterface] Channel created:', newChannel.id)
+
+      // Notify parent component
+      onChannelCreated?.(newChannel.id, generatedTitle)
+
+      // Send the initial message after socket has time to join
+      setTimeout(() => {
+        console.log('[ChatInterface] Sending initial message to channel:', newChannel.id)
+        socketManager.sendMessage(newChannel.id, message, serverId, {
+          userId,
+          isDm: true,
+          targetUserId: agent.id,
+        })
+      }, SOCKET_READY_DELAY_MS)
+    } catch (error: any) {
+      console.error('[ChatInterface] Failed to create channel:', error)
+      const errorMessage = error?.details || error?.message || 'Failed to create chat. Please try again.'
+      setError(errorMessage)
+      setIsTyping(false)
+    } finally {
+      setIsCreatingChannel(false)
+    }
+  }, [agent.id, userId, serverId, onChannelCreated])
 
   // Stabilize agent.id and agent.name to prevent unnecessary re-renders
   // Use refs to store stable values that don't trigger re-renders
@@ -403,62 +460,8 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
     
     // If in new chat mode, create channel first with generated title
     if (isNewChatMode && !channelId) {
-      console.log(' [ChatInterface] First message in new chat mode, creating channel...')
-      setIsCreatingChannel(true)
-      setIsTyping(true)
-      
-      try {
-        // STEP 1: Generate title from user's message
-        console.log(' Generating title from user message:', inputValue)
-        const titleResponse = await elizaClient.messaging.generateChannelTitle(
-          inputValue, // Pass the message as string
-          agent.id as UUID
-        )
-        const generatedTitle = titleResponse.title || inputValue.substring(0, 50)
-        console.log(' Generated title:', generatedTitle)
-
-        // STEP 2: Create channel in DB with the generated title
-        console.log(' Creating channel with title:', generatedTitle)
-        const now = Date.now()
-        const newChannel = await elizaClient.messaging.createGroupChannel({
-          name: generatedTitle,
-          participantIds: [userId as UUID, agent.id as UUID],
-          metadata: {
-            server_id: serverId,
-            type: 'DM',
-            isDm: true,
-            user1: userId,
-            user2: agent.id,
-            forAgent: agent.id,
-            createdAt: new Date(now).toISOString(),
-          },
-        })
-        console.log(' Channel created:', newChannel.id)
-
-        // STEP 3: Notify parent component
-        onChannelCreated?.(newChannel.id, generatedTitle)
-
-        // STEP 4: Send the message (channel is now created and will be set as active)
-        // The socket join will happen automatically via App.tsx's useEffect
-        // Wait a brief moment for the channel to be set as active
-        setTimeout(() => {
-          console.log(' Sending initial message to new channel:', newChannel.id)
-          socketManager.sendMessage(newChannel.id, inputValue, serverId, {
-            userId,
-            isDm: true,
-            targetUserId: agent.id,
-          })
-        }, 100)
-
-        setInputValue('')
-      } catch (error: any) {
-        console.error(' Failed to create channel:', error)
-        const errorMessage = error?.message || 'Failed to create chat. Please try again.'
-        setError(errorMessage)
-        setIsTyping(false)
-      } finally {
-        setIsCreatingChannel(false)
-      }
+      await createChannelWithGeneratedTitle(inputValue)
+      setInputValue('')
       return
     }
     
@@ -524,58 +527,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
     
     // If in new chat mode, create channel first with generated title
     if (isNewChatMode && !channelId) {
-      console.log(' [ChatInterface] Quick prompt in new chat mode, creating channel...')
-      setIsCreatingChannel(true)
-      setIsTyping(true)
-      
-      try {
-        // STEP 1: Generate title from user's message
-        console.log(' Generating title from user message:', message)
-        const titleResponse = await elizaClient.messaging.generateChannelTitle(
-          message, // Pass the message as string
-          agent.id as UUID
-        )
-        const generatedTitle = titleResponse.title || message.substring(0, 50)
-        console.log(' Generated title:', generatedTitle)
-
-        // STEP 2: Create channel in DB with the generated title
-        console.log(' Creating channel with title:', generatedTitle)
-        const now = Date.now()
-        const newChannel = await elizaClient.messaging.createGroupChannel({
-          name: generatedTitle,
-          participantIds: [userId as UUID, agent.id as UUID],
-          metadata: {
-            server_id: serverId,
-            type: 'DM',
-            isDm: true,
-            user1: userId,
-            user2: agent.id,
-            forAgent: agent.id,
-            createdAt: new Date(now).toISOString(),
-          },
-        })
-        console.log(' Channel created:', newChannel.id)
-
-        // STEP 3: Notify parent component
-        onChannelCreated?.(newChannel.id, generatedTitle)
-
-        // STEP 4: Send the message (channel is now created and will be set as active)
-        setTimeout(() => {
-          console.log(' Sending initial message to new channel:', newChannel.id)
-          socketManager.sendMessage(newChannel.id, message, serverId, {
-            userId,
-            isDm: true,
-            targetUserId: agent.id,
-          })
-        }, 100)
-      } catch (error: any) {
-        console.error(' Failed to create channel:', error)
-        const errorMessage = error?.message || 'Failed to create chat. Please try again.'
-        setError(errorMessage)
-        setIsTyping(false)
-      } finally {
-        setIsCreatingChannel(false)
-      }
+      await createChannelWithGeneratedTitle(message)
       return
     }
     

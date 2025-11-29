@@ -293,46 +293,58 @@ export class CdpTransactionManager {
     logger.info(`[CdpTransactionManager] Getting/creating wallet for user: ${userId.substring(0, 8)}...`);
 
     const client = this.getCdpClient();
-    const account = await client.evm.getOrCreateAccount({ name: userId });
 
-    // Debug: Log the entire account object to see its structure
-    logger.info(`[CdpTransactionManager] Account object keys:`, Object.keys(account));
-    logger.info(`[CdpTransactionManager] Account object:`, JSON.stringify(account, null, 2));
+    // CDP SDK may return partial account on first call during wallet creation
+    // Retry up to 3 times with delay if address is not immediately available
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY_MS = 500;
 
-    // Extract address - try multiple possible properties
-    let address: string | undefined;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      const account = await client.evm.getOrCreateAccount({ name: userId });
 
-    if (account.address) {
-      address = account.address;
-      logger.info(`[CdpTransactionManager] Found address in account.address: ${address}`);
-    } else if ((account as any).walletAddress) {
-      address = (account as any).walletAddress;
-      logger.info(`[CdpTransactionManager] Found address in account.walletAddress: ${address}`);
-    } else if ((account as any).defaultAddress) {
-      address = (account as any).defaultAddress;
-      logger.info(`[CdpTransactionManager] Found address in account.defaultAddress: ${address}`);
-    } else {
-      // Try using toAccount from viem to see if it extracts the address
-      try {
-        const viemAccount = toAccount(account);
-        address = viemAccount.address;
-        logger.info(`[CdpTransactionManager] Extracted address from toAccount: ${address}`);
-      } catch (toAccountError) {
-        logger.error(`[CdpTransactionManager] Failed to extract address using toAccount:`, toAccountError instanceof Error ? toAccountError.message : String(toAccountError));
+      // Debug: Log the entire account object to see its structure
+      logger.info(`[CdpTransactionManager] Attempt ${attempt}/${MAX_RETRIES} - Account object keys:`, Object.keys(account));
+
+      // Extract address - try multiple possible properties
+      let address: string | undefined;
+
+      if (account.address) {
+        address = account.address;
+        logger.info(`[CdpTransactionManager] Found address in account.address: ${address}`);
+      } else if ((account as any).walletAddress) {
+        address = (account as any).walletAddress;
+        logger.info(`[CdpTransactionManager] Found address in account.walletAddress: ${address}`);
+      } else if ((account as any).defaultAddress) {
+        address = (account as any).defaultAddress;
+        logger.info(`[CdpTransactionManager] Found address in account.defaultAddress: ${address}`);
+      } else {
+        // Try using toAccount from viem to see if it extracts the address
+        try {
+          const viemAccount = toAccount(account);
+          address = viemAccount.address;
+          logger.info(`[CdpTransactionManager] Extracted address from toAccount: ${address}`);
+        } catch (toAccountError) {
+          logger.warn(`[CdpTransactionManager] Failed to extract address using toAccount:`, toAccountError instanceof Error ? toAccountError.message : String(toAccountError));
+        }
+      }
+
+      if (address) {
+        logger.info(`[CdpTransactionManager] Wallet ready: ${address}`);
+        return {
+          address,
+          accountName: userId,
+        };
+      }
+
+      // Address not available yet - retry after delay (except on last attempt)
+      if (attempt < MAX_RETRIES) {
+        logger.info(`[CdpTransactionManager] Address not available yet, retrying in ${RETRY_DELAY_MS}ms...`);
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
       }
     }
 
-    if (!address) {
-      logger.error(`[CdpTransactionManager] Could not find address in account object for user ${userId.substring(0, 8)}...`);
-      throw new Error('Failed to get wallet address from CDP account');
-    }
-
-    logger.info(`[CdpTransactionManager] Wallet ready: ${address}`);
-
-    return {
-      address,
-      accountName: userId,
-    };
+    logger.error(`[CdpTransactionManager] Could not find address after ${MAX_RETRIES} attempts for user ${userId.substring(0, 8)}...`);
+    throw new Error('Failed to get wallet address from CDP account');
   }
 
   /**
