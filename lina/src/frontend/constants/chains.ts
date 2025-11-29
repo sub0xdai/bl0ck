@@ -146,9 +146,11 @@ export const CHAIN_UI_CONFIGS: Record<SupportedChain, ChainUIConfig> = {
 };
 
 /**
- * All supported chains as an array
+ * All supported chains as an array (mainnet only - devnet not supported by API)
  */
-export const SUPPORTED_CHAINS: SupportedChain[] = Object.keys(CHAIN_UI_CONFIGS) as SupportedChain[];
+export const SUPPORTED_CHAINS: SupportedChain[] = [
+  'base', 'ethereum', 'polygon', 'arbitrum', 'optimism', 'scroll', 'solana'
+];
 
 /**
  * Helper: Get chain config by chain name

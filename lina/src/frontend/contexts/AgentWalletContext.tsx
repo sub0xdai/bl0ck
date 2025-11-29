@@ -54,6 +54,8 @@ interface AgentWalletState {
   // Wallet addresses
   evmAddress: string | null;
   solanaAddress: string | null;
+  isLoadingAddresses: boolean;
+  addressError: string | null;
 
   // Active wallet view
   walletView: WalletView;
@@ -165,6 +167,8 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
   // Wallet addresses
   const [evmAddress, setEvmAddress] = useState<string | null>(null);
   const [solanaAddress, setSolanaAddress] = useState<string | null>(null);
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(true);
+  const [addressError, setAddressError] = useState<string | null>(null);
 
   // Active wallet view
   const [walletView, setWalletView] = useState<WalletView>('evm');
@@ -232,6 +236,11 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
     let cancelled = false;
 
     const fetchWalletAddresses = async () => {
+      setIsLoadingAddresses(true);
+      setAddressError(null);
+
+      const errors: string[] = [];
+
       // Fetch EVM address
       try {
         const { address } = await elizaClient.wallet.getAddress('base');
@@ -240,6 +249,7 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
         }
       } catch (err) {
         console.error('[AgentWalletContext] Error fetching EVM address:', err);
+        errors.push('EVM');
       }
 
       // Fetch Solana address
@@ -250,6 +260,14 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
         }
       } catch (err) {
         console.error('[AgentWalletContext] Error fetching Solana address:', err);
+        errors.push('Solana');
+      }
+
+      if (!cancelled && isMountedRef.current) {
+        setIsLoadingAddresses(false);
+        if (errors.length > 0) {
+          setAddressError(`Failed to load ${errors.join(' and ')} wallet address`);
+        }
       }
     };
 
@@ -459,6 +477,8 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
     // State
     evmAddress,
     solanaAddress,
+    isLoadingAddresses,
+    addressError,
     walletView,
     tokens,
     totalUsdValue,
@@ -489,6 +509,8 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
   }), [
     evmAddress,
     solanaAddress,
+    isLoadingAddresses,
+    addressError,
     walletView,
     tokens,
     totalUsdValue,

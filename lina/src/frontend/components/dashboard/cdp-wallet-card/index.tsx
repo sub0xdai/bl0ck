@@ -12,18 +12,17 @@ import { NFTDetailModalContent } from './NFTDetailModal';
 import { FundModalContent } from './FundModal';
 import { formatTokenBalance } from '../../../lib/number-format';
 import { cn } from '../../../lib/utils';
-import { SUPPORTED_CHAINS, CHAIN_UI_CONFIGS, getChainWalletIcon, isSolanaChain } from '../../../constants/chains';
+import { SUPPORTED_CHAINS, getChainWalletIcon, isSolanaChain } from '../../../constants/chains';
 import { useModal } from '../../../contexts/ModalContext';
 import { useAgentWallet, type Token, type Transaction } from '../../../contexts/AgentWalletContext';
 
 interface CDPWalletCardProps {
   userId: string;
-  walletAddress?: string;
   onBalanceChange?: (balance: number) => void;
   onActionClick?: () => void;
 }
 
-export function CDPWalletCard({ userId, walletAddress, onBalanceChange, onActionClick }: CDPWalletCardProps) {
+export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWalletCardProps) {
   const { showModal } = useModal();
   const {
     // State
@@ -45,7 +44,6 @@ export function CDPWalletCard({ userId, walletAddress, onBalanceChange, onAction
     // Derived
     currentAddress,
     filteredTokens,
-    filteredChains,
 
     // Actions
     setWalletView,
@@ -57,13 +55,7 @@ export function CDPWalletCard({ userId, walletAddress, onBalanceChange, onAction
 
   // Local UI state
   const [isCopied, setIsCopied] = useState(false);
-  const [copiedChain, setCopiedChain] = useState<string | null>(null);
-  const [showAddressPopup, setShowAddressPopup] = useState(false);
-  const [hidePopupTimeout, setHidePopupTimeout] = useState<NodeJS.Timeout | null>(null);
   const [activeTab, setActiveTab] = useState<'tokens' | 'collections' | 'history'>('tokens');
-
-  // Format address for display
-  const shortAddress = currentAddress ? `${currentAddress.slice(0, 6)}...${currentAddress.slice(-4)}` : '';
 
   // Notify parent of balance changes
   useEffect(() => {
@@ -110,35 +102,16 @@ export function CDPWalletCard({ userId, walletAddress, onBalanceChange, onAction
     });
   };
 
-  // Handle copy address for a specific chain
-  const handleCopyChainAddress = async (chain: string) => {
-    const addressToCopy = isSolanaChain(chain) ? solanaAddress : evmAddress;
-    if (!addressToCopy) return;
-
+  // Copy address to clipboard
+  const copyAddress = async () => {
+    if (!currentAddress) return;
     try {
-      await navigator.clipboard.writeText(addressToCopy);
-      setCopiedChain(chain);
-      setTimeout(() => setCopiedChain(null), 2000);
+      await navigator.clipboard.writeText(currentAddress);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy address:', err);
     }
-  };
-
-  // Handle showing address popup
-  const handleShowPopup = () => {
-    if (hidePopupTimeout) {
-      clearTimeout(hidePopupTimeout);
-      setHidePopupTimeout(null);
-    }
-    setShowAddressPopup(true);
-  };
-
-  // Handle hiding address popup with delay
-  const handleHidePopup = () => {
-    const timeout = setTimeout(() => {
-      setShowAddressPopup(false);
-    }, 200);
-    setHidePopupTimeout(timeout);
   };
 
   // Group transactions by date
@@ -207,24 +180,15 @@ export function CDPWalletCard({ userId, walletAddress, onBalanceChange, onAction
                   SOL
                 </button>
               </div>
-              {/* Wallet Address Display */}
+              {/* Wallet Address Display - Click to copy */}
               {currentAddress && (
                 <button
-                  onClick={async () => {
-                    if (!currentAddress) return;
-                    try {
-                      await navigator.clipboard.writeText(currentAddress);
-                      setIsCopied(true);
-                      setTimeout(() => setIsCopied(false), 2000);
-                    } catch (err) {
-                      console.error('Failed to copy:', err);
-                    }
-                  }}
+                  onClick={copyAddress}
                   className="flex items-center gap-1.5 px-2 py-1 rounded bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                  title={currentAddress}
+                  title={`Click to copy: ${currentAddress}`}
                 >
                   <span className="text-[10px] font-mono">
-                    {currentAddress.slice(0, 6)}...{currentAddress.slice(-4)}
+                    {formatAddress(currentAddress)}
                   </span>
                   {isCopied ? (
                     <Check className="w-3 h-3 text-green-500" />
@@ -232,87 +196,6 @@ export function CDPWalletCard({ userId, walletAddress, onBalanceChange, onAction
                     <Copy className="w-3 h-3" />
                   )}
                 </button>
-              )}
-              {/* Copy Address Popup (for all chains) */}
-              {(
-                <div
-                  className="relative inline-flex z-50"
-                  onMouseEnter={handleShowPopup}
-                  onMouseLeave={handleHidePopup}
-                >
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 text-muted-foreground hover:bg-muted"
-                    title="View all chain addresses"
-                  >
-                    <Copy className="w-3 h-3" />
-                  </Button>
-
-                {/* Popup with chain addresses for current view */}
-                {showAddressPopup && currentAddress && (
-                <div
-                  className="absolute -left-16 top-full mt-1 bg-popover border border-border rounded-lg shadow-lg p-2 z-50 w-[230px] max-w-[230px] md:w-[calc(25vw-2rem)]"
-                  onMouseEnter={handleShowPopup}
-                  onMouseLeave={handleHidePopup}
-                >
-                  <div className="space-y-0.5 max-h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
-                    {filteredChains.map((chain) => {
-                      const config = CHAIN_UI_CONFIGS[chain];
-                      const chainWalletIcon = getChainWalletIcon(chain);
-                      const addressForChain = isSolanaChain(chain) ? solanaAddress : evmAddress;
-                      if (!addressForChain) return null;
-                      return (
-                        <div
-                          key={chain}
-                          className="flex items-center justify-between gap-0.5 p-1 rounded hover:bg-muted/50 transition-colors group"
-                        >
-                          {/* First Group: Icon & Name */}
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <div className="w-5 h-5 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center overflow-hidden bg-white">
-                              {chainWalletIcon ? (
-                                <img
-                                  src={chainWalletIcon}
-                                  alt={config.name}
-                                  className="w-full h-full object-contain"
-                                />
-                              ) : (
-                                <span className="text-[10px] font-bold text-muted-foreground uppercase">
-                                  {chain.charAt(0)}
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[10px] sm:text-[11px]">{config.displayName}</span>
-                          </div>
-
-                          {/* Second Group: Address & Copy Button */}
-                          <div className="flex items-center gap-1 min-w-0" onClick={() => {
-                            navigator.clipboard.writeText(addressForChain);
-                            setCopiedChain(chain);
-                            setTimeout(() => setCopiedChain(null), 2000);
-                          }}>
-                            <span className="text-[9px] text-muted-foreground font-mono cursor-pointer">
-                              {`${addressForChain.slice(0, 6)}...${addressForChain.slice(-4)}`}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-5 w-5 p-0 shrink-0 text-muted-foreground hover:text-foreground"
-                            >
-                              {copiedChain === chain ? (
-                                <Check className="w-2.5 h-2.5 text-green-500" />
-                              ) : (
-                                <Copy className="w-2.5 h-2.5" />
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-                </div>
               )}
             </div>
         </CardTitle>
