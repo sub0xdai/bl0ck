@@ -9,6 +9,7 @@ import {
 import { PublicKey } from "@solana/web3.js";
 import { SolanaService } from "../services/solana.service";
 import type { SolanaTransferResult } from "../types";
+import { getEntityUserId } from "../utils";
 
 /**
  * Validate Solana address format
@@ -94,7 +95,8 @@ export const solanaTransfer: Action = {
                 throw new Error("SolanaService not initialized");
             }
 
-            const userId = message.entityId as string;
+            // Get the correct userId from entity metadata (JWT-authenticated ID)
+            const userId = await getEntityUserId(runtime, message);
 
             // Extract parameters from composed state
             const composedState = await runtime.composeState(

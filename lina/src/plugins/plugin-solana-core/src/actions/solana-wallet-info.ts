@@ -8,6 +8,7 @@ import {
 } from "@elizaos/core";
 import { SolanaService } from "../services/solana.service";
 import type { SolanaWalletBalances } from "../types";
+import { getEntityUserId } from "../utils";
 
 /**
  * Format wallet balance information for display
@@ -100,7 +101,8 @@ export const solanaWalletInfo: Action = {
                 throw new Error("SolanaService not initialized");
             }
 
-            const userId = message.entityId as string;
+            // Get the correct userId from entity metadata (JWT-authenticated ID)
+            const userId = await getEntityUserId(runtime, message);
             const network = service.getNetwork();
 
             // Get token balances (uses 5-minute cache by default)
