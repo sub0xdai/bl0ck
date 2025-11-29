@@ -1,31 +1,50 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, mock } from "bun:test";
 import { jupiterSwap } from "./jupiter-swap";
 import type { IAgentRuntime, Memory } from "@elizaos/core";
 import type { JupiterService } from "../services/jupiter.service";
 import type { SolanaService } from "../../../plugin-solana-core/src/services/solana.service";
 
+// Create mock functions
+const mockExecuteSwap = mock(() => Promise.resolve({}));
+const mockGetQuote = mock(() => Promise.resolve({}));
+const mockGetTokenBalances = mock(() => Promise.resolve({ tokens: [] }));
+const mockComposeState = mock(() => Promise.resolve({ data: { actionParams: {} } }));
+const mockGetService = mock((serviceType: string) => {
+    if (serviceType === "JUPITER_SERVICE") return mockJupiterService;
+    if (serviceType === "SOLANA_SERVICE") return mockSolanaService;
+    return null;
+});
+
 // Mock services
 const mockJupiterService = {
-    executeSwap: vi.fn(),
-    getQuote: vi.fn(),
+    executeSwap: mockExecuteSwap,
+    getQuote: mockGetQuote,
 } as unknown as JupiterService;
 
 const mockSolanaService = {
-    getTokenBalances: vi.fn(),
+    getTokenBalances: mockGetTokenBalances,
 } as unknown as SolanaService;
 
 const mockRuntime = {
-    getService: vi.fn((serviceType: string) => {
-        if (serviceType === "JUPITER_SERVICE") return mockJupiterService;
-        if (serviceType === "SOLANA_SERVICE") return mockSolanaService;
-        return null;
-    }),
-    composeState: vi.fn(),
+    getService: mockGetService,
+    composeState: mockComposeState,
 } as unknown as IAgentRuntime;
 
 describe("jupiterSwap", () => {
     beforeEach(() => {
-        vi.clearAllMocks();
+        // Reset mocks
+        mockExecuteSwap.mockReset();
+        mockGetQuote.mockReset();
+        mockGetTokenBalances.mockReset();
+        mockComposeState.mockReset();
+        mockGetService.mockReset();
+
+        // Restore default implementations
+        mockGetService.mockImplementation((serviceType: string) => {
+            if (serviceType === "JUPITER_SERVICE") return mockJupiterService;
+            if (serviceType === "SOLANA_SERVICE") return mockSolanaService;
+            return null;
+        });
     });
 
     describe("validation", () => {
@@ -36,8 +55,9 @@ describe("jupiterSwap", () => {
         });
 
         it("should fail validation when JupiterService is missing", async () => {
+            const badGetService = mock(() => null);
             const badRuntime = {
-                getService: vi.fn(() => null),
+                getService: badGetService,
             } as unknown as IAgentRuntime;
 
             const message = {} as Memory;
@@ -53,7 +73,7 @@ describe("jupiterSwap", () => {
             } as Memory;
 
             // Mock runtime.composeState to return swap parameters
-            (mockRuntime.composeState as any).mockResolvedValue({
+            mockComposeState.mockResolvedValue({
                 data: {
                     actionParams: {
                         inputToken: "SOL",
@@ -65,7 +85,7 @@ describe("jupiterSwap", () => {
             });
 
             // Mock getTokenBalances to return insufficient balance
-            (mockSolanaService.getTokenBalances as any).mockResolvedValue({
+            mockGetTokenBalances.mockResolvedValue({
                 tokens: [
                     {
                         symbol: "SOL",
@@ -86,7 +106,7 @@ describe("jupiterSwap", () => {
                 entityId: "user-123",
             } as Memory;
 
-            (mockRuntime.composeState as any).mockResolvedValue({
+            mockComposeState.mockResolvedValue({
                 data: {
                     actionParams: {
                         inputToken: "SOL",
@@ -98,7 +118,7 @@ describe("jupiterSwap", () => {
             });
 
             // Mock getTokenBalances to return sufficient balance
-            (mockSolanaService.getTokenBalances as any).mockResolvedValue({
+            mockGetTokenBalances.mockResolvedValue({
                 tokens: [
                     {
                         symbol: "SOL",
@@ -109,7 +129,7 @@ describe("jupiterSwap", () => {
             });
 
             // Mock executeSwap to return success
-            (mockJupiterService.executeSwap as any).mockResolvedValue({
+            mockExecuteSwap.mockResolvedValue({
                 transactionHash: "abc123",
                 inputToken: "So11111111111111111111111111111111111111112",
                 outputToken: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -122,7 +142,7 @@ describe("jupiterSwap", () => {
             const result = await jupiterSwap.handler(mockRuntime, message);
 
             expect(result.success).toBe(true);
-            expect(mockJupiterService.executeSwap).toHaveBeenCalled();
+            expect(mockExecuteSwap).toHaveBeenCalled();
         });
     });
 
@@ -161,7 +181,7 @@ describe("jupiterSwap", () => {
                 entityId: "user-123",
             } as Memory;
 
-            (mockRuntime.composeState as any).mockResolvedValue({
+            mockComposeState.mockResolvedValue({
                 data: {
                     actionParams: {
                         inputToken: "SOL",
@@ -183,7 +203,7 @@ describe("jupiterSwap", () => {
                 entityId: "user-123",
             } as Memory;
 
-            (mockRuntime.composeState as any).mockResolvedValue({
+            mockComposeState.mockResolvedValue({
                 data: {
                     actionParams: {
                         // Missing required params

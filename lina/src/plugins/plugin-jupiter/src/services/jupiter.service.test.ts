@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, mock } from "bun:test";
 import { JupiterService } from "./jupiter.service";
 import type { IAgentRuntime } from "@elizaos/core";
 import type { JupiterQuoteResponse } from "../types";
@@ -6,10 +6,12 @@ import type { JupiterQuoteResponse } from "../types";
 describe("JupiterService", () => {
     let service: JupiterService;
     let mockRuntime: IAgentRuntime;
+    let originalFetch: typeof global.fetch;
 
     beforeEach(() => {
         mockRuntime = {} as IAgentRuntime;
         service = new JupiterService(mockRuntime);
+        originalFetch = global.fetch;
     });
 
     describe("getQuote", () => {
@@ -27,10 +29,11 @@ describe("JupiterService", () => {
             };
 
             // Mock fetch
-            global.fetch = vi.fn().mockResolvedValue({
+            const mockFetch = mock(() => Promise.resolve({
                 ok: true,
                 json: async () => mockQuoteResponse,
-            });
+            } as Response));
+            global.fetch = mockFetch;
 
             const quote = await service.getQuote(
                 "So11111111111111111111111111111111111111112",
@@ -40,14 +43,18 @@ describe("JupiterService", () => {
             );
 
             expect(quote).toEqual(mockQuoteResponse);
-            expect(global.fetch).toHaveBeenCalled();
+            expect(mockFetch).toHaveBeenCalled();
+
+            // Restore original fetch
+            global.fetch = originalFetch;
         });
 
         it("should throw error on failed quote", async () => {
-            global.fetch = vi.fn().mockResolvedValue({
+            const mockFetch = mock(() => Promise.resolve({
                 ok: false,
                 text: async () => "API Error",
-            });
+            } as Response));
+            global.fetch = mockFetch;
 
             await expect(
                 service.getQuote(
@@ -57,6 +64,9 @@ describe("JupiterService", () => {
                     50
                 )
             ).rejects.toThrow("Jupiter quote failed");
+
+            // Restore original fetch
+            global.fetch = originalFetch;
         });
     });
 

@@ -1,0 +1,23 @@
+# Bun test configuration for Lina
+
+[test]
+# Test timeout in milliseconds
+timeout = 30000
+
+# Root directory for tests
+root = "src"
+
+# Enable coverage
+coverage = true
+
+# Test environment
+env = "node"
+
+# Coverage exclusions
+coverage-exclude = [
+  "**/dist/**",
+  "**/*.test.ts",
+  "**/fixtures/**",
+  "**/helpers/**",
+  "**/node_modules/**"
+]

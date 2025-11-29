@@ -77,25 +77,57 @@ async function build() {
       // Task 1: Build with Bun
       (async () => {
         console.log(' Bundling backend with Bun...');
+        const isProduction = process.env.NODE_ENV === 'production';
         const result = await Bun.build({
           entrypoints: ['./src/index.ts'],
           outdir: './dist',
           target: 'node',
           format: 'esm',
-          sourcemap: true,
-          minify: false,
+          sourcemap: !isProduction, // Disable sourcemaps in production (saves ~21MB)
+          minify: isProduction, // Enable minification in production (saves ~3-4MB)
           external: [
+            // Node.js built-ins
             'dotenv',
             'fs',
             'path',
             'https',
             'node:*',
+
+            // ElizaOS packages (already in node_modules)
+            '@elizaos/*',
             '@elizaos/core',
             '@elizaos/plugin-bootstrap',
             '@elizaos/plugin-sql',
+            '@elizaos/plugin-mcp',
+            '@elizaos/plugin-openai',
+            '@elizaos/plugin-openrouter',
+            '@elizaos/plugin-anthropic',
+            '@elizaos/plugin-analytics',
             '@elizaos/cli',
             '@elizaos/server',
+            '@elizaos/api-client',
+
+            // Heavy dependencies (save ~8-10MB)
+            'viem',
+            'viem/*',
+            'axios',
+            '@solana/web3.js',
+            '@solana/spl-token',
+            'unique-names-generator', // 3-5MB of data dictionaries!
+            'bignumber.js',
+            'bs58',
+            'tweetnacl',
+            '@jup-ag/api',
+            '@morpho-org/*',
+            'clanker-sdk',
+            'siwe',
+            'ethers',
+
+            // Utility libraries
             'zod',
+            '@coinbase/*',
+            '@relayprotocol/*',
+            '@tavily/*',
           ],
           naming: {
             entry: '[dir]/[name].[ext]',
