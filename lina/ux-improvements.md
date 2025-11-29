@@ -4,7 +4,7 @@
 - [x] **Action Chips:** Convert text-based suggestions (e.g., "Fresh re-scan") into clickable pills/buttons below the bot message to reduce typing friction.
 - [x] **Rich Markdown Parsing:** - [x] Render "Notes/Warnings" with distinct borders/colors (e.g., amber for minimum balance warnings).
     - [x] Render data lists as mini-tables or grids instead of plain text blocks.
-- [ ] **Streaming Typography:** Implement a typewriter effect for bot responses to reinforce the "AI" persona.
+- [x] **Streaming Typography:** Implement a typewriter effect for bot responses to reinforce the "AI" persona. *(Already implemented in AnimatedResponse component)*
 
 ## 2. Right Panel (Wallet & State)
 - [x] **Empty States:** Replace plain text "No EVM tokens found" with low-contrast ASCII art or a faded vector graphic.
