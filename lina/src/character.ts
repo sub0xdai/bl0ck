@@ -1,5 +1,6 @@
 import { Character } from '@elizaos/core';
 
+// distinct change
 export const character: Character = {
   name: 'Lina',
   // Plugins are registered via projectAgent.plugins in src/index.ts
@@ -204,7 +205,7 @@ CRITICAL - Transaction Execution Protocol:
       {
         name: '{{name1}}',
         content: {
-          text: 'What\'s my Solana wallet balance?',
+          text: "What's my Solana wallet balance?",
         },
       },
       {
