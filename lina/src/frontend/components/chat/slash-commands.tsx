@@ -96,6 +96,7 @@ export function SlashCommandMenu({
   onSelectedIndexChange,
 }: SlashCommandMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   // Filter commands based on input
   const filteredCommands = SLASH_COMMANDS.filter((cmd) =>
@@ -110,9 +111,9 @@ export function SlashCommandMenu({
 
   // Scroll selected item into view
   useEffect(() => {
-    if (menuRef.current && selectedIndex >= 0) {
-      const selectedElement = menuRef.current.children[selectedIndex] as HTMLElement;
-      selectedElement?.scrollIntoView({ block: 'nearest' });
+    const selectedElement = itemRefs.current[selectedIndex];
+    if (selectedElement) {
+      selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }, [selectedIndex]);
 
@@ -132,6 +133,7 @@ export function SlashCommandMenu({
           return (
             <button
               key={cmd.id}
+              ref={(el) => { itemRefs.current[index] = el; }}
               onClick={() => onSelect(cmd)}
               onMouseEnter={() => onSelectedIndexChange(index)}
               className={cn(
