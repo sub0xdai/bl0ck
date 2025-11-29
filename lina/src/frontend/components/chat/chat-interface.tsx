@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { convertActionMessageToToolPart, isActionMessage } from "@/lib/action-message-utils"
 import { extractActionChips, shouldShowActionChips, type ActionChip } from "@/lib/action-chips"
+import { SlashCommandMenu, useSlashCommands } from "@/components/chat/slash-commands"
 import { elizaClient } from '@/lib/elizaClient'
 import { socketManager } from '@/lib/socketManager'
 import { cn } from "@/lib/utils"
@@ -155,6 +156,10 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
   const [error, setError] = useState<string | null>(null)
   const [showDummyToolGroup, setShowDummyToolGroup] = useState(false)
   const [showPromptsModal, setShowPromptsModal] = useState(false)
+
+  // Slash commands hook
+  const slashCommands = useSlashCommands(inputValue, setInputValue)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const isUserScrollingRef = useRef(false) // Track if user is actively scrolling
@@ -911,11 +916,21 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
       {/* Sticky Input Container */}
       <div className="sticky bottom-0 bg-background">
         <div className="border-t-2 border-muted bg-secondary min-h-12 p-1 relative">
+          {/* Slash Command Menu */}
+          <SlashCommandMenu
+            isOpen={slashCommands.isOpen}
+            filter={slashCommands.filter}
+            onSelect={slashCommands.handleSelect}
+            onClose={slashCommands.close}
+            selectedIndex={slashCommands.selectedIndex}
+            onSelectedIndexChange={slashCommands.setSelectedIndex}
+          />
+
           <Textarea
             ref={textareaRef}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Type your message..."
+            placeholder="Type your message... (use / for commands)"
             disabled={isTyping || isCreatingChannel}
             className={cn(
               "flex-1 rounded-none border-none text-foreground placeholder-foreground/40 text-sm font-mono resize-none overflow-y-auto min-h-10 py-2.5",
@@ -923,6 +938,11 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
             )}
             style={{ maxHeight: `${MAX_TEXTAREA_HEIGHT}px` }}
             onKeyDown={(e) => {
+              // Let slash commands handle keyboard navigation first
+              if (slashCommands.handleKeyDown(e)) {
+                return
+              }
+
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault()
                 handleSubmit(e)

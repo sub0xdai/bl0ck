@@ -7,14 +7,13 @@
 - [ ] **Streaming Typography:** Implement a typewriter effect for bot responses to reinforce the "AI" persona.
 
 ## 2. Right Panel (Wallet & State)
-- [ ] **Empty States:** Replace plain text "No EVM tokens found" with low-contrast ASCII art or a faded vector graphic.
-- [ ] **Header Utility:** Replace or augment the Weather widget with a live **Gas Price (Gwei)** indicator.
-- [ ] **Network Toggle:** Increase visual weight or add a glow effect to the `EVM | SOL` toggle to clearly indicate active chain context.
+- [x] **Empty States:** Replace plain text "No EVM tokens found" with low-contrast ASCII art or a faded vector graphic.
+- [x] **Network Toggle:** Increase visual weight or add a glow effect to the `EVM | SOL` toggle to clearly indicate active chain context.
 
 ## 3. Visual Hierarchy & Vibe
-- [ ] **Smart Indicators:** - [ ] Make the `FUND` button pulse gently if the wallet balance is below a safe threshold.
+- [x] **Smart Indicators:** - [x] Make the `FUND` button pulse gently if the wallet balance is below a safe threshold.
     - [ ] Color-code balance changes (Green/Red) for PnL visibility.
-- [ ] **Input Enhancements:** - [ ] Add a `/` (slash) command menu for power users (e.g., `/swap`, `/bridge`).
+- [x] **Input Enhancements:** - [x] Add a `/` (slash) command menu for power users (e.g., `/swap`, `/bridge`).
     - [ ] (Optional) Add a microphone icon for voice-to-text input.
 - [ ] **Context-Aware ASCII:** Make the ASCII clock/header reactive (e.g., turns red/glitches on market dumps, glows green on pumps).
 

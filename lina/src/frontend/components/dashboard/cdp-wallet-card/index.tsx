@@ -4,6 +4,7 @@ import { Button } from '../../ui/button';
 import { Bullet } from '../../ui/bullet';
 import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip';
 import { AssetIcon, NFTImage, formatAddress } from '../../ui/asset-icon';
+import { EmptyState } from '../../ui/empty-state';
 import { Copy, Check } from 'lucide-react';
 import { SendModalContent } from './SendModal';
 import { SwapModalContent } from './SwapModal';
@@ -160,24 +161,26 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
             <Bullet />
             <div className="flex items-center gap-2">
               {/* Wallet View Toggle */}
-              <div className="flex items-center bg-muted rounded-md p-0.5">
+              <div className="flex items-center bg-muted rounded-md p-0.5 relative">
                 <button
                   onClick={() => setWalletView('evm')}
-                  className={`px-2 py-1 text-[10px] font-medium rounded transition-colors ${
+                  className={cn(
+                    "px-2 py-1 text-[10px] font-medium rounded transition-all duration-200",
                     walletView === 'evm'
-                      ? 'bg-background text-foreground shadow-sm'
+                      ? 'bg-background text-foreground shadow-sm ring-1 ring-primary/30 shadow-primary/20'
                       : 'text-muted-foreground hover:text-foreground'
-                  }`}
+                  )}
                 >
                   EVM
                 </button>
                 <button
                   onClick={() => setWalletView('solana')}
-                  className={`px-2 py-1 text-[10px] font-medium rounded transition-colors ${
+                  className={cn(
+                    "px-2 py-1 text-[10px] font-medium rounded transition-all duration-200",
                     walletView === 'solana'
-                      ? 'bg-background text-foreground shadow-sm'
+                      ? 'bg-background text-foreground shadow-sm ring-1 ring-green-500/30 shadow-green-500/20'
                       : 'text-muted-foreground hover:text-foreground'
-                  }`}
+                  )}
                 >
                   SOL
                 </button>
@@ -374,9 +377,10 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
                   </div>
                 ))
               ) : filteredTokens.length === 0 ? (
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                  No {walletView === 'solana' ? 'Solana' : 'EVM'} tokens found
-                </div>
+                <EmptyState
+                  type="tokens"
+                  chain={walletView === 'solana' ? 'solana' : 'evm'}
+                />
               ) : (
                 // Token list
                 filteredTokens.map((token, index) => (
@@ -421,9 +425,7 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
               ) : nfts.length === 0 ? (
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                  No NFTs found
-                </div>
+                <EmptyState type="nfts" />
               ) : (
                 // NFT list
                 nfts.map((nft, index) => (
@@ -486,9 +488,7 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
               ) : transactions.length === 0 ? (
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                  No transaction history
-                </div>
+                <EmptyState type="transactions" />
               ) : (
                 <div className="space-y-3">
                   {orderedDates.map((date) => {
