@@ -1,0 +1,28 @@
+{
+  "wallets": {
+    "32ea7bae-82d1-45b2-a474-478b3a9f3f2c": {
+      "userId": "32ea7bae-82d1-45b2-a474-478b3a9f3f2c",
+      "encryptedSeedPhrase": "XjLfKA8Xc4yqRFXtFi4y8+fJ8xp/c6hV9G7p83PhwCA6S0L34LrBwasn2N5YWh1KOsgaex/saByYniC21Wz8J4UjnKYEVFD7RPKQLM8M4Bx9bUntUapGkKW8JYk=",
+      "network": "solana",
+      "createdAt": 1764242014190
+    },
+    "a3f7b409d5afde8b6e5cf178c8c4a31f": {
+      "userId": "a3f7b409d5afde8b6e5cf178c8c4a31f",
+      "encryptedSeedPhrase": "k1ul5w+n21tz0rHlTgIoL7RpOWYqI9ywQOmuMP6nweccVoHO/QU1ruURuP8I9WG5lFORoiBuhfn0eSwnqukSo3fa1FjurHHkr/1pECMUqiFwdgA8AgKsifGzaWs=",
+      "network": "solana",
+      "createdAt": 1764306444621
+    },
+    "a3f7b409-d5af-4e8b-ae5c-f178c8c4a31f": {
+      "userId": "a3f7b409-d5af-4e8b-ae5c-f178c8c4a31f",
+      "encryptedSeedPhrase": "tq57NTxV4u1E+BPcA1fcHzEwgDOCkA1iByd2CTHtWzNI5o34NB7pz7CNpzGJ++F2sRD39aaWlOCXGC2ygZsjEwwsk+3iVHR/fn6PUk/9hDcIHiHSpzDGWtTzMck=",
+      "network": "solana",
+      "createdAt": 1764314025456
+    },
+    "932cbead-5578-00a0-b0ff-7e727f465ef2": {
+      "userId": "932cbead-5578-00a0-b0ff-7e727f465ef2",
+      "encryptedSeedPhrase": "i6COIqCA6eCcd984EWXtooELwe4mYJaD798Li0VcB4wShrXOh/28KPVIng+QBMqtfDrVAddn2CKnraT1TtgDEyI3y/rp3D2lPa8jx/0qqyahG+yNq4yVCSUuSqI=",
+      "network": "solana",
+      "createdAt": 1764391119198
+    }
+  }
+}

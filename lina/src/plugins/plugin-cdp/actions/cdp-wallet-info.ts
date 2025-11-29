@@ -7,8 +7,78 @@ import {
   type ActionResult,
   logger
 } from "@elizaos/core";
-import { getEntityWallet } from "../../../utils/entity";
+import { getEntityWallet, getEntityUserId } from "../../../utils/entity";
 import { CdpService } from "../services/cdp.service";
+import { SolanaService } from "../../plugin-solana-core/src/services/solana.service";
+
+/**
+ * Helper to fetch Solana wallet info
+ */
+async function fetchSolanaWalletInfo(
+  runtime: IAgentRuntime,
+  message: Memory,
+  callback?: HandlerCallback,
+  inputParams: Record<string, any> = {}
+): Promise<ActionResult> {
+  try {
+    const solanaService = runtime.getService(SolanaService.serviceType) as SolanaService;
+
+    if (!solanaService) {
+      const errorMsg = "Solana service not available";
+      logger.error(`[USER_WALLET_INFO] ${errorMsg}`);
+      callback?.({ text: ` ${errorMsg}`, content: { error: "service_unavailable" } });
+      return { text: ` ${errorMsg}`, success: false, error: "service_unavailable", input: inputParams } as ActionResult & { input: typeof inputParams };
+    }
+
+    // Get correct userId from entity metadata
+    const userId = await getEntityUserId(runtime, message);
+
+    callback?.({ text: " Fetching your Solana wallet information..." });
+
+    const result = await solanaService.getTokenBalances(userId, false);
+    const network = solanaService.getNetwork();
+
+    // Format response
+    let text = ` **Solana Wallet**\n\n`;
+    text += ` **Address:** \`${result.address}\`\n`;
+    text += ` **Network:** ${network === "solana" ? "Mainnet" : "Devnet"}\n`;
+    text += `$ **Total Value:** $${result.totalUsdValue.toFixed(2)}\n`;
+
+    if (result.fromCache) {
+      text += `*(From cache - may be up to 5 minutes old)*\n`;
+    }
+
+    text += `\n **Tokens:**\n`;
+    if (result.tokens.length === 0) {
+      text += `  • No tokens found\n`;
+    } else {
+      for (const token of result.tokens) {
+        text += `  • ${token.balanceFormatted} ${token.symbol}`;
+        if (token.usdValue > 0) {
+          text += ` ($${token.usdValue.toFixed(2)})`;
+        }
+        text += `\n`;
+      }
+    }
+
+    const data = {
+      address: result.address,
+      tokens: result.tokens,
+      totalUsdValue: result.totalUsdValue,
+      chain: "solana",
+      network,
+    };
+
+    callback?.({ text, content: data });
+    return { text, success: true, data, values: data, input: inputParams } as ActionResult & { input: typeof inputParams };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error("[USER_WALLET_INFO] Solana fetch failed:", errorMessage);
+    const errorText = ` Failed to fetch Solana wallet: ${errorMessage}`;
+    callback?.({ text: errorText, content: { error: "solana_fetch_failed", details: errorMessage } });
+    return { text: errorText, success: false, error: errorMessage, input: inputParams } as ActionResult & { input: typeof inputParams };
+  }
+}
 
 export const cdpWalletInfo: Action = {
   name: "USER_WALLET_INFO",
@@ -80,8 +150,11 @@ export const cdpWalletInfo: Action = {
       const inputParams = chain ? { chain } : {};
 
       // Validate chain parameter if provided
-      const validChains = ['base', 'ethereum', 'polygon', 'arbitrum', 'optimism'];
-      if (chain && !validChains.includes(chain.toLowerCase())) {
+      const evmChains = ['base', 'ethereum', 'polygon', 'arbitrum', 'optimism'];
+      const validChains = [...evmChains, 'solana'];
+      const normalizedChain = chain?.toLowerCase();
+
+      if (chain && !validChains.includes(normalizedChain)) {
         const errorMsg = `Invalid chain: ${chain}. Supported chains: ${validChains.join(', ')}`;
         logger.error(`[USER_WALLET_INFO] ${errorMsg}`);
         const errorResult: ActionResult = {
@@ -90,11 +163,16 @@ export const cdpWalletInfo: Action = {
           error: "invalid_chain",
           input: inputParams,
         } as ActionResult & { input: typeof inputParams };
-        callback?.({ 
+        callback?.({
           text: errorResult.text,
           content: { error: "invalid_chain", details: errorMsg }
         });
         return errorResult;
+      }
+
+      // If specifically requesting Solana, route to Solana service
+      if (normalizedChain === 'solana') {
+        return await fetchSolanaWalletInfo(runtime, message, callback, inputParams);
       }
 
       const wallet = await getEntityWallet(
@@ -246,22 +324,40 @@ export const cdpWalletInfo: Action = {
       } as ActionResult & { input: typeof inputParams };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error("[USER_WALLET_INFO] Action failed:", errorMessage);
-      
+      logger.error("[USER_WALLET_INFO] EVM fetch failed:", errorMessage);
+
+      // If EVM fails (e.g., Alchemy not configured), try Solana as fallback
+      if (errorMessage.includes('Alchemy') || errorMessage.includes('API key')) {
+        logger.info("[USER_WALLET_INFO] Alchemy not configured, trying Solana fallback...");
+        callback?.({ text: " EVM wallet unavailable (Alchemy not configured). Checking Solana wallet..." });
+
+        try {
+          const solanaResult = await fetchSolanaWalletInfo(runtime, message, callback, {});
+          if (solanaResult.success) {
+            return solanaResult;
+          }
+        } catch (solanaError) {
+          logger.error("[USER_WALLET_INFO] Solana fallback also failed:", solanaError);
+        }
+
+        // Both failed
+        const errorText = " Unable to fetch wallet info. EVM requires Alchemy API key, and Solana fetch also failed.";
+        callback?.({ text: errorText, content: { error: "both_chains_failed" } });
+        return { text: errorText, success: false, error: "both_chains_failed", input: {} } as ActionResult & { input: {} };
+      }
+
       const errorText = ` Failed to fetch wallet info: ${errorMessage}`;
-      const errorResult: ActionResult = {
+      callback?.({
+        text: errorText,
+        content: { error: "action_failed", details: errorMessage }
+      });
+
+      return {
         text: errorText,
         success: false,
         error: errorMessage,
         input: {},
       } as ActionResult & { input: {} };
-      
-      callback?.({ 
-        text: errorText,
-        content: { error: "action_failed", details: errorMessage }
-      });
-      
-      return errorResult;
     }
   },
   examples: [
@@ -296,6 +392,14 @@ export const cdpWalletInfo: Action = {
     [
       { name: "{{user}}", content: { text: "what tokens do I have on polygon?" } },
       { name: "{{agent}}", content: { text: " Fetching your wallet information on polygon...", action: "USER_WALLET_INFO", chain: "polygon" } },
+    ],
+    [
+      { name: "{{user}}", content: { text: "show my solana wallet" } },
+      { name: "{{agent}}", content: { text: " Fetching your Solana wallet information...", action: "USER_WALLET_INFO", chain: "solana" } },
+    ],
+    [
+      { name: "{{user}}", content: { text: "check my sol balance" } },
+      { name: "{{agent}}", content: { text: " Fetching your Solana wallet information...", action: "USER_WALLET_INFO", chain: "solana" } },
     ],
   ],
 };
