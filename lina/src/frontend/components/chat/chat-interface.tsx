@@ -6,6 +6,7 @@ import ArrowRightIcon from "@/components/icons/arrow-right"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { convertActionMessageToToolPart, isActionMessage } from "@/lib/action-message-utils"
+import { extractActionChips, shouldShowActionChips, type ActionChip } from "@/lib/action-chips"
 import { elizaClient } from '@/lib/elizaClient'
 import { socketManager } from '@/lib/socketManager'
 import { cn } from "@/lib/utils"
@@ -730,9 +731,26 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                 const messageAge = Date.now() - message.createdAt
                 const isRecent = messageAge < 10000 // Less than 10 seconds
                 const shouldAnimate = message.isAgent && isLastMessage && isRecent
-                
+
                 // Check if this is an error message from the agent
                 const isErrorMessage = message.isAgent && message.content.startsWith(' Error:')
+
+                // Find last agent message index for action chips
+                const lastAgentMessageIndex = messages.reduceRight((acc, m, idx) => {
+                  if (acc === -1 && m.isAgent && !isActionMessage(m)) return idx
+                  return acc
+                }, -1)
+                const isLastAgentMessage = messageIndex === lastAgentMessageIndex
+
+                // Extract action chips for the last agent message
+                const actionChips = message.isAgent && isLastAgentMessage && !isErrorMessage
+                  ? extractActionChips(message.content, messageIndex === 0)
+                  : []
+
+                // Handler for action chip clicks
+                const handleChipClick = (chip: ActionChip) => {
+                  setInputValue(chip.prompt)
+                }
 
                 return (
                   <div
@@ -742,14 +760,14 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                     <div
                       className={cn(
                         "max-w-[70%] rounded-lg px-3 py-2 text-base font-medium break-words whitespace-pre-wrap",
-                        isErrorMessage 
+                        isErrorMessage
                           ? "bg-destructive/10 border border-destructive/20 text-destructive"
-                          : message.isAgent 
-                            ? "bg-accent text-foreground" 
+                          : message.isAgent
+                            ? "bg-accent text-foreground"
                             : "bg-primary text-primary-foreground",
                       )}
                     >
-                      <AnimatedResponse 
+                      <AnimatedResponse
                         className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
                         shouldAnimate={shouldAnimate && !isErrorMessage}
                         messageId={message.id}
@@ -762,6 +780,25 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                         {new Date(message.createdAt).toLocaleTimeString()}
                       </span>
                     </div>
+
+                    {/* Action Chips - Quick action buttons below agent messages */}
+                    {actionChips.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-1 max-w-[70%]">
+                        {actionChips.map((chip) => (
+                          <button
+                            key={chip.id}
+                            onClick={() => handleChipClick(chip)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full
+                                     bg-accent/50 hover:bg-accent text-foreground
+                                     border border-border/50 hover:border-border
+                                     transition-all duration-200 hover:scale-105"
+                          >
+                            {chip.icon && <span>{chip.icon}</span>}
+                            {chip.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )
               })}

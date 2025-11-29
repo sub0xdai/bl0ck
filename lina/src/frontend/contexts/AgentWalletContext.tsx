@@ -243,9 +243,12 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
 
       // Fetch EVM address
       try {
-        const { address } = await elizaClient.wallet.getAddress('base');
+        console.log('[AgentWalletContext] Fetching EVM address...');
+        const response = await elizaClient.wallet.getAddress('base');
+        console.log('[AgentWalletContext] EVM response:', response);
         if (!cancelled && isMountedRef.current) {
-          setEvmAddress(address);
+          setEvmAddress(response.address);
+          console.log('[AgentWalletContext] EVM address set:', response.address);
         }
       } catch (err) {
         console.error('[AgentWalletContext] Error fetching EVM address:', err);
@@ -254,9 +257,12 @@ export function AgentWalletProvider({ children, userId }: AgentWalletProviderPro
 
       // Fetch Solana address
       try {
-        const { address } = await elizaClient.wallet.getAddress('solana');
+        console.log('[AgentWalletContext] Fetching Solana address...');
+        const response = await elizaClient.wallet.getAddress('solana');
+        console.log('[AgentWalletContext] Solana response:', response);
         if (!cancelled && isMountedRef.current) {
-          setSolanaAddress(address);
+          setSolanaAddress(response.address);
+          console.log('[AgentWalletContext] Solana address set:', response.address);
         }
       } catch (err) {
         console.error('[AgentWalletContext] Error fetching Solana address:', err);

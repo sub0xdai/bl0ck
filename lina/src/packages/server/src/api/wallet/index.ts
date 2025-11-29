@@ -210,11 +210,16 @@ export function walletRouter(_serverInstance: AgentServer): express.Router {
 
       if (isSolanaNetwork(chain)) {
         // Solana - get Solana wallet address
+        logger.info(`[Wallet API] Fetching Solana address for user: ${userId.substring(0, 8)}...`);
         const { publicKey } = await solanaTransactionManager.getOrCreateWallet(userId);
+        logger.info(`[Wallet API] Solana address: ${publicKey}`);
         sendSuccess(res, { address: publicKey, chain });
       } else {
         // EVM - get CDP wallet address
+        logger.info(`[Wallet API] Fetching EVM address for user: ${userId.substring(0, 8)}... chain: ${chain}`);
         const result = await cdpTransactionManager.getOrCreateWallet(userId);
+        logger.info(`[Wallet API] CDP result:`, result);
+        logger.info(`[Wallet API] EVM address: ${result.address}`);
         sendSuccess(res, { address: result.address, chain });
       }
     } catch (error) {

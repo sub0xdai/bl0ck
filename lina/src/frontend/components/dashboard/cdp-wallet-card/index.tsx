@@ -257,7 +257,7 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
                 showModal(
                   <FundModalContent
                     walletAddress={currentAddress || ''}
-                    shortAddress={shortAddress}
+                    shortAddress={formatAddress(currentAddress || '')}
                   />,
                   'fund-modal',
                   { closeOnBackdropClick: true, className: 'max-w-md' }
