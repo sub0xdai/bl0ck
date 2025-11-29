@@ -1,0 +1,47 @@
+{
+  "name": "@elizaos/plugin-hyperliquid",
+  "version": "1.0.0",
+  "description": "Hyperliquid perpetual futures trading plugin for ElizaOS",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun run build.ts",
+    "dev": "bun run build.ts --watch",
+    "typecheck": "tsc --project tsconfig.build.json --noEmit",
+    "test": "bun test",
+    "test:watch": "bun test --watch"
+  },
+  "dependencies": {
+    "@elizaos/core": "alpha",
+    "hyperliquid": "^1.7.7"
+  },
+  "peerDependencies": {
+    "@elizaos/core": "alpha"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.21",
+    "@types/node": "^22.15.3",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "bun": ">=1.2.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "workspaces": {
+      "preserveIfPresent": true
+    }
+  }
+}
