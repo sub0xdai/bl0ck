@@ -2,50 +2,42 @@
 
 ## Active Issues
 
-### 1. Chat Creation Fails - Title Generation Error (2025-11-27)
-
-**Status**: 🔴 Critical - Blocks new chat creation
-
-**Symptoms**:
-- Frontend shows: "Failed to create chat. Please try again."
-- User can send message "whats my sol balance?" but chat fails to create
-- Backend error: `[TITLE GENERATION] Error generating title: Not Found`
-
-**Root Cause**:
-Title generation service is calling a non-existent LLM endpoint. The system is configured to use DeepSeek via `OPENAI_API_KEY` but the title generation logic is trying to use OpenRouter endpoint which returns HTTP 404.
-
-**Server Logs**:
-```
-Info  [TITLE GENERATION] Generating title from user message: "whats my sol balance?"
-Error [TITLE GENERATION] Error generating title: Not Found
-```
-
-**Impact**:
-- Cannot create new chat channels
-- Existing channels may work if already created
-- Prevents users from starting conversations
-
-**Workaround**:
-None currently available. Title generation must succeed for channel creation.
-
-**Fix Required**:
-1. Update title generation service to use the configured LLM provider (DeepSeek/OpenAI)
-2. Add fallback title generation (e.g., "Chat - {timestamp}" or first 50 chars of message)
-3. Make title generation optional/async so channel can be created first
-
-**Files Involved**:
-- `src/packages/server/` - Title generation service
-- Backend LLM configuration
-
-**Related Errors**:
-- `OPENROUTER_API_KEY is not set` - Expected, using DeepSeek instead
-- CDP errors - Expected in dev mode
+*No critical issues at this time.*
 
 ---
 
 ## Resolved Issues
 
-### 1. Transaction Constructor TypeScript Errors (2025-11-27)
+### 1. Chat Creation Fails - Title Generation Error (2025-11-27)
+
+**Status**: ✅ Fixed
+
+**Fix**: Enabled OpenRouter plugin which handles `ModelType.TEXT_SMALL` for title generation.
+
+**Commit**: `6292b04 - Enable OpenRouter plugin for chat title generation`
+
+**Requires**: `OPENROUTER_API_KEY` in `.env`
+
+---
+
+### 2. CDP Key Format Errors (2025-11-28)
+
+**Status**: ✅ Fixed
+
+**Symptoms**:
+- CDP API key format failing during wallet operations
+- Wallet secret hex format incompatible with SDK
+
+**Fix**:
+- SEC1→PKCS8 format conversion for CDP API keys
+- Hex→PKCS8 DER conversion for legacy wallet secrets
+
+**Commit**: `ec7b892 - Fix wallet auth flow and CDP key handling`
+
+---
+
+### 3. Transaction Constructor TypeScript Errors (2025-11-27)
+
 **Status**: ✅ Fixed
 
 **Fix**: Updated Solana Transaction instantiation to set properties directly instead of using deprecated constructor parameters.
@@ -54,20 +46,22 @@ None currently available. Title generation must succeed for channel creation.
 
 ---
 
-### 2. Frontend Loading Issues (2025-11-27)
+### 4. Frontend Loading Issues (2025-11-27)
+
 **Status**: ✅ Fixed
 
 **Fix**: Rebuilt frontend with `bun run build:frontend`, ensured dist/frontend/index.html exists.
 
-**Details**: Frontend was not built after code changes, causing 404 errors.
-
 ---
 
-### 3. Authentication Flow (2025-11-27)
+### 5. Web3 Wallet Auth Flow (2025-11-28)
+
 **Status**: ✅ Working
 
 **Details**:
-- Dev mode authentication works correctly
-- Auto-generates dev user ID
-- Backend auth successful
-- User entity creation working
+- Wallet-first auth with SIWE (EVM) and SIWS (Solana) signatures
+- Auth state machine: `loading → none/expired → authenticated`
+- LoginScreen as full-page auth gate
+- User ID derived deterministically from wallet address
+
+**Commits**: `0e206bc`, `ec7b892`

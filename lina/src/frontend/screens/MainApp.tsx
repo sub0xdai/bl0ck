@@ -15,6 +15,11 @@ import { ModalProvider, useModal } from '../contexts/ModalContext';
 import { Info } from 'lucide-react';
 import { UUID } from '@elizaos/core';
 import { AboutModalContent } from '../components/about/about-modal-content';
+import {
+  DepositOnboardingContent,
+  shouldShowOnboarding,
+  ONBOARDING_MODAL_ID,
+} from '../components/onboarding/DepositOnboarding';
 
 interface MainAppProps {
   /** Authenticated user ID (wallet-derived) */
@@ -50,6 +55,11 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
   const [totalBalance, setTotalBalance] = useState(0);
   const [isLoadingUserProfile, setIsLoadingUserProfile] = useState(true);
   const [isNewChatMode, setIsNewChatMode] = useState(false);
+
+  // Onboarding state
+  const [isNewUser, setIsNewUser] = useState(false);
+  const [agentEvmAddress, setAgentEvmAddress] = useState<string | null>(null);
+  const [agentSolanaAddress, setAgentSolanaAddress] = useState<string | null>(null);
 
   // Ref to access wallet's refresh functions
   const walletRef = useRef<CDPWalletCardRef>(null);
@@ -116,17 +126,32 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
     const syncUserEntity = async () => {
       try {
         setIsLoadingUserProfile(true);
+        setIsNewUser(false); // Reset on each sync
         console.log('[MainApp] Syncing user entity for userId:', userId);
 
-        // Try to get agent wallet, but don't block if CDP isn't configured
-        let agentWalletAddress: string | undefined;
+        // Try to get agent wallets (EVM + Solana)
+        let evmWalletAddress: string | undefined;
+        let solanaWalletAddress: string | undefined;
+
+        // EVM wallet via CDP
         try {
           const wallet = await elizaClient.cdp.getOrCreateWallet(userId);
-          agentWalletAddress = wallet.address;
+          evmWalletAddress = wallet.address;
+          setAgentEvmAddress(wallet.address);
         } catch (cdpError) {
           console.warn('[MainApp] CDP wallet not available (optional):', cdpError);
-          // Continue without agent wallet - user can still use the app
         }
+
+        // Solana wallet
+        try {
+          const solanaWallet = await elizaClient.solana.getWallet(userId);
+          solanaWalletAddress = solanaWallet.publicKey;
+          setAgentSolanaAddress(solanaWallet.publicKey);
+        } catch (solanaError) {
+          console.warn('[MainApp] Solana wallet not available (optional):', solanaError);
+        }
+
+        const agentWalletAddress = evmWalletAddress;
 
         // Use the connected wallet address for display
         const displayAddress = walletAddress || agentWalletAddress || '';
@@ -142,6 +167,7 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
           // Entity doesn't exist, create it
           if (error?.status === 404 || error?.code === 'NOT_FOUND') {
             console.log('[MainApp] Creating new user entity in database...');
+            setIsNewUser(true); // Mark as new user for onboarding
 
             entity = await elizaClient.entities.createEntity({
               id: userId as UUID,
@@ -224,6 +250,19 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
     syncUserEntity();
   }, [userId, walletAddress, agentId]);
 
+  // Check if onboarding should be shown (after profile loads)
+  const checkOnboarding = useCallback(() => {
+    // Only check if we have wallet addresses and not loading
+    if (isLoadingUserProfile) return false;
+    if (!agentEvmAddress && !agentSolanaAddress) return false;
+    if (!shouldShowOnboarding()) return false;
+
+    // Show if new user
+    if (isNewUser) return true;
+
+    // Show if zero balance
+    return totalBalance === 0;
+  }, [isLoadingUserProfile, agentEvmAddress, agentSolanaAddress, isNewUser, totalBalance]);
 
   // Fetch full agent details (including settings with avatar)
   const { data: agent, isLoading } = useQuery({
@@ -491,6 +530,11 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
         setIsNewChatMode={setIsNewChatMode}
         updateUserProfile={updateUserProfile}
         signOut={onSignOut}
+        // Onboarding props
+        shouldShowOnboarding={checkOnboarding()}
+        isNewUser={isNewUser}
+        agentEvmAddress={agentEvmAddress}
+        agentSolanaAddress={agentSolanaAddress}
       />
     </SidebarProvider>
   );
@@ -519,13 +563,46 @@ function AppContent({
   setIsNewChatMode,
   updateUserProfile,
   signOut,
+  // Onboarding props
+  shouldShowOnboarding,
+  isNewUser,
+  agentEvmAddress,
+  agentSolanaAddress,
 }: any) {
   const { setOpenMobile } = useSidebar();
   const { showModal, hideModal } = useModal();
+  const hasShownOnboarding = useRef(false);
 
   useEffect(() => {
     setOpenMobile(false);
   }, [currentView])
+
+  // Show onboarding modal when conditions are met
+  useEffect(() => {
+    if (shouldShowOnboarding && !hasShownOnboarding.current && (agentEvmAddress || agentSolanaAddress)) {
+      hasShownOnboarding.current = true;
+      showModal(
+        <DepositOnboardingContent
+          evmAddress={agentEvmAddress || ''}
+          solanaAddress={agentSolanaAddress || ''}
+          isNewUser={isNewUser}
+          onComplete={() => {
+            console.log('[MainApp] Onboarding completed');
+          }}
+          onSkip={() => {
+            console.log('[MainApp] Onboarding skipped');
+          }}
+        />,
+        ONBOARDING_MODAL_ID,
+        {
+          closeOnBackdropClick: false,
+          closeOnEsc: true,
+          showCloseButton: false,
+          className: 'max-w-md w-full',
+        }
+      );
+    }
+  }, [shouldShowOnboarding, agentEvmAddress, agentSolanaAddress, isNewUser, showModal]);
 
   const handleOpenAbout = () => {
     showModal(

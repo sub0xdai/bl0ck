@@ -325,9 +325,3 @@ body > .Modal-module__overlay,
 dialog {
   z-index: 99999 !important;
 }
-
-/* Hide CDP SignInModal's trigger button - we control it via state */
-.SignInModal-module__trigger___IcJ8x,
-button[class*="SignInModal-module__trigger"] {
-  display: none !important;
-}

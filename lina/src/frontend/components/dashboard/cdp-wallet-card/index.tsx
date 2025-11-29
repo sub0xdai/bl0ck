@@ -2,6 +2,7 @@ import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Bullet } from '../../ui/bullet';
+import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip';
 import { Copy, Check } from 'lucide-react';
 import { SendModalContent } from './SendModal';
 import { SwapModalContent } from './SwapModal';
@@ -10,6 +11,7 @@ import { NFTDetailModalContent } from './NFTDetailModal';
 import { FundModalContent } from './FundModal';
 import { elizaClient } from '../../../lib/elizaClient';
 import { formatTokenBalance } from '../../../lib/number-format';
+import { cn } from '../../../lib/utils';
 import { getTokenIconBySymbol, SUPPORTED_CHAINS, CHAIN_UI_CONFIGS, getChainWalletIcon, isSolanaChain, isEVMChain } from '../../../constants/chains';
 import { useModal } from '../../../contexts/ModalContext';
 
@@ -763,9 +765,16 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
 
           {/* Total Balance - Centered */}
           <div className="flex flex-col items-center gap-3 py-2">
-            <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
-              Total Balance
-            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider cursor-help">
+                  Agent Wallet Balance
+                </span>
+              </TooltipTrigger>
+              <TooltipContent sideOffset={4}>
+                Lina manages this wallet for your trades. Deposit funds here to get started.
+              </TooltipContent>
+            </Tooltip>
             {isLoadingTokens && tokens.length === 0 ? (
               <div className="h-10 w-32 bg-muted animate-pulse rounded"></div>
             ) : (
@@ -778,11 +787,11 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
           </div>
           {/* Action Buttons - Before tabs */}
           <div className="grid grid-cols-3 gap-2">
-            <Button 
+            <Button
               onClick={() => {
                 // Close parent container (Sheet/Sidebar) if callback provided
                 onActionClick?.();
-                
+
                 showModal(
                   <FundModalContent
                     walletAddress={currentAddress || ''}
@@ -792,7 +801,10 @@ export const CDPWalletCard = forwardRef<CDPWalletCardRef, CDPWalletCardProps>(
                   { closeOnBackdropClick: true, className: 'max-w-md' }
                 );
               }}
-              className="flex-1"
+              className={cn(
+                "flex-1",
+                totalUsdValue === 0 && "ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse"
+              )}
               variant="default"
               size="sm"
             >

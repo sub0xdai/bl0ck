@@ -1,5 +1,7 @@
 # Web3 Wallet Auth Implementation Plan
 
+> **Current Focus**: This is the active workstream. Complete before resuming `LINA_IMPLEMENTATION_TASKS.md` (Solana Phase 2+).
+
 ## Overview
 
 Replace CDP social auth (email/SMS/OAuth) with Web3 wallet signature auth (SIWE/SIWS). Agent-managed wallets remain unchanged.
@@ -19,6 +21,13 @@ Lina Agent Wallets (Unchanged)
 ```
 
 ## Status
+
+| Phase | Status | Commits |
+|-------|--------|---------|
+| 1. Backend Auth | ✅ Complete | `a921af0` |
+| 2. Frontend Auth | ✅ Complete | `0e206bc`, `ec7b892` |
+| 3. Onboarding Flow | ✅ Complete | *pending commit* |
+| 4. Cleanup | ✅ Complete | *pending commit* |
 
 ### Phase 1: Backend Auth Endpoints ✅ COMPLETE
 
@@ -49,13 +58,24 @@ bun add siwe tweetnacl
 
 ## Phase 2: Frontend Auth Components ✅ COMPLETE
 
+**Recent Fixes (ec7b892):**
+- Fixed CDP API key SEC1→PKCS8 format conversion for SDK compatibility
+- Fixed wallet secret hex→PKCS8 DER conversion for legacy formats
+- Generate proper UUID format for userId (required by entity API)
+- Require wallet connection before restoring auth session
+- Handle profile sync errors gracefully (don't block app)
+- Fix sign out button wiring
+- Add back navigation button to Account page
+- Display CDP-managed wallet addresses (not auth wallet)
+- Fetch EVM/Solana addresses from server instead of using auth wallet
+
 ### 2.1 Install AppKit Dependencies ✅
 
 ```bash
-bun add @reown/appkit @reown/appkit-adapter-wagmi wagmi viem @tanstack/react-query siwe
+bun add @reown/appkit @reown/appkit-adapter-wagmi @reown/appkit-adapter-solana wagmi viem @tanstack/react-query siwe
 ```
 
-**Note:** Solana adapter (`@reown/appkit-adapter-solana`) not installed yet - EVM-only for now.
+**Note:** Both EVM and Solana adapters now installed.
 
 ### 2.2 Create Web3Provider ✅
 
@@ -236,25 +256,50 @@ export function useWalletAuth(): WalletAuth {
 
 **File:** `src/frontend/App.tsx`
 
-Replace:
+Implemented auth state machine pattern:
+
 ```tsx
-<CDPReactProvider config={...}>
-  <App />
-</CDPReactProvider>
+// Auth states: loading -> none/expired -> authenticated
+// loading    → SplashScreen (checking token)
+// none       → LoginScreen (cold start)
+// expired    → LoginScreen with message
+// authenticated → MainApp
+
+export function App() {
+  const { authStatus } = useWalletAuth();
+
+  if (authStatus === 'loading') return <SplashScreen />;
+  if (authStatus === 'none' || authStatus === 'expired') return <LoginScreen />;
+  return <MainApp />;
+}
 ```
 
-With:
-```tsx
-<Web3Provider>
-  <AuthGuard>
-    <App />
-  </AuthGuard>
-</Web3Provider>
-```
+**New Files Created:**
+- `src/frontend/screens/SplashScreen.tsx` - Loading state
+- `src/frontend/screens/LoginScreen.tsx` - Full-page auth gate
+- `src/frontend/screens/MainApp.tsx` - Extracted from App.tsx
+
+**Key Changes:**
+- App.tsx reduced from ~600 lines to ~70 lines
+- Single `useWalletAuth` instance (fixes state sync issues)
+- No auto-sign-in (user clicks explicitly)
+- "Use Different Wallet" button to switch wallets
 
 ---
 
-## Phase 3: Onboarding Flow (TODO)
+## Phase 3: Onboarding Flow ✅ COMPLETE
+
+**Files Created:**
+- `src/frontend/components/onboarding/DepositOnboarding.tsx`
+
+**Integration:**
+- Added to `MainApp.tsx` - shows modal for new users OR zero-balance users
+- 24hr cooldown after dismissal
+- Displays EVM (CDP) and Solana agent wallet addresses
+
+---
+
+## Phase 3: Onboarding Flow (Reference)
 
 ### 3.1 Create DepositOnboarding Modal
 
@@ -313,7 +358,22 @@ if (wallet.isNew) {
 
 ---
 
-## Phase 4: Cleanup (TODO)
+## Phase 4: Cleanup ✅ COMPLETE
+
+**Files Deleted:**
+- `src/frontend/components/auth/SignInModal.tsx`
+- `src/frontend/hooks/useCDPWallet.ts`
+
+**Dependencies Removed:**
+- `@coinbase/cdp-react`
+- `@coinbase/cdp-hooks`
+
+**CSS Cleaned:**
+- Removed `.SignInModal-module__trigger` styles from `index.css`
+
+---
+
+## Phase 4: Cleanup (Reference)
 
 ### 4.1 Remove CDP Auth Dependencies
 

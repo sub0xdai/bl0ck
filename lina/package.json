@@ -25,8 +25,6 @@
   ],
   "dependencies": {
     "@coinbase/cdp-core": "latest",
-    "@coinbase/cdp-hooks": "latest",
-    "@coinbase/cdp-react": "latest",
     "@coinbase/cdp-sdk": "^1.38.4",
     "@coinbase/x402": "^0.7.1",
     "@elizaos/api-client": "workspace:*",
