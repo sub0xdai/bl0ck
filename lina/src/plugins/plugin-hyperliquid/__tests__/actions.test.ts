@@ -1,60 +1,19 @@
 /**
  * Hyperliquid Actions Tests
  *
- * Tests for action parameter validation, execution flow, and response formatting.
- * TDD Phase: GREEN - Validation utilities tested, action handlers pending.
+ * Tests for action configuration, constants, and response structure.
+ * Validation logic is tested in hyperliquid.service.test.ts
  */
 
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect } from 'bun:test';
 import { ACTION_NAMES, ERROR_MESSAGES, SERVICE_CONFIG } from '../src/constants';
-import type { PerpOpenParams, PerpCloseParams, ValidationResult } from '../src/types';
-
-/**
- * Action Parameter Validation Utilities
- * These functions will be extracted into action files during GREEN phase.
- */
-
-function validatePerpOpenParams(params: PerpOpenParams): ValidationResult {
-  const errors: string[] = [];
-
-  if (!params.symbol || params.symbol.trim() === '') {
-    errors.push(ERROR_MESSAGES.INVALID_SYMBOL);
-  }
-
-  if (!params.size || params.size <= 0) {
-    errors.push(ERROR_MESSAGES.INVALID_SIZE);
-  }
-
-  const leverage = params.leverage ?? SERVICE_CONFIG.DEFAULT_LEVERAGE;
-  if (leverage < SERVICE_CONFIG.MIN_LEVERAGE || leverage > SERVICE_CONFIG.MAX_LEVERAGE) {
-    errors.push(ERROR_MESSAGES.INVALID_LEVERAGE);
-  }
-
-  if (params.orderType === 'limit' && (!params.limitPrice || params.limitPrice <= 0)) {
-    errors.push(ERROR_MESSAGES.INVALID_LIMIT_PRICE);
-  }
-
-  return { valid: errors.length === 0, errors };
-}
-
-function validatePerpCloseParams(params: PerpCloseParams): ValidationResult {
-  const errors: string[] = [];
-
-  if (!params.symbol || params.symbol.trim() === '') {
-    errors.push(ERROR_MESSAGES.INVALID_SYMBOL);
-  }
-
-  const percentage = params.percentage ?? 100;
-  if (percentage < 1 || percentage > 100) {
-    errors.push(ERROR_MESSAGES.INVALID_PERCENTAGE);
-  }
-
-  if (params.orderType === 'limit' && (!params.limitPrice || params.limitPrice <= 0)) {
-    errors.push(ERROR_MESSAGES.INVALID_LIMIT_PRICE);
-  }
-
-  return { valid: errors.length === 0, errors };
-}
+import { hyperliquidPlugin } from '../src/index';
+import { perpOpenLong } from '../src/actions/perp-open-long';
+import { perpOpenShort } from '../src/actions/perp-open-short';
+import { perpClosePosition } from '../src/actions/perp-close-position';
+import { perpGetPositions } from '../src/actions/perp-get-positions';
+import { perpGetMarkets } from '../src/actions/perp-get-markets';
+import { perpAccountInfo } from '../src/actions/perp-account-info';
 
 describe('Action Names', () => {
   it('should have correct action name for PERP_OPEN_LONG', () => {
@@ -82,299 +41,96 @@ describe('Action Names', () => {
   });
 });
 
-describe('PERP_OPEN_LONG / PERP_OPEN_SHORT Parameter Validation', () => {
-  describe('Valid Parameters', () => {
-    it('should accept valid market order with default leverage', () => {
-      const params: PerpOpenParams = {
-        symbol: 'BTC',
-        size: 0.1,
-      };
-
-      const result = validatePerpOpenParams(params);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
-    });
-
-    it('should accept valid market order with explicit leverage', () => {
-      const params: PerpOpenParams = {
-        symbol: 'ETH',
-        size: 1.5,
-        leverage: 10,
-        orderType: 'market',
-      };
-
-      const result = validatePerpOpenParams(params);
-      expect(result.valid).toBe(true);
-    });
-
-    it('should accept valid limit order with price', () => {
-      const params: PerpOpenParams = {
-        symbol: 'SOL',
-        size: 10,
-        leverage: 5,
-        orderType: 'limit',
-        limitPrice: 150.50,
-      };
-
-      const result = validatePerpOpenParams(params);
-      expect(result.valid).toBe(true);
-    });
-
-    it('should accept maximum leverage (25x)', () => {
-      const params: PerpOpenParams = {
-        symbol: 'BTC',
-        size: 0.01,
-        leverage: 25,
-      };
-
-      const result = validatePerpOpenParams(params);
-      expect(result.valid).toBe(true);
-    });
-
-    it('should accept minimum leverage (1x)', () => {
-      const params: PerpOpenParams = {
-        symbol: 'BTC',
-        size: 1.0,
-        leverage: 1,
-      };
-
-      const result = validatePerpOpenParams(params);
-      expect(result.valid).toBe(true);
-    });
+describe('Plugin Registration', () => {
+  it('should export plugin with correct name', () => {
+    expect(hyperliquidPlugin.name).toBe('hyperliquid');
   });
 
-  describe('Invalid Parameters', () => {
-    it('should reject missing symbol', () => {
-      const params: PerpOpenParams = {
-        symbol: '',
-        size: 0.1,
-      };
+  it('should have description', () => {
+    expect(hyperliquidPlugin.description).toBeDefined();
+    expect(hyperliquidPlugin.description).toContain('perpetual');
+  });
 
-      const result = validatePerpOpenParams(params);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(ERROR_MESSAGES.INVALID_SYMBOL);
-    });
+  it('should register all 6 actions', () => {
+    expect(hyperliquidPlugin.actions).toHaveLength(6);
+  });
 
-    it('should reject whitespace-only symbol', () => {
-      const params: PerpOpenParams = {
-        symbol: '   ',
-        size: 0.1,
-      };
-
-      const result = validatePerpOpenParams(params);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(ERROR_MESSAGES.INVALID_SYMBOL);
-    });
-
-    it('should reject zero size', () => {
-      const params: PerpOpenParams = {
-        symbol: 'BTC',
-        size: 0,
-      };
-
-      const result = validatePerpOpenParams(params);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(ERROR_MESSAGES.INVALID_SIZE);
-    });
-
-    it('should reject negative size', () => {
-      const params: PerpOpenParams = {
-        symbol: 'BTC',
-        size: -0.5,
-      };
-
-      const result = validatePerpOpenParams(params);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(ERROR_MESSAGES.INVALID_SIZE);
-    });
-
-    it('should reject leverage below 1x', () => {
-      const params: PerpOpenParams = {
-        symbol: 'BTC',
-        size: 0.1,
-        leverage: 0.5,
-      };
-
-      const result = validatePerpOpenParams(params);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(ERROR_MESSAGES.INVALID_LEVERAGE);
-    });
-
-    it('should reject leverage above 25x', () => {
-      const params: PerpOpenParams = {
-        symbol: 'BTC',
-        size: 0.1,
-        leverage: 26,
-      };
-
-      const result = validatePerpOpenParams(params);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(ERROR_MESSAGES.INVALID_LEVERAGE);
-    });
-
-    it('should reject limit order without price', () => {
-      const params: PerpOpenParams = {
-        symbol: 'BTC',
-        size: 0.1,
-        orderType: 'limit',
-      };
-
-      const result = validatePerpOpenParams(params);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(ERROR_MESSAGES.INVALID_LIMIT_PRICE);
-    });
-
-    it('should reject limit order with zero price', () => {
-      const params: PerpOpenParams = {
-        symbol: 'BTC',
-        size: 0.1,
-        orderType: 'limit',
-        limitPrice: 0,
-      };
-
-      const result = validatePerpOpenParams(params);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(ERROR_MESSAGES.INVALID_LIMIT_PRICE);
-    });
-
-    it('should reject limit order with negative price', () => {
-      const params: PerpOpenParams = {
-        symbol: 'BTC',
-        size: 0.1,
-        orderType: 'limit',
-        limitPrice: -100,
-      };
-
-      const result = validatePerpOpenParams(params);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(ERROR_MESSAGES.INVALID_LIMIT_PRICE);
-    });
-
-    it('should collect multiple validation errors', () => {
-      const params: PerpOpenParams = {
-        symbol: '',
-        size: -1,
-        leverage: 100,
-        orderType: 'limit',
-        limitPrice: 0,
-      };
-
-      const result = validatePerpOpenParams(params);
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThanOrEqual(4);
-    });
+  it('should register HyperliquidService', () => {
+    expect(hyperliquidPlugin.services).toHaveLength(1);
   });
 });
 
-describe('PERP_CLOSE_POSITION Parameter Validation', () => {
-  describe('Valid Parameters', () => {
-    it('should accept valid full close (100%)', () => {
-      const params: PerpCloseParams = {
-        symbol: 'BTC',
-        percentage: 100,
-      };
-
-      const result = validatePerpCloseParams(params);
-      expect(result.valid).toBe(true);
+describe('Action Structure', () => {
+  describe('perpOpenLong', () => {
+    it('should have correct name', () => {
+      expect(perpOpenLong.name).toBe(ACTION_NAMES.PERP_OPEN_LONG);
     });
 
-    it('should accept valid partial close (50%)', () => {
-      const params: PerpCloseParams = {
-        symbol: 'ETH',
-        percentage: 50,
-      };
-
-      const result = validatePerpCloseParams(params);
-      expect(result.valid).toBe(true);
+    it('should have description', () => {
+      expect(perpOpenLong.description).toBeDefined();
     });
 
-    it('should accept minimum close (1%)', () => {
-      const params: PerpCloseParams = {
-        symbol: 'SOL',
-        percentage: 1,
-      };
-
-      const result = validatePerpCloseParams(params);
-      expect(result.valid).toBe(true);
+    it('should have handler function', () => {
+      expect(typeof perpOpenLong.handler).toBe('function');
     });
 
-    it('should accept limit close order', () => {
-      const params: PerpCloseParams = {
-        symbol: 'BTC',
-        percentage: 100,
-        orderType: 'limit',
-        limitPrice: 100000,
-      };
-
-      const result = validatePerpCloseParams(params);
-      expect(result.valid).toBe(true);
+    it('should have validate function', () => {
+      expect(typeof perpOpenLong.validate).toBe('function');
     });
 
-    it('should default to 100% when percentage not specified', () => {
-      const params: PerpCloseParams = {
-        symbol: 'BTC',
-      };
-
-      const result = validatePerpCloseParams(params);
-      expect(result.valid).toBe(true);
+    it('should have examples', () => {
+      expect(perpOpenLong.examples).toBeDefined();
+      expect(perpOpenLong.examples!.length).toBeGreaterThan(0);
     });
   });
 
-  describe('Invalid Parameters', () => {
-    it('should reject missing symbol', () => {
-      const params: PerpCloseParams = {
-        symbol: '',
-        percentage: 100,
-      };
-
-      const result = validatePerpCloseParams(params);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(ERROR_MESSAGES.INVALID_SYMBOL);
+  describe('perpOpenShort', () => {
+    it('should have correct name', () => {
+      expect(perpOpenShort.name).toBe(ACTION_NAMES.PERP_OPEN_SHORT);
     });
 
-    it('should reject percentage below 1', () => {
-      const params: PerpCloseParams = {
-        symbol: 'BTC',
-        percentage: 0,
-      };
+    it('should have handler function', () => {
+      expect(typeof perpOpenShort.handler).toBe('function');
+    });
+  });
 
-      const result = validatePerpCloseParams(params);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(ERROR_MESSAGES.INVALID_PERCENTAGE);
+  describe('perpClosePosition', () => {
+    it('should have correct name', () => {
+      expect(perpClosePosition.name).toBe(ACTION_NAMES.PERP_CLOSE_POSITION);
     });
 
-    it('should reject percentage above 100', () => {
-      const params: PerpCloseParams = {
-        symbol: 'BTC',
-        percentage: 150,
-      };
+    it('should have handler function', () => {
+      expect(typeof perpClosePosition.handler).toBe('function');
+    });
+  });
 
-      const result = validatePerpCloseParams(params);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(ERROR_MESSAGES.INVALID_PERCENTAGE);
+  describe('perpGetPositions', () => {
+    it('should have correct name', () => {
+      expect(perpGetPositions.name).toBe(ACTION_NAMES.PERP_GET_POSITIONS);
     });
 
-    it('should reject limit close without price', () => {
-      const params: PerpCloseParams = {
-        symbol: 'BTC',
-        percentage: 100,
-        orderType: 'limit',
-      };
+    it('should have handler function', () => {
+      expect(typeof perpGetPositions.handler).toBe('function');
+    });
+  });
 
-      const result = validatePerpCloseParams(params);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(ERROR_MESSAGES.INVALID_LIMIT_PRICE);
+  describe('perpGetMarkets', () => {
+    it('should have correct name', () => {
+      expect(perpGetMarkets.name).toBe(ACTION_NAMES.PERP_GET_MARKETS);
     });
 
-    it('should reject negative percentage', () => {
-      const params: PerpCloseParams = {
-        symbol: 'BTC',
-        percentage: -50,
-      };
+    it('should have handler function', () => {
+      expect(typeof perpGetMarkets.handler).toBe('function');
+    });
+  });
 
-      const result = validatePerpCloseParams(params);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(ERROR_MESSAGES.INVALID_PERCENTAGE);
+  describe('perpAccountInfo', () => {
+    it('should have correct name', () => {
+      expect(perpAccountInfo.name).toBe(ACTION_NAMES.PERP_ACCOUNT_INFO);
+    });
+
+    it('should have handler function', () => {
+      expect(typeof perpAccountInfo.handler).toBe('function');
     });
   });
 });

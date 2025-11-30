@@ -9,7 +9,7 @@ Enable Lina to actively trade tokens and search for opportunities across multipl
 |-------|------|--------|--------|
 | **Solana (Jupiter)** | Spot swaps | ✅ Exists | `plugin-jupiter` |
 | **Base/EVM (Uniswap)** | Spot swaps | ✅ Exists | `plugin-cdp` |
-| **Hyperliquid** | Perps (leverage) | 🔨 Build | `plugin-hyperliquid` |
+| **Hyperliquid** | Perps (leverage) | ✅ Complete | `plugin-hyperliquid` |
 
 ---
 
@@ -27,7 +27,7 @@ Enable Lina to actively trade tokens and search for opportunities across multipl
 
 ---
 
-## New: Hyperliquid Perps (To Build)
+## Hyperliquid Perpetuals (Completed)
 
 ### Plugin Structure
 ```
@@ -35,12 +35,20 @@ src/plugins/plugin-hyperliquid/
 ├── src/
 │   ├── index.ts
 │   ├── services/hyperliquid.service.ts
+│   ├── utils/
+│   │   ├── action-factory.ts
+│   │   └── formatters.ts
 │   └── actions/
-│       ├── perp-open-position.ts
+│       ├── perp-open-long.ts
+│       ├── perp-open-short.ts
 │       ├── perp-close-position.ts
 │       ├── perp-get-positions.ts
 │       ├── perp-get-markets.ts
 │       └── perp-account-info.ts
+├── __tests__/
+│   ├── hyperliquid.service.test.ts
+│   ├── actions.test.ts
+│   └── integration.test.ts (78 passing tests)
 ├── package.json
 └── build.ts
 ```
@@ -61,6 +69,14 @@ HYPERLIQUID_PRIVATE_KEY="0x..."
 HYPERLIQUID_TESTNET="true"
 ```
 
+### Features
+- Market + Limit orders
+- Leverage 1-25x (default 1x for safety)
+- Partial position closing
+- Real-time P&L tracking
+- Liquidation price warnings
+- Comprehensive test coverage (78 tests)
+
 ---
 
 ## Market Intelligence (Already Built)
@@ -76,11 +92,15 @@ HYPERLIQUID_TESTNET="true"
 
 ## Implementation Phases
 
-### Phase 1: Hyperliquid Plugin (Current)
-- [ ] Create plugin scaffold
-- [ ] Implement SDK service wrapper
-- [ ] Build perp trading actions
-- [ ] Register and test on testnet
+### Phase 1: Hyperliquid Plugin (✅ Complete)
+- [x] Create plugin scaffold
+- [x] Implement SDK service wrapper
+- [x] Build perp trading actions (6 actions)
+- [x] Register and test on testnet
+- [x] 78 passing tests
+- [x] Code-hound reviews (4 phases)
+- [x] Character.ts integration
+- [x] Documentation complete
 
 ### Phase 2: Strategy Engine (Future)
 - [ ] Opportunity scanner (trending + smart money)
@@ -119,21 +139,21 @@ HYPERLIQUID_TESTNET="true"
 
 ---
 
-## Files to Create
+## Completed Files
+
+| File | Status |
+|------|--------|
+| `src/plugins/plugin-hyperliquid/*` | ✅ Complete (20 files) |
+| `src/index.ts` | ✅ Plugin registered |
+| `.env.sample` | ✅ HYPERLIQUID_* vars documented |
+| `src/character.ts` | ✅ Perpetuals Trading Protocol added |
+
+## Future Work
 
 | File | Purpose |
 |------|---------|
-| `src/plugins/plugin-hyperliquid/*` | Perp trading plugin |
 | `src/managers/strategy-engine.ts` | Signal evaluation (Phase 2) |
 | `src/managers/trading-scheduler.ts` | Background jobs (Phase 3) |
-
-## Files to Modify
-
-| File | Change |
-|------|--------|
-| `src/index.ts` | Register hyperliquid plugin |
-| `.env` | Add HYPERLIQUID_PRIVATE_KEY |
-| `src/character.ts` | Add trading personality traits |
 
 ---
 
