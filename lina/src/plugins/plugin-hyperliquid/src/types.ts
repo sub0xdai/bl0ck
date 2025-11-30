@@ -112,3 +112,30 @@ export interface ValidationResult {
   valid: boolean;
   errors: string[];
 }
+
+// ============================================================
+// PHASE 4: Auto-Bridge Types
+// ============================================================
+
+/**
+ * Result of a bridge operation
+ */
+export interface BridgeResult {
+  success: boolean;
+  bridged: boolean;
+  amount: number;
+  source?: 'arbitrum' | 'base' | 'ethereum' | 'polygon' | 'solana';
+  txHash?: string;
+  error?: string;
+}
+
+/**
+ * Margin status across all available sources
+ */
+export interface MarginCheck {
+  hyperliquidBalance: number;
+  required: number;
+  deficit: number;
+  evmBalances: { chain: string; amount: number }[];
+  solanaBalance: number;
+}

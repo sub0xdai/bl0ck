@@ -7,6 +7,7 @@
 
 import { Service, logger, type IAgentRuntime } from '@elizaos/core';
 import { HyperliquidCdpClient } from './hyperliquid-cdp-client';
+import { BridgeService } from './bridge.service';
 import type {
   Position,
   OpenPositionParams,
@@ -35,6 +36,7 @@ interface ServiceConfig {
  * - Position and market data retrieval
  * - Account information
  * - Per-user CDP wallet management
+ * - Auto-bridging USDC for margin (Phase 4)
  */
 export class HyperliquidService extends Service {
   static serviceType = 'HYPERLIQUID_SERVICE';
@@ -42,6 +44,7 @@ export class HyperliquidService extends Service {
 
   private serviceConfig: ServiceConfig | null = null;
   private clients: Map<string, HyperliquidCdpClient> = new Map();
+  private bridgeService: BridgeService | null = null;
   private testnet: boolean = true;
 
   constructor(runtime: IAgentRuntime) {
@@ -72,6 +75,7 @@ export class HyperliquidService extends Service {
     logger.info('[HYPERLIQUID_SERVICE] Stopping');
     this.clients.clear();
     this.serviceConfig = null;
+    this.bridgeService = null;
   }
 
   /**
@@ -80,7 +84,11 @@ export class HyperliquidService extends Service {
   async initialize(runtime: IAgentRuntime): Promise<void> {
     this.testnet = runtime.getSetting('HYPERLIQUID_TESTNET') !== 'false';
     this.serviceConfig = { testnet: this.testnet, maxLeverage: SERVICE_CONFIG.MAX_LEVERAGE };
-    logger.info(`[HYPERLIQUID_SERVICE] Initialized (testnet: ${this.testnet}, mode: CDP)`);
+
+    // Initialize BridgeService for auto-margin provisioning (Phase 4)
+    this.bridgeService = new BridgeService(this.testnet);
+
+    logger.info(`[HYPERLIQUID_SERVICE] Initialized (testnet: ${this.testnet}, mode: CDP, auto-bridge: enabled)`);
   }
 
   // ============================================================
@@ -124,6 +132,15 @@ export class HyperliquidService extends Service {
     const resting = response?.response?.data?.statuses?.[0]?.resting;
     const filled = response?.response?.data?.statuses?.[0]?.filled;
     return resting?.oid?.toString() || filled?.oid?.toString() || 'pending';
+  }
+
+  /**
+   * Calculate margin required for position
+   * Formula: (position_value / leverage)
+   */
+  private calculateMarginRequired(size: number, price: number, leverage: number): number {
+    const positionValue = size * price;
+    return positionValue / leverage;
   }
 
   // ============================================================
@@ -213,6 +230,44 @@ export class HyperliquidService extends Service {
     try {
       const client = await this.getClientForUser(params.userId);
 
+      // === PHASE 4: AUTO-BRIDGE MARGIN ===
+      // Calculate required margin and ensure sufficient USDC on Hyperliquid
+      const allMids = await client.getMidPrices();
+      const currentPrice = parseFloat(allMids[params.symbol] || '0');
+      if (currentPrice === 0) {
+        return {
+          success: false,
+          message: 'Failed to get market price',
+          error: ERROR_MESSAGES.API_ERROR,
+        };
+      }
+
+      const marginRequired = this.calculateMarginRequired(params.size, currentPrice, params.leverage);
+      logger.info(`[HYPERLIQUID_SERVICE] Margin required: $${marginRequired.toFixed(2)}`);
+
+      // Auto-bridge if insufficient margin
+      if (this.bridgeService) {
+        const bridgeResult = await this.bridgeService.ensureMargin(params.userId, marginRequired);
+
+        if (!bridgeResult.success) {
+          return {
+            success: false,
+            message: `Insufficient margin: ${bridgeResult.error}`,
+            error: bridgeResult.error,
+          };
+        }
+
+        if (bridgeResult.bridged) {
+          logger.info(
+            `[HYPERLIQUID_SERVICE] Bridged $${bridgeResult.amount} from ${bridgeResult.source} (tx: ${bridgeResult.txHash})`
+          );
+          // TODO: Poll for funds arrival (Phase 4.5)
+          // For now, wait 5 seconds for bridge settlement
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+        }
+      }
+      // === END PHASE 4 ===
+
       logger.info(
         `[HYPERLIQUID_SERVICE] Setting leverage to ${params.leverage}x for ${params.symbol}`
       );
@@ -221,15 +276,6 @@ export class HyperliquidService extends Service {
       // Determine order price
       let limitPrice: number;
       if (params.orderType === 'market') {
-        const allMids = await client.getMidPrices();
-        const currentPrice = parseFloat(allMids[params.symbol] || '0');
-        if (currentPrice === 0) {
-          return {
-            success: false,
-            message: 'Failed to get market price',
-            error: ERROR_MESSAGES.API_ERROR,
-          };
-        }
         limitPrice = this.calculateSlippagePrice(currentPrice, params.side === 'long');
       } else {
         limitPrice = params.limitPrice!;
