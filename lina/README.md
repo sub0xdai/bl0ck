@@ -14,12 +14,17 @@ A multi-chain DeFi AI agent built on ElizaOS, featuring a modern React frontend,
 - **Modern UI** - Responsive design with Tailwind CSS, Radix UI components, and smooth animations
 - **Real-time Communication** - WebSocket-powered instant messaging via Socket.IO
 
-### 🚀 In Progress: Solana Integration
+### 🚀 Solana Integration
 - **Solana Wallet Management** - Agent-managed Solana wallets with encrypted seed phrase storage
 - **Jupiter DEX** - Token swaps on Solana via Jupiter aggregator
 - **SPL Token Support** - SOL and SPL token transfers with automatic ATA creation
 - **Multi-Chain UI** - Unified dashboard for EVM and Solana chains
-- **Coming Soon**: Metaplex NFT integration, pump.fun token launches, DeFi protocols (Marinade, Jito, MarginFi)
+
+### 🔥 Hyperliquid Perpetuals
+- **Leveraged Trading** - Open long/short positions with 1-25x leverage
+- **Market & Limit Orders** - Full order type support
+- **Position Management** - View positions, P&L, liquidation prices
+- **Risk Controls** - Default 1x leverage, double confirmation for >5x
 
 See [LINA_IMPLEMENTATION_TASKS.md](./LINA_IMPLEMENTATION_TASKS.md) for detailed Solana integration roadmap.
 
@@ -68,6 +73,9 @@ This is a monorepo workspace project built with:
 │       ├── plugin-defillama/  # DeFiLlama TVL analytics
 │       ├── plugin-relay/      # Relay Protocol bridging
 │       ├── plugin-etherscan/  # Etherscan transaction checking
+│       ├── plugin-hyperliquid/ # Hyperliquid perpetuals trading
+│       ├── plugin-jupiter/    # Solana Jupiter DEX swaps
+│       ├── plugin-solana-core/ # Solana wallet management
 │       └── plugin-bootstrap/  # Core ElizaOS bootstrap plugin
 ├── dist/                     # Build output
 ├── build.ts                  # Backend build script
@@ -241,6 +249,44 @@ Transaction verification and confirmation checking.
 - "Check confirmation for tx 0x..."
 - "Verify transaction status 0x..."
 - "How many confirmations for 0x..."
+
+### Hyperliquid Plugin (plugin-hyperliquid)
+
+Perpetual futures trading on Hyperliquid DEX with leverage up to 25x.
+
+**Actions:**
+- `PERP_OPEN_LONG` - Open a leveraged long position
+- `PERP_OPEN_SHORT` - Open a leveraged short position
+- `PERP_CLOSE_POSITION` - Close position (full or partial)
+- `PERP_GET_POSITIONS` - View open positions with P&L
+- `PERP_GET_MARKETS` - List available perpetual markets
+- `PERP_ACCOUNT_INFO` - Get account equity, margin, and balance
+
+**Features:**
+- Market and limit order support
+- Leverage from 1x to 25x (default: 1x for safety)
+- Partial position closing (e.g., close 50%)
+- Liquidation price warnings
+- Double confirmation required for >5x leverage
+
+**Environment Variables:**
+```bash
+HYPERLIQUID_PRIVATE_KEY="0x..."  # Trading wallet private key
+HYPERLIQUID_TESTNET="true"       # Use testnet (default: true)
+```
+
+**Example Prompts:**
+- "What are my Hyperliquid positions?"
+- "Show me the top perp markets"
+- "Open a 3x long on ETH with $100"
+- "Close 50% of my BTC position"
+- "What's my Hyperliquid account balance?"
+
+**Safety Notes:**
+- Always starts with testnet by default
+- Leverage defaults to 1x unless specified
+- High leverage (>5x) requires explicit confirmation
+- Liquidation prices shown before opening positions
 
 ### Bootstrap Plugin (plugin-bootstrap)
 
