@@ -17,19 +17,21 @@ import { cdpResolveEns } from "./actions/cdp-resolve-ens";
 
 // Providers
 import { walletStateProvider } from "./providers/walletState";
+import { unifiedBalanceProvider } from "./providers/unifiedBalance";
 
 // Types
 export type { CdpNetwork } from "./types";
 
 /**
  * CDP Plugin
- * 
+ *
  * Provides Coinbase Developer Platform integration for:
  * - Wallet management (balances, tokens, NFTs)
  * - Token transfers and swaps
  * - NFT transfers
  * - x402 paid API requests (new!)
- * 
+ * - Unified portfolio view across Solana, EVM, and Hyperliquid (Phase 5)
+ *
  * Actions:
  * - USER_WALLET_INFO: View wallet balances and assets
  * - CHECK_TOKEN_BALANCE: Fast balance check for specific token (optimized for transaction validation)
@@ -37,13 +39,17 @@ export type { CdpNetwork } from "./types";
  * - USER_WALLET_NFT_TRANSFER: Transfer NFTs
  * - USER_WALLET_SWAP: Swap tokens via DEX aggregators
  * - FETCH_WITH_PAYMENT: Make paid requests to x402 APIs
+ *
+ * Providers:
+ * - WALLET_STATE: CDP wallet availability and address
+ * - UNIFIED_WALLET_STATE: Complete portfolio across Solana + EVM + Hyperliquid
  */
 export const cdpPlugin: Plugin = {
   name: "cdp",
   description:
     "Coinbase Developer Platform plugin providing authenticated EVM account creation, token transfers, NFT transfers, swaps, and x402 paid API requests via CDP SDK",
   evaluators: [],
-  providers: [walletStateProvider],
+  providers: [walletStateProvider, unifiedBalanceProvider],
   actions: [cdpWalletInfo, cdpWalletCheckBalance, cdpWalletTokenTransfer, cdpWalletNftTransfer, cdpWalletSwap, cdpResolveEns],
   services: [CdpService],
 };

@@ -5,7 +5,7 @@
  * No testnet funding required - these only query account state.
  *
  * Requirements:
- * - HYPERLIQUID_PRIVATE_KEY set in environment
+ * - CDP_API_KEY_ID, CDP_API_KEY_SECRET, CDP_WALLET_SECRET set in environment
  * - HYPERLIQUID_TESTNET="true" (recommended)
  *
  * Run with: bun test src/plugins/plugin-hyperliquid/__tests__/integration.test.ts
@@ -15,16 +15,17 @@ import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { HyperliquidService } from '../src/services/hyperliquid.service';
 import type { Position, Market, AccountInfo } from '../src/types';
 
-// Skip integration tests if no private key configured
-const PRIVATE_KEY = process.env.HYPERLIQUID_PRIVATE_KEY;
-const SKIP_INTEGRATION = !PRIVATE_KEY;
+// Skip integration tests if CDP not configured
+const CDP_CONFIGURED =
+  process.env.CDP_API_KEY_ID && process.env.CDP_API_KEY_SECRET && process.env.CDP_WALLET_SECRET;
+const SKIP_INTEGRATION = !CDP_CONFIGURED;
 
 // Mock runtime for integration tests
 const createIntegrationRuntime = () => ({
   getSetting: (key: string) => {
     const settings: Record<string, string | undefined> = {
-      HYPERLIQUID_PRIVATE_KEY: PRIVATE_KEY,
       HYPERLIQUID_TESTNET: process.env.HYPERLIQUID_TESTNET ?? 'true',
+      // No HYPERLIQUID_PRIVATE_KEY - CDP handles signing
     };
     return settings[key];
   },
@@ -38,7 +39,8 @@ describe('Hyperliquid Integration Tests', () => {
 
   beforeAll(async () => {
     if (SKIP_INTEGRATION) {
-      console.log('Skipping integration tests: HYPERLIQUID_PRIVATE_KEY not set');
+      console.log('Skipping integration tests: CDP not configured');
+      console.log('Required: CDP_API_KEY_ID, CDP_API_KEY_SECRET, CDP_WALLET_SECRET');
       return;
     }
 
