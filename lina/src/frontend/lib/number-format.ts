@@ -18,6 +18,34 @@ const normalizeIntegerPart = (integerPart: string): { sign: string; digits: stri
   };
 };
 
+/**
+ * Format USD value with full precision (removes trailing zeros)
+ * Shows up to 8 decimal places but trims trailing zeros
+ */
+export const formatUsdValue = (
+  value: number | null | undefined,
+  options?: { maximumFractionDigits?: number; minimumFractionDigits?: number }
+): string => {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return '0.00';
+  }
+
+  const maxDecimals = options?.maximumFractionDigits ?? 8;
+  const minDecimals = options?.minimumFractionDigits ?? 2;
+
+  // Format with maximum precision
+  const formatted = value.toFixed(maxDecimals);
+  const [integerPart, fractionPart = ''] = formatted.split('.');
+
+  // Remove trailing zeros but keep minimum decimals
+  let trimmedFraction = fractionPart.replace(/0+$/, '');
+  if (trimmedFraction.length < minDecimals) {
+    trimmedFraction = trimmedFraction.padEnd(minDecimals, '0');
+  }
+
+  return `${integerPart}.${trimmedFraction}`;
+};
+
 export const formatTokenBalance = (
   balance: string,
   options?: FormatTokenBalanceOptions,

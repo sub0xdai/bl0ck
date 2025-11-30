@@ -11,7 +11,7 @@ import { SwapModalContent } from './SwapModal';
 import { TokenDetailModalContent } from './TokenDetailModal';
 import { NFTDetailModalContent } from './NFTDetailModal';
 import { FundModalContent } from './FundModal';
-import { formatTokenBalance } from '../../../lib/number-format';
+import { formatTokenBalance, formatUsdValue } from '../../../lib/number-format';
 import { cn } from '../../../lib/utils';
 import { SUPPORTED_CHAINS, getChainWalletIcon, isSolanaChain } from '../../../constants/chains';
 import { useModal } from '../../../contexts/ModalContext';
@@ -246,7 +246,7 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
             ) : (
               <div className="flex items-center gap-2">
                 <span className="text-3xl font-mono font-bold">
-                  ${totalUsdValue.toFixed(2)}
+                  ${formatUsdValue(totalUsdValue)}
                 </span>
               </div>
             )}
@@ -413,7 +413,7 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
                       </div>
                     </div>
                     <span className="text-xs sm:text-sm font-mono shrink-0 ml-2">
-                      ${token.usdValue?.toFixed(2) ?? '0.00'}
+                      ${formatUsdValue(token.usdValue)}
                     </span>
                   </button>
                 ))

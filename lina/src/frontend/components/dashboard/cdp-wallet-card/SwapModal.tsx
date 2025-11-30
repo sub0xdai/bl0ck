@@ -5,7 +5,7 @@ import { useLoadingPanel } from '../../../contexts/LoadingPanelContext';
 import { useModal } from '../../../contexts/ModalContext';
 import { elizaClient } from '../../../lib/elizaClient';
 import { getTokenIconBySymbol, getTxExplorerUrl } from '../../../constants/chains';
-import { formatTokenBalance } from '../../../lib/number-format';
+import { formatTokenBalance, formatUsdValue } from '../../../lib/number-format';
 
 interface Token {
   symbol: string;
@@ -398,7 +398,7 @@ export function SwapModalContent({ tokens, userId, onSuccess }: SwapModalContent
                   </div>
                   <div className="text-right">
                   <p className="text-sm font-mono">{formatTokenBalance(fromToken.balanceFormatted)}</p>
-                    <p className="text-xs text-muted-foreground">${fromToken.usdValue?.toFixed(2) || '0.00'}</p>
+                    <p className="text-xs text-muted-foreground">${formatUsdValue(fromToken.usdValue)}</p>
                   </div>
                 </>
               ) : (
@@ -465,7 +465,7 @@ export function SwapModalContent({ tokens, userId, onSuccess }: SwapModalContent
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-mono">{formatTokenBalance(token.balanceFormatted)}</p>
-                          <p className="text-xs text-muted-foreground">${token.usdValue?.toFixed(2) || '0.00'}</p>
+                          <p className="text-xs text-muted-foreground">${formatUsdValue(token.usdValue)}</p>
                         </div>
                       </button>
                     );
@@ -584,7 +584,7 @@ export function SwapModalContent({ tokens, userId, onSuccess }: SwapModalContent
                     ) : (
                       <>
                         <p className="text-sm font-mono">{formatTokenBalance(toToken.balanceFormatted)}</p>
-                        <p className="text-xs text-muted-foreground">${toToken.usdValue?.toFixed(2) || '0.00'}</p>
+                        <p className="text-xs text-muted-foreground">${formatUsdValue(toToken.usdValue)}</p>
                       </>
                     )}
                   </div>
@@ -698,7 +698,7 @@ export function SwapModalContent({ tokens, userId, onSuccess }: SwapModalContent
                           ) : (
                             <>
                               <p className="text-sm font-mono">{formatTokenBalance(token.balanceFormatted)}</p>
-                              <p className="text-xs text-muted-foreground">${token.usdValue?.toFixed(2) || '0.00'}</p>
+                              <p className="text-xs text-muted-foreground">${formatUsdValue(token.usdValue)}</p>
                             </>
                           )}
                         </div>

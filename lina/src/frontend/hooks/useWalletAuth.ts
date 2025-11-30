@@ -6,8 +6,18 @@ import type { Provider } from '@reown/appkit-adapter-solana';
 import { elizaClient } from '../lib/elizaClient';
 import bs58 from 'bs58';
 
-// Key used by wagmi storage for wallet persistence
+// Key used by wagmi storage for wallet persistence (EVM only)
 const WALLET_STORAGE_KEY = 'lina-wallet';
+
+// Key for our chain-agnostic session storage (works for both EVM and Solana)
+const AUTH_SESSION_KEY = 'lina-auth-session';
+
+/** Stored session info for session restoration */
+interface StoredSession {
+  walletAddress: string;
+  chain: 'evm' | 'solana';
+  userId: string;
+}
 
 /** Auth lifecycle state - distinguishes cold start from expired session */
 export type AuthStatus = 'loading' | 'none' | 'expired' | 'authenticated';
@@ -74,7 +84,18 @@ export function useWalletAuth(): WalletAuthState {
   const hasCheckedSession = useRef(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Helper to check if wallet storage has persisted connection
+  // Helper to get persisted session info (chain-agnostic - works for both EVM and Solana)
+  const getPersistedSession = useCallback((): StoredSession | null => {
+    try {
+      const stored = localStorage.getItem(AUTH_SESSION_KEY);
+      if (!stored) return null;
+      return JSON.parse(stored) as StoredSession;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // Legacy helper for wagmi EVM storage (kept for backwards compatibility)
   const hasPersistedWallet = useCallback(() => {
     try {
       const stored = localStorage.getItem(WALLET_STORAGE_KEY);
@@ -130,17 +151,24 @@ export function useWalletAuth(): WalletAuthState {
     }
 
     // Token exists but wallet not yet connected
-    // Check if we have persisted wallet data (wallet should auto-reconnect)
-    if (hasPersistedWallet() && !hasCheckedSession.current) {
-      console.log('[WalletAuth] Token exists, waiting for wallet to reconnect...');
-      // Stay in loading state - wallet storage exists, should reconnect soon
-      // Set a timeout to fall back to 'none' if wallet doesn't reconnect
+    // Check if we have persisted session data (works for both EVM and Solana)
+    const persistedSession = getPersistedSession();
+    const hasEVMWallet = hasPersistedWallet(); // Legacy wagmi storage check
+
+    if ((persistedSession || hasEVMWallet) && !hasCheckedSession.current) {
+      console.log('[WalletAuth] Token exists, waiting for wallet to reconnect...', {
+        hasSession: !!persistedSession,
+        chain: persistedSession?.chain,
+        hasEVMWallet,
+      });
+      // Stay in loading state - session exists, wallet should reconnect soon
+      // Set a timeout to fall back to 'expired' if wallet doesn't reconnect
       reconnectTimeoutRef.current = setTimeout(() => {
         if (!hasCheckedSession.current) {
-          console.log('[WalletAuth] Wallet reconnect timeout - requiring fresh auth');
-          localStorage.removeItem('auth-token');
-          elizaClient.clearAuthToken();
-          setAuthStatus('none');
+          console.log('[WalletAuth] Wallet reconnect timeout - session expired');
+          // Don't clear session storage here - keep it for next reconnect attempt
+          // Just show expired state so user can re-sign
+          setAuthStatus('expired');
           hasCheckedSession.current = true;
         }
         reconnectTimeoutRef.current = null;
@@ -148,10 +176,11 @@ export function useWalletAuth(): WalletAuthState {
       return;
     }
 
-    // No persisted wallet and not connected - clear token and require fresh auth
-    if (!hasPersistedWallet()) {
-      console.log('[WalletAuth] No persisted wallet - requiring fresh auth');
+    // No persisted session and not connected - cold start
+    if (!persistedSession && !hasEVMWallet) {
+      console.log('[WalletAuth] No persisted session - cold start');
       localStorage.removeItem('auth-token');
+      localStorage.removeItem(AUTH_SESSION_KEY);
       elizaClient.clearAuthToken();
       setAuthStatus('none');
       hasCheckedSession.current = true;
@@ -164,7 +193,7 @@ export function useWalletAuth(): WalletAuthState {
         reconnectTimeoutRef.current = null;
       }
     };
-  }, [isConnected, hasPersistedWallet]);
+  }, [isConnected, hasPersistedWallet, getPersistedSession]);
 
   // Open AppKit modal
   const connect = useCallback(() => {
@@ -177,6 +206,7 @@ export function useWalletAuth(): WalletAuthState {
     try {
       // Clear auth state
       localStorage.removeItem('auth-token');
+      localStorage.removeItem(AUTH_SESSION_KEY); // Clear session storage
       elizaClient.clearAuthToken();
       setAuthStatus('none');
       setUserId(null);
@@ -296,8 +326,14 @@ export function useWalletAuth(): WalletAuthState {
       const { data: authData } = await verifyRes.json();
       const { token: newToken, userId: newUserId } = authData;
 
-      // Step 5: Store token and update state
+      // Step 5: Store token and session info for persistence
       localStorage.setItem('auth-token', newToken);
+      // Store session info for cross-tab/browser session restoration
+      localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({
+        walletAddress: address,
+        chain,
+        userId: newUserId,
+      } as StoredSession));
       elizaClient.setAuthToken(newToken);
       setToken(newToken);
       setUserId(newUserId);

@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils"
 import DotsVerticalIcon from "@/components/icons/dots-vertical"
 import { Bullet } from "@/components/ui/bullet"
 import PlusIcon from "@/components/icons/plus"
-import { LogOut } from "lucide-react"
+import { LogOut, Trash2 } from "lucide-react"
 
 interface Channel {
   id: string
@@ -33,6 +33,7 @@ interface DashboardSidebarProps extends React.ComponentProps<typeof Sidebar> {
   channels?: Channel[]
   activeChannelId?: string | null
   onChannelSelect?: (channelId: string) => void
+  onDeleteChannel?: (channelId: string) => void
   onNewChat?: () => void
   isCreatingChannel?: boolean
   userProfile?: {
@@ -49,11 +50,12 @@ interface DashboardSidebarProps extends React.ComponentProps<typeof Sidebar> {
   onHomeClick?: () => void
 }
 
-export function DashboardSidebar({ 
+export function DashboardSidebar({
   className,
   channels = [],
   activeChannelId = null,
   onChannelSelect = () => {},
+  onDeleteChannel,
   onNewChat = () => {},
   isCreatingChannel = false,
   userProfile,
@@ -64,6 +66,54 @@ export function DashboardSidebar({
   ...props
 }: DashboardSidebarProps) {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [deletingChannelId, setDeletingChannelId] = useState<string | null>(null);
+
+  const handleDeleteChannel = async (e: React.MouseEvent, channelId: string) => {
+    e.stopPropagation(); // Prevent channel selection
+    if (!onDeleteChannel) return;
+
+    // Confirm deletion
+    const confirmed = window.confirm('Delete this chat? This action cannot be undone.');
+    if (!confirmed) return;
+
+    setDeletingChannelId(channelId);
+    try {
+      await onDeleteChannel(channelId);
+    } finally {
+      setDeletingChannelId(null);
+    }
+  };
+
+  // Render a single channel item with delete button
+  const renderChannelItem = (channel: Channel) => {
+    const isDeleting = deletingChannelId === channel.id;
+    return (
+      <SidebarMenuItem key={channel.id} className="group/channel">
+        <SidebarMenuButton
+          onClick={() => onChannelSelect(channel.id)}
+          isActive={activeChannelId === channel.id}
+          className="w-full pr-8 relative"
+          disabled={isDeleting}
+        >
+          <span className={cn(
+            "font-medium text-sm truncate w-full",
+            isDeleting && "opacity-50"
+          )}>
+            {isDeleting ? 'Deleting...' : channel.name}
+          </span>
+        </SidebarMenuButton>
+        {onDeleteChannel && !isDeleting && (
+          <button
+            onClick={(e) => handleDeleteChannel(e, channel.id)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/channel:opacity-100 hover:text-destructive transition-opacity p-1 rounded hover:bg-sidebar-accent"
+            title="Delete chat"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        )}
+      </SidebarMenuItem>
+    );
+  };
 
   // Group channels by date
   const groupChannelsByDate = (channels: Channel[]) => {
@@ -202,19 +252,7 @@ export function DashboardSidebar({
                         <div className="sticky top-0 z-10 bg-background text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2">
                           Today
                         </div>
-                        {groupedChannels.today.map((channel) => (
-                          <SidebarMenuItem key={channel.id}>
-                            <SidebarMenuButton
-                              onClick={() => onChannelSelect(channel.id)}
-                              isActive={activeChannelId === channel.id}
-                              className="w-full"
-                            >
-                              <span className="font-medium text-sm truncate w-full">
-                                {channel.name}
-                              </span>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        ))}
+                        {groupedChannels.today.map(renderChannelItem)}
                       </>
                     )}
 
@@ -224,19 +262,7 @@ export function DashboardSidebar({
                         <div className="sticky top-0 z-10 bg-background text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
                           Yesterday
                         </div>
-                        {groupedChannels.yesterday.map((channel) => (
-                          <SidebarMenuItem key={channel.id}>
-                            <SidebarMenuButton
-                              onClick={() => onChannelSelect(channel.id)}
-                              isActive={activeChannelId === channel.id}
-                              className="w-full"
-                            >
-                              <span className="font-medium text-sm truncate w-full">
-                                {channel.name}
-                              </span>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        ))}
+                        {groupedChannels.yesterday.map(renderChannelItem)}
                       </>
                     )}
 
@@ -246,19 +272,7 @@ export function DashboardSidebar({
                         <div className="sticky top-0 z-10 bg-background text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
                           Last 7 Days
                         </div>
-                        {groupedChannels.lastWeek.map((channel) => (
-                          <SidebarMenuItem key={channel.id}>
-                            <SidebarMenuButton
-                              onClick={() => onChannelSelect(channel.id)}
-                              isActive={activeChannelId === channel.id}
-                              className="w-full"
-                            >
-                              <span className="font-medium text-sm truncate w-full">
-                                {channel.name}
-                              </span>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        ))}
+                        {groupedChannels.lastWeek.map(renderChannelItem)}
                       </>
                     )}
 
@@ -268,43 +282,19 @@ export function DashboardSidebar({
                         <div className="sticky top-0 z-10 bg-background text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
                           Last 30 Days
                         </div>
-                        {groupedChannels.lastMonth.map((channel) => (
-                          <SidebarMenuItem key={channel.id}>
-                            <SidebarMenuButton
-                              onClick={() => onChannelSelect(channel.id)}
-                              isActive={activeChannelId === channel.id}
-                              className="w-full"
-                            >
-                              <span className="font-medium text-sm truncate w-full">
-                                {channel.name}
-                              </span>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        ))}
+                        {groupedChannels.lastMonth.map(renderChannelItem)}
                       </>
                     )}
 
                     {/* Older - Group by exact date */}
                     {groupedChannels.older.size > 0 && (
                       <>
-                        {Array.from(groupedChannels.older.entries()).map(([date, channels]) => (
+                        {Array.from(groupedChannels.older.entries()).map(([date, dateChannels]) => (
                           <div key={date}>
                             <div className="sticky top-0 z-10 bg-background text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
                               {date}
                             </div>
-                            {channels.map((channel) => (
-                              <SidebarMenuItem key={channel.id}>
-                                <SidebarMenuButton
-                                  onClick={() => onChannelSelect(channel.id)}
-                                  isActive={activeChannelId === channel.id}
-                                  className="w-full"
-                                >
-                                  <span className="font-medium text-sm truncate w-full">
-                                    {channel.name}
-                                  </span>
-                                </SidebarMenuButton>
-                              </SidebarMenuItem>
-                            ))}
+                            {dateChannels.map(renderChannelItem)}
                           </div>
                         ))}
                       </>

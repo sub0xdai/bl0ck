@@ -3,7 +3,7 @@ import { X, Copy, Check, TrendingUp, TrendingDown } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { useModal } from '../../../contexts/ModalContext';
 import { getTokenIconBySymbol } from '../../../constants/chains';
-import { formatTokenBalance } from '../../../lib/number-format';
+import { formatTokenBalance, formatUsdValue } from '../../../lib/number-format';
 import { XAxis, YAxis, CartesianGrid, Area, AreaChart } from 'recharts';
 import {
   ChartConfig,
@@ -361,7 +361,7 @@ export function TokenDetailModalContent({ token }: TokenDetailModalContentProps)
           )}
         </div>
         <div className="text-sm text-muted-foreground">
-          Balance: {formatTokenBalance(token.balanceFormatted)} {token.symbol} (${token.usdValue?.toFixed(2) || '0.00'})
+          Balance: {formatTokenBalance(token.balanceFormatted)} {token.symbol} (${formatUsdValue(token.usdValue)})
         </div>
       </div>
 

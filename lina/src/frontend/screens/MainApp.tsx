@@ -439,6 +439,32 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
     setIsNewChatMode(false);
   };
 
+  // Delete a channel
+  const handleDeleteChannel = async (channelId: string) => {
+    try {
+      console.log('[MainApp] Deleting channel:', channelId);
+
+      // Call API to delete channel
+      await elizaClient.messaging.deleteChannel(channelId as UUID);
+
+      // Remove from local state
+      setChannels((prev: Channel[]) => prev.filter((c) => c.id !== channelId));
+
+      // If deleted channel was active, clear selection
+      if (activeChannelId === channelId) {
+        socketManager.leaveChannel(channelId);
+        setActiveChannelId(null);
+        setIsNewChatMode(true);
+      }
+
+      console.log('[MainApp] Channel deleted successfully:', channelId);
+    } catch (error) {
+      console.error('[MainApp] Failed to delete channel:', error);
+      // Re-throw so the sidebar can handle the error state
+      throw error;
+    }
+  };
+
   // Update user profile (avatar, displayName, bio)
   const updateUserProfile = async (updates: {
     avatarUrl?: string;
@@ -644,6 +670,7 @@ function AppContent({
             channels={channels}
             activeChannelId={activeChannelId}
             onChannelSelect={onChannelSelect}
+            onDeleteChannel={handleDeleteChannel}
             onNewChat={onNewChat}
             isCreatingChannel={isCreatingChannel}
             userProfile={userProfile}
