@@ -236,6 +236,13 @@ export class HyperliquidCdpClient {
   }
 
   /**
+   * Get predicted funding rates for all assets.
+   */
+  async getPredictedFundings(): Promise<Record<string, { fundingRate: string; nextFundingTime: number }>> {
+    return this.makeInfoRequest({ type: 'predictedFundings' });
+  }
+
+  /**
    * Get asset index for a symbol.
    * @throws Error if symbol not found
    */

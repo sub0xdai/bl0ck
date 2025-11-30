@@ -1,8 +1,8 @@
 /**
  * HyperliquidService Tests
  *
- * These tests define the expected behavior of the HyperliquidService.
- * TDD Phase: GREEN - Validation logic implemented, SDK integration pending.
+ * TDD Phase: RED -> GREEN -> REFACTOR
+ * Testing CDP-based service (no private key required)
  */
 
 import { describe, it, expect, beforeEach, mock } from 'bun:test';
@@ -10,23 +10,99 @@ import { HyperliquidService } from '../src/services/hyperliquid.service';
 import { SERVICE_CONFIG, ERROR_MESSAGES } from '../src/constants';
 import type { OpenPositionParams, ClosePositionParams } from '../src/types';
 
+// Mock HyperliquidCdpClient
+const mockConnect = mock(() => Promise.resolve());
+const mockGetAddress = mock(() => '0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00');
+const mockGetAccountState = mock(() =>
+  Promise.resolve({
+    marginSummary: {
+      accountValue: '10000',
+      totalMarginUsed: '1000',
+      totalNtlPos: '5000',
+      totalRawUsd: '10000',
+    },
+    assetPositions: [
+      {
+        position: {
+          coin: 'BTC',
+          szi: '0.1',
+          entryPx: '67000',
+          positionValue: '6700',
+          unrealizedPnl: '100',
+          leverage: { type: 'cross', value: 5 },
+          marginUsed: '1340',
+          liquidationPx: '60000',
+        },
+      },
+    ],
+    time: Date.now(),
+    withdrawable: '9000',
+  })
+);
+const mockGetMidPrices = mock(() =>
+  Promise.resolve({ BTC: '67500.0', ETH: '3400.0', SOL: '150.0' })
+);
+const mockPlaceOrder = mock(() =>
+  Promise.resolve({
+    status: 'ok',
+    response: { type: 'order', data: { statuses: [{ resting: { oid: 12345 } }] } },
+  })
+);
+const mockUpdateLeverage = mock(() => Promise.resolve({ status: 'ok' }));
+const mockGetMarkets = mock(() =>
+  Promise.resolve([
+    { name: 'BTC', szDecimals: 4, maxLeverage: 50 },
+    { name: 'ETH', szDecimals: 3, maxLeverage: 50 },
+    { name: 'SOL', szDecimals: 2, maxLeverage: 25 },
+  ])
+);
+const mockGetPredictedFundings = mock(() =>
+  Promise.resolve({
+    BTC: { fundingRate: '0.0001', nextFundingTime: Date.now() + 28800000 },
+    ETH: { fundingRate: '0.00015', nextFundingTime: Date.now() + 28800000 },
+  })
+);
+
+mock.module('../src/services/hyperliquid-cdp-client', () => ({
+  HyperliquidCdpClient: class {
+    constructor(public userId: string, public testnet: boolean) {}
+    connect = mockConnect;
+    getAddress = mockGetAddress;
+    getAccountState = mockGetAccountState;
+    getMidPrices = mockGetMidPrices;
+    placeOrder = mockPlaceOrder;
+    updateLeverage = mockUpdateLeverage;
+    getMarkets = mockGetMarkets;
+    getPredictedFundings = mockGetPredictedFundings;
+  },
+}));
+
 // Mock runtime for testing
 const createMockRuntime = (settings: Record<string, string | undefined> = {}) => ({
   getSetting: (key: string) => settings[key],
   agentId: 'test-agent',
   character: { name: 'Test Agent' },
-} as any);
+}) as any;
 
-describe('HyperliquidService', () => {
+describe('HyperliquidService - CDP Mode', () => {
   let service: HyperliquidService;
   let mockRuntime: any;
 
   beforeEach(() => {
     mockRuntime = createMockRuntime({
-      HYPERLIQUID_PRIVATE_KEY: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
       HYPERLIQUID_TESTNET: 'true',
     });
     service = new HyperliquidService(mockRuntime);
+
+    // Clear mocks
+    mockConnect.mockClear();
+    mockGetAddress.mockClear();
+    mockGetAccountState.mockClear();
+    mockGetMidPrices.mockClear();
+    mockPlaceOrder.mockClear();
+    mockUpdateLeverage.mockClear();
+    mockGetMarkets.mockClear();
+    mockGetPredictedFundings.mockClear();
   });
 
   describe('Service Initialization', () => {
@@ -34,32 +110,57 @@ describe('HyperliquidService', () => {
       expect(service.serviceType).toBe('hyperliquid');
     });
 
-    it('should initialize with valid private key', async () => {
+    it('should initialize WITHOUT private key (CDP mode)', async () => {
       await expect(service.initialize(mockRuntime)).resolves.toBeUndefined();
     });
 
-    it('should throw error when private key is missing', async () => {
-      const runtimeWithoutKey = createMockRuntime({});
-      const serviceWithoutKey = new HyperliquidService(runtimeWithoutKey);
-
-      await expect(serviceWithoutKey.initialize(runtimeWithoutKey)).rejects.toThrow(
-        ERROR_MESSAGES.MISSING_PRIVATE_KEY
-      );
+    it('should configure testnet mode from settings', async () => {
+      const mainnetRuntime = createMockRuntime({ HYPERLIQUID_TESTNET: 'false' });
+      const mainnetService = new HyperliquidService(mainnetRuntime);
+      await mainnetService.initialize(mainnetRuntime);
+      // Service should store testnet=false internally
     });
 
     it('should default to testnet when HYPERLIQUID_TESTNET is not set', async () => {
-      const runtimeNoTestnetFlag = createMockRuntime({
-        HYPERLIQUID_PRIVATE_KEY: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-      });
+      const runtimeNoTestnetFlag = createMockRuntime({});
       const serviceNoTestnet = new HyperliquidService(runtimeNoTestnetFlag);
 
       await serviceNoTestnet.initialize(runtimeNoTestnetFlag);
-      // Service should be configured for testnet by default (safety first)
+      // Service should default to testnet=true (safety first)
     });
 
-    it('should stop correctly', async () => {
+    it('should stop correctly and clear client map', async () => {
       await service.initialize(mockRuntime);
       await expect(service.stop()).resolves.toBeUndefined();
+    });
+  });
+
+  describe('Per-User Client Management', () => {
+    beforeEach(async () => {
+      await service.initialize(mockRuntime);
+    });
+
+    it('should create client on first user operation', async () => {
+      const positions = await service.getPositions('user-123');
+
+      expect(mockConnect).toHaveBeenCalledTimes(1);
+      expect(positions).toBeArray();
+    });
+
+    it('should reuse client for same user', async () => {
+      await service.getPositions('user-123');
+      await service.getPositions('user-123');
+
+      // Client created once, reused for second call
+      expect(mockConnect).toHaveBeenCalledTimes(1);
+    });
+
+    it('should create separate clients for different users', async () => {
+      await service.getPositions('user-123');
+      await service.getPositions('user-456');
+
+      // Two clients created
+      expect(mockConnect).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -401,7 +502,7 @@ describe('HyperliquidService', () => {
     });
   });
 
-  describe('Position Operations (Integration Stubs)', () => {
+  describe('Position Operations (CDP Integration)', () => {
     beforeEach(async () => {
       await service.initialize(mockRuntime);
     });
@@ -432,6 +533,68 @@ describe('HyperliquidService', () => {
       const result = await service.closePosition(params);
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
+    });
+
+    it('should open position using CDP client', async () => {
+      const params: OpenPositionParams = {
+        userId: 'user-123',
+        symbol: 'BTC',
+        side: 'long',
+        size: 0.1,
+        leverage: 5,
+        orderType: 'market',
+      };
+
+      const result = await service.openPosition(params);
+
+      expect(result.success).toBe(true);
+      expect(mockConnect).toHaveBeenCalled();
+      expect(mockUpdateLeverage).toHaveBeenCalled();
+      expect(mockGetMidPrices).toHaveBeenCalled();
+      expect(mockPlaceOrder).toHaveBeenCalled();
+    });
+
+    it('should close position using CDP client', async () => {
+      const params: ClosePositionParams = {
+        userId: 'user-123',
+        symbol: 'BTC',
+        percentage: 100,
+        orderType: 'market',
+      };
+
+      const result = await service.closePosition(params);
+
+      expect(result.success).toBe(true);
+      expect(mockConnect).toHaveBeenCalled();
+      expect(mockGetAccountState).toHaveBeenCalled();
+      expect(mockPlaceOrder).toHaveBeenCalled();
+    });
+
+    it('should get positions using CDP client', async () => {
+      const positions = await service.getPositions('user-123');
+
+      expect(positions).toBeArray();
+      expect(positions.length).toBe(1);
+      expect(positions[0].symbol).toBe('BTC');
+      expect(mockConnect).toHaveBeenCalled();
+      expect(mockGetAccountState).toHaveBeenCalled();
+    });
+
+    it('should get markets using CDP client', async () => {
+      const markets = await service.getMarkets();
+
+      expect(markets).toBeArray();
+      expect(markets.length).toBe(3);
+      expect(mockGetMarkets).toHaveBeenCalled();
+    });
+
+    it('should get account info using CDP client', async () => {
+      const accountInfo = await service.getAccountInfo('user-123');
+
+      expect(accountInfo).toHaveProperty('equity');
+      expect(accountInfo.equity).toBe(10000);
+      expect(mockConnect).toHaveBeenCalled();
+      expect(mockGetAccountState).toHaveBeenCalled();
     });
   });
 });

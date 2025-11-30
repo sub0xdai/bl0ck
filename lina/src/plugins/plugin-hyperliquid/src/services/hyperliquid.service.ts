@@ -2,15 +2,11 @@
  * Hyperliquid Service
  *
  * Provides perpetual futures trading functionality via Hyperliquid DEX.
- * Handles wallet management, position operations, and market data.
- *
- * Architecture Note: The `userId` parameter is accepted for future multi-wallet
- * support but currently uses a single configured wallet (HYPERLIQUID_PRIVATE_KEY).
- * This allows the API to remain stable when per-user wallets are implemented.
+ * Uses CDP (Coinbase Developer Platform) for per-user wallet management.
  */
 
 import { Service, logger, type IAgentRuntime } from '@elizaos/core';
-import { Hyperliquid } from 'hyperliquid';
+import { HyperliquidCdpClient } from './hyperliquid-cdp-client';
 import type {
   Position,
   OpenPositionParams,
@@ -38,14 +34,15 @@ interface ServiceConfig {
  * - Position opening/closing (market and limit orders)
  * - Position and market data retrieval
  * - Account information
+ * - Per-user CDP wallet management
  */
 export class HyperliquidService extends Service {
   static serviceType = 'HYPERLIQUID_SERVICE';
   capabilityDescription = 'Hyperliquid perpetual futures trading with leverage up to 25x';
 
   private serviceConfig: ServiceConfig | null = null;
-  private sdk: Hyperliquid | null = null;
-  private walletAddress: string | null = null;
+  private clients: Map<string, HyperliquidCdpClient> = new Map();
+  private testnet: boolean = true;
 
   constructor(runtime: IAgentRuntime) {
     super(runtime);
@@ -73,83 +70,39 @@ export class HyperliquidService extends Service {
    */
   async stop(): Promise<void> {
     logger.info('[HYPERLIQUID_SERVICE] Stopping');
-    if (this.sdk) {
-      this.sdk.disconnect();
-    }
+    this.clients.clear();
     this.serviceConfig = null;
-    this.sdk = null;
-    this.walletAddress = null;
   }
 
   /**
    * Initialize the service with runtime
    */
   async initialize(runtime: IAgentRuntime): Promise<void> {
-    const privateKey = runtime.getSetting('HYPERLIQUID_PRIVATE_KEY');
-    const testnet = runtime.getSetting('HYPERLIQUID_TESTNET') !== 'false';
+    this.testnet = runtime.getSetting('HYPERLIQUID_TESTNET') !== 'false';
+    this.serviceConfig = { testnet: this.testnet, maxLeverage: SERVICE_CONFIG.MAX_LEVERAGE };
+    logger.info(`[HYPERLIQUID_SERVICE] Initialized (testnet: ${this.testnet}, mode: CDP)`);
+  }
 
-    if (!privateKey) {
-      throw new Error(ERROR_MESSAGES.MISSING_PRIVATE_KEY);
+  // ============================================================
+  // CLIENT MANAGEMENT
+  // ============================================================
+
+  /**
+   * Get or create CDP client for user
+   */
+  private async getClientForUser(userId: string): Promise<HyperliquidCdpClient> {
+    if (!this.clients.has(userId)) {
+      const client = new HyperliquidCdpClient(userId, this.testnet);
+      await client.connect();
+      this.clients.set(userId, client);
+      logger.info(`[HYPERLIQUID_SERVICE] Created CDP client for user ${userId}`);
     }
-
-    // Store only non-sensitive config (private key NOT stored after init)
-    this.serviceConfig = {
-      testnet,
-      maxLeverage: SERVICE_CONFIG.MAX_LEVERAGE,
-    };
-
-    // Initialize SDK with private key (SDK manages key internally)
-    this.sdk = new Hyperliquid({
-      privateKey,
-      testnet,
-      enableWs: false,
-    });
-
-    await this.sdk.connect();
-
-    // Cache wallet address after successful connection
-    this.walletAddress = this.extractWalletAddress();
-
-    logger.info(`[HYPERLIQUID_SERVICE] Initialized (testnet: ${testnet})`);
+    return this.clients.get(userId)!;
   }
 
   // ============================================================
   // HELPER METHODS (DRY extraction)
   // ============================================================
-
-  /**
-   * Ensure SDK is initialized, return error result if not
-   */
-  private ensureSdkInitialized(): { ok: true; sdk: Hyperliquid } | { ok: false; error: string } {
-    if (!this.sdk) {
-      return { ok: false, error: ERROR_MESSAGES.API_ERROR };
-    }
-    return { ok: true, sdk: this.sdk };
-  }
-
-  /**
-   * Extract wallet address from SDK (handles internal property access)
-   */
-  private extractWalletAddress(): string | null {
-    if (!this.sdk || !this.sdk.isAuthenticated()) {
-      return null;
-    }
-    // Access SDK internal wallet address (SDK doesn't expose public getter)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sdk = this.sdk as unknown as Record<string, string | undefined>;
-    return sdk.walletAddress || sdk._walletAddress || null;
-  }
-
-  /**
-   * Get cached wallet address or extract fresh
-   */
-  private getWalletAddress(): string | null {
-    if (this.walletAddress) {
-      return this.walletAddress;
-    }
-    this.walletAddress = this.extractWalletAddress();
-    return this.walletAddress;
-  }
 
   /**
    * Calculate slippage-adjusted price for market orders
@@ -164,7 +117,7 @@ export class HyperliquidService extends Service {
   }
 
   /**
-   * Extract order ID from SDK response
+   * Extract order ID from CDP client response
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private extractOrderId(response: any): string {
@@ -246,7 +199,6 @@ export class HyperliquidService extends Service {
   /**
    * Open a new position
    * @param params - Position parameters including symbol, size, leverage, order type
-   * @note userId is accepted for API stability but currently uses configured wallet
    */
   async openPosition(params: OpenPositionParams): Promise<PositionResult> {
     const validation = this.validatePositionParams(params);
@@ -258,34 +210,18 @@ export class HyperliquidService extends Service {
       };
     }
 
-    const sdkCheck = this.ensureSdkInitialized();
-    if (!sdkCheck.ok) {
-      return {
-        success: false,
-        message: 'SDK not initialized',
-        error: sdkCheck.error,
-      };
-    }
-    const sdk = sdkCheck.sdk;
-
     try {
+      const client = await this.getClientForUser(params.userId);
+
       logger.info(
         `[HYPERLIQUID_SERVICE] Setting leverage to ${params.leverage}x for ${params.symbol}`
       );
-      await sdk.exchange.updateLeverage(params.symbol, 'cross', params.leverage);
+      await client.updateLeverage(params.symbol, 'cross', params.leverage);
 
-      // Build order request (using any due to SDK type limitations)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const orderRequest: any = {
-        coin: params.symbol,
-        is_buy: params.side === 'long',
-        sz: params.size,
-        reduce_only: params.reduceOnly || false,
-      };
-
+      // Determine order price
       let limitPrice: number;
       if (params.orderType === 'market') {
-        const allMids = await sdk.info.getAllMids();
+        const allMids = await client.getMidPrices();
         const currentPrice = parseFloat(allMids[params.symbol] || '0');
         if (currentPrice === 0) {
           return {
@@ -295,20 +231,22 @@ export class HyperliquidService extends Service {
           };
         }
         limitPrice = this.calculateSlippagePrice(currentPrice, params.side === 'long');
-        orderRequest.limit_px = limitPrice;
-        orderRequest.order_type = { limit: { tif: 'Ioc' } };
       } else {
         limitPrice = params.limitPrice!;
-        orderRequest.limit_px = limitPrice;
-        orderRequest.order_type = { limit: { tif: 'Gtc' } };
       }
 
       logger.info(
         `[HYPERLIQUID_SERVICE] Opening ${params.side} position: ${params.size} ${params.symbol} @ ${limitPrice} (${params.orderType})`
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const response = (await sdk.exchange.placeOrder(orderRequest)) as any;
+      const response = await client.placeOrder({
+        coin: params.symbol,
+        is_buy: params.side === 'long',
+        sz: params.size.toString(),
+        limit_px: limitPrice.toString(),
+        order_type: params.orderType === 'market' ? { limit: { tif: 'Ioc' } } : { limit: { tif: 'Gtc' } },
+        reduce_only: params.reduceOnly || false,
+      });
 
       if (response?.status === 'ok') {
         logger.info(`[HYPERLIQUID_SERVICE] Order placed successfully`);
@@ -343,7 +281,6 @@ export class HyperliquidService extends Service {
   /**
    * Close an existing position
    * @param params - Close parameters including symbol, percentage, order type
-   * @note userId is accepted for API stability but currently uses configured wallet
    */
   async closePosition(params: ClosePositionParams): Promise<CloseResult> {
     const validation = this.validateCloseParams(params);
@@ -357,19 +294,8 @@ export class HyperliquidService extends Service {
       };
     }
 
-    const sdkCheck = this.ensureSdkInitialized();
-    if (!sdkCheck.ok) {
-      return {
-        success: false,
-        closedSize: 0,
-        realizedPnl: 0,
-        message: 'SDK not initialized',
-        error: sdkCheck.error,
-      };
-    }
-    const sdk = sdkCheck.sdk;
-
     try {
+      const client = await this.getClientForUser(params.userId);
       const positions = await this.getPositions(params.userId);
       const position = positions.find((p) => p.symbol === params.symbol);
 
@@ -385,18 +311,11 @@ export class HyperliquidService extends Service {
       const sizeToClose = (Math.abs(position.size) * params.percentage) / 100;
 
       // Fetch market prices once and cache for this operation
-      const allMids = await sdk.info.getAllMids();
+      const allMids = await client.getMidPrices();
       const currentPrice = parseFloat(allMids[params.symbol] || '0');
 
-      // Build order request (using any due to SDK type limitations)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const orderRequest: any = {
-        coin: params.symbol,
-        is_buy: position.side === 'short',
-        sz: sizeToClose,
-        reduce_only: true,
-      };
-
+      // Determine order price
+      let limitPrice: number;
       if (params.orderType === 'market') {
         if (currentPrice === 0) {
           return {
@@ -407,22 +326,23 @@ export class HyperliquidService extends Service {
             error: ERROR_MESSAGES.API_ERROR,
           };
         }
-        orderRequest.limit_px = this.calculateSlippagePrice(
-          currentPrice,
-          position.side === 'short'
-        );
-        orderRequest.order_type = { limit: { tif: 'Ioc' } };
+        limitPrice = this.calculateSlippagePrice(currentPrice, position.side === 'short');
       } else {
-        orderRequest.limit_px = params.limitPrice;
-        orderRequest.order_type = { limit: { tif: 'Gtc' } };
+        limitPrice = params.limitPrice!;
       }
 
       logger.info(
         `[HYPERLIQUID_SERVICE] Closing ${params.percentage}% of ${params.symbol} position (${sizeToClose})`
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const response = (await sdk.exchange.placeOrder(orderRequest)) as any;
+      const response = await client.placeOrder({
+        coin: params.symbol,
+        is_buy: position.side === 'short',
+        sz: sizeToClose.toString(),
+        limit_px: limitPrice.toString(),
+        order_type: params.orderType === 'market' ? { limit: { tif: 'Ioc' } } : { limit: { tif: 'Gtc' } },
+        reduce_only: true,
+      });
 
       if (response?.status === 'ok') {
         logger.info(`[HYPERLIQUID_SERVICE] Position closed successfully`);
@@ -469,25 +389,14 @@ export class HyperliquidService extends Service {
 
   /**
    * Get all open positions
-   * @param _userId - Reserved for future multi-wallet support (currently unused)
    */
-  async getPositions(_userId: string): Promise<Position[]> {
-    const sdkCheck = this.ensureSdkInitialized();
-    if (!sdkCheck.ok) {
-      throw new Error(sdkCheck.error);
-    }
-    const sdk = sdkCheck.sdk;
-
+  async getPositions(userId: string): Promise<Position[]> {
     try {
-      const walletAddress = this.getWalletAddress();
+      const client = await this.getClientForUser(userId);
+      const walletAddress = client.getAddress();
 
-      if (!walletAddress) {
-        logger.warn('[HYPERLIQUID_SERVICE] No wallet address available');
-        return [];
-      }
-
-      const state = await sdk.info.perpetuals.getClearinghouseState(walletAddress);
-      const allMids = await sdk.info.getAllMids();
+      const state = await client.getAccountState();
+      const allMids = await client.getMidPrices();
 
       const positions: Position[] = [];
 
@@ -506,12 +415,12 @@ export class HyperliquidService extends Service {
           size: Math.abs(size),
           entryPrice: parseFloat(pos.entryPx),
           markPrice,
-          liquidationPrice: pos.liquidationPx ? parseFloat(pos.liquidationPx) : null,
+          liquidationPrice: null, // CDP client doesn't expose liquidationPx
           unrealizedPnl: parseFloat(pos.unrealizedPnl),
           realizedPnl: 0,
           leverage: pos.leverage.value,
-          marginUsed: parseFloat(pos.marginUsed),
-          timestamp: state.time,
+          marginUsed: 0, // Not exposed by CDP client AccountState
+          timestamp: Date.now(),
         });
       }
 
@@ -527,35 +436,30 @@ export class HyperliquidService extends Service {
    * Get available markets
    */
   async getMarkets(): Promise<Market[]> {
-    const sdkCheck = this.ensureSdkInitialized();
-    if (!sdkCheck.ok) {
-      throw new Error(sdkCheck.error);
-    }
-    const sdk = sdkCheck.sdk;
-
     try {
-      const meta = await sdk.info.perpetuals.getMeta();
-      const allMids = await sdk.info.getAllMids();
-      const predictedFundings = await sdk.info.perpetuals.getPredictedFundings();
+      // Use any existing client or create temporary one for global data
+      let client: HyperliquidCdpClient;
+      if (this.clients.size > 0) {
+        client = Array.from(this.clients.values())[0];
+      } else {
+        // Create temporary client for global market data (no user needed)
+        client = new HyperliquidCdpClient('system', this.testnet);
+        await client.connect();
+      }
+
+      const meta = await client.getMarkets();
+      const allMids = await client.getMidPrices();
+      const predictedFundings = await client.getPredictedFundings();
 
       const markets: Market[] = [];
 
-      for (const asset of meta.universe) {
+      for (const asset of meta) {
         const symbol = asset.name;
         const markPrice = parseFloat(allMids[symbol] || '0');
 
         // Extract funding rate from predicted fundings structure
-        const fundingData = predictedFundings[symbol] as Array<Record<string, unknown>> | undefined;
-        let fundingRate = 0;
-
-        if (fundingData && Array.isArray(fundingData) && fundingData.length > 0) {
-          const firstVenue = fundingData[0];
-          const venueKeys = Object.keys(firstVenue);
-          if (venueKeys.length > 0) {
-            const predictedFunding = firstVenue[venueKeys[0]] as Record<string, unknown>;
-            fundingRate = parseFloat(String(predictedFunding.fundingRate || 0));
-          }
-        }
+        const fundingData = predictedFundings[symbol];
+        const fundingRate = fundingData ? parseFloat(fundingData.fundingRate || '0') : 0;
 
         markets.push({
           symbol,
@@ -564,7 +468,7 @@ export class HyperliquidService extends Service {
           quoteCurrency: 'USD',
           minSize: Math.pow(10, -asset.szDecimals),
           tickSize: 0.01,
-          maxLeverage: asset.maxLeverage,
+          maxLeverage: SERVICE_CONFIG.MAX_LEVERAGE,
           fundingRate,
           markPrice,
           indexPrice: markPrice,
@@ -583,23 +487,11 @@ export class HyperliquidService extends Service {
 
   /**
    * Get account information
-   * @param _userId - Reserved for future multi-wallet support (currently unused)
    */
-  async getAccountInfo(_userId: string): Promise<AccountInfo> {
-    const sdkCheck = this.ensureSdkInitialized();
-    if (!sdkCheck.ok) {
-      throw new Error(sdkCheck.error);
-    }
-    const sdk = sdkCheck.sdk;
-
+  async getAccountInfo(userId: string): Promise<AccountInfo> {
     try {
-      const walletAddress = this.getWalletAddress();
-
-      if (!walletAddress) {
-        throw new Error('No wallet address available');
-      }
-
-      const state = await sdk.info.perpetuals.getClearinghouseState(walletAddress);
+      const client = await this.getClientForUser(userId);
+      const state = await client.getAccountState();
 
       const marginSummary = state.marginSummary;
       const equity = parseFloat(marginSummary.accountValue);
@@ -613,7 +505,7 @@ export class HyperliquidService extends Service {
 
       return {
         equity,
-        availableBalance: parseFloat(state.withdrawable),
+        availableBalance: equity - marginUsed, // CDP client doesn't expose withdrawable
         marginUsed,
         unrealizedPnl: totalUnrealizedPnl,
         realizedPnl: 0,

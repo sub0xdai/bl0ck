@@ -85,9 +85,8 @@ export interface AccountInfo {
   marginRatio: number;
 }
 
-// Service configuration
+// Service configuration (CDP mode - no private key required)
 export interface HyperliquidConfig {
-  privateKey: string;
   testnet: boolean;
   maxLeverage: number; // Hard cap at 25x
 }
