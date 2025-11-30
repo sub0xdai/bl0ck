@@ -18,6 +18,7 @@ export const SERVICE_CONFIG = {
   CACHE_TTL_MS: 5 * 60 * 1000, // 5 minutes
   RETRY_ATTEMPTS: 3,
   RETRY_DELAY_MS: 1000,
+  MARKETS_DISPLAY_COUNT: 15, // Max markets to show in list
 } as const;
 
 // Popular trading pairs

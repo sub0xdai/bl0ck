@@ -8,13 +8,13 @@
 import type { Plugin } from '@elizaos/core';
 import { HyperliquidService } from './services/hyperliquid.service';
 
-// Actions will be implemented after service tests pass
-// import { perpOpenLong } from './actions/perp-open-long';
-// import { perpOpenShort } from './actions/perp-open-short';
-// import { perpClosePosition } from './actions/perp-close-position';
-// import { perpGetPositions } from './actions/perp-get-positions';
-// import { perpGetMarkets } from './actions/perp-get-markets';
-// import { perpAccountInfo } from './actions/perp-account-info';
+// Actions
+import { perpOpenLong } from './actions/perp-open-long';
+import { perpOpenShort } from './actions/perp-open-short';
+import { perpClosePosition } from './actions/perp-close-position';
+import { perpGetPositions } from './actions/perp-get-positions';
+import { perpGetMarkets } from './actions/perp-get-markets';
+import { perpAccountInfo } from './actions/perp-account-info';
 
 export const hyperliquidPlugin: Plugin = {
   name: 'hyperliquid',
@@ -22,13 +22,12 @@ export const hyperliquidPlugin: Plugin = {
   evaluators: [],
   providers: [],
   actions: [
-    // Will be enabled after TDD GREEN phase for actions
-    // perpOpenLong,
-    // perpOpenShort,
-    // perpClosePosition,
-    // perpGetPositions,
-    // perpGetMarkets,
-    // perpAccountInfo,
+    perpOpenLong,
+    perpOpenShort,
+    perpClosePosition,
+    perpGetPositions,
+    perpGetMarkets,
+    perpAccountInfo,
   ],
   services: [HyperliquidService],
 };
