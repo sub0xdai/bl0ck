@@ -6,7 +6,6 @@ import ArrowRightIcon from "@/components/icons/arrow-right"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { convertActionMessageToToolPart, isActionMessage } from "@/lib/action-message-utils"
-import { extractActionChips, shouldShowActionChips, type ActionChip } from "@/lib/action-chips"
 import { SlashCommandMenu, useSlashCommands } from "@/components/chat/slash-commands"
 import { elizaClient } from '@/lib/elizaClient'
 import { socketManager } from '@/lib/socketManager'
@@ -692,23 +691,6 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                 // Check if this is an error message from the agent
                 const isErrorMessage = message.isAgent && message.content.startsWith(' Error:')
 
-                // Find last agent message index for action chips
-                const lastAgentMessageIndex = messages.reduceRight((acc, m, idx) => {
-                  if (acc === -1 && m.isAgent && !isActionMessage(m)) return idx
-                  return acc
-                }, -1)
-                const isLastAgentMessage = messageIndex === lastAgentMessageIndex
-
-                // Extract action chips for the last agent message
-                const actionChips = message.isAgent && isLastAgentMessage && !isErrorMessage
-                  ? extractActionChips(message.content, messageIndex === 0)
-                  : []
-
-                // Handler for action chip clicks
-                const handleChipClick = (chip: ActionChip) => {
-                  setInputValue(chip.prompt)
-                }
-
                 return (
                   <div
                     key={message.id}
@@ -743,24 +725,6 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                       </span>
                     </div>
 
-                    {/* UX IMPROVEMENT #2: Action Chips - Quick action buttons below agent messages */}
-                    {actionChips.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-1 max-w-[70%]">
-                        {actionChips.map((chip) => (
-                          <button
-                            key={chip.id}
-                            onClick={() => handleChipClick(chip)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full
-                                     bg-accent/50 hover:bg-accent text-foreground
-                                     border border-border/50 hover:border-border
-                                     transition-all duration-200 hover:scale-105"
-                          >
-                            {chip.icon && <span>{chip.icon}</span>}
-                            {chip.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 )
               })}
