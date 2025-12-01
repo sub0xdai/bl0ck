@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="solGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00FFA3"/>
+      <stop offset="100%" style="stop-color:#DC1FFF"/>
+    </linearGradient>
+  </defs>
+  <circle cx="64" cy="64" r="64" fill="#000"/>
+  <g transform="translate(24, 32)">
+    <path fill="url(#solGrad)" d="M13.3 52.8c.5-.5 1.1-.8 1.8-.8h60.5c1.1 0 1.7 1.4.9 2.2l-12.2 12.2c-.5.5-1.1.8-1.8.8H2c-1.1 0-1.7-1.4-.9-2.2l12.2-12.2z"/>
+    <path fill="url(#solGrad)" d="M13.3 0c.5-.5 1.1-.8 1.8-.8h60.5c1.1 0 1.7 1.4.9 2.2L64.3 13.6c-.5.5-1.1.8-1.8.8H2c-1.1 0-1.7-1.4-.9-2.2L13.3 0z"/>
+    <path fill="url(#solGrad)" d="M64.3 26.1c-.5-.5-1.1-.8-1.8-.8H2c-1.1 0-1.7 1.4-.9 2.2l12.2 12.2c.5.5 1.1.8 1.8.8h60.5c1.1 0 1.7-1.4.9-2.2L64.3 26.1z"/>
+  </g>
+</svg>

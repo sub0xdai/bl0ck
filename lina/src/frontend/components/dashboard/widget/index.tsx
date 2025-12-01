@@ -133,7 +133,7 @@ function Widget() {
 
         <div className="absolute inset-0 -z-1">
           <img
-            src="/assets/pc_blueprint.gif"
+            src="/assets/BHFO-ezgif.com-instagif.gif"
             alt="logo"
             className="size-full object-contain"
           />

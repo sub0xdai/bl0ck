@@ -670,7 +670,7 @@ function AppContent({
             channels={channels}
             activeChannelId={activeChannelId}
             onChannelSelect={onChannelSelect}
-            onDeleteChannel={handleDeleteChannel}
+            onDeleteChannel={undefined /* TODO: Fix handleDeleteChannel scope issue */}
             onNewChat={onNewChat}
             isCreatingChannel={isCreatingChannel}
             userProfile={userProfile}

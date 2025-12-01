@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="solWalletGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00FFA3"/>
+      <stop offset="100%" style="stop-color:#DC1FFF"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="24" fill="#1a1a1a"/>
+  <g transform="translate(24, 36)">
+    <path fill="url(#solWalletGrad)" d="M11.1 44c.4-.4.9-.7 1.5-.7h50.4c.9 0 1.4 1.2.7 1.8L53.5 55.3c-.4.4-.9.7-1.5.7H1.6c-.9 0-1.4-1.2-.7-1.8L11.1 44z"/>
+    <path fill="url(#solWalletGrad)" d="M11.1 0c.4-.4.9-.7 1.5-.7h50.4c.9 0 1.4 1.2.7 1.8L53.5 11.3c-.4.4-.9.7-1.5.7H1.6c-.9 0-1.4-1.2-.7-1.8L11.1 0z"/>
+    <path fill="url(#solWalletGrad)" d="M53.5 21.8c-.4-.4-.9-.7-1.5-.7H1.6c-.9 0-1.4 1.2-.7 1.8l10.2 10.2c.4.4.9.7 1.5.7h50.4c.9 0 1.4-1.2.7-1.8L53.5 21.8z"/>
+  </g>
+</svg>

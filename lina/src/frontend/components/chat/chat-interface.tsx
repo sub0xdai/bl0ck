@@ -88,11 +88,11 @@ const extractChartData = (message: Message): any => {
   if (message.rawMessage?.actionResult?.values?.data_points) {
     return message.rawMessage.actionResult.values
   }
-  
+
   if (message.rawMessage?.actionResult?.data?.data_points) {
     return message.rawMessage.actionResult.data
   }
-  
+
   return null
 }
 
@@ -134,15 +134,15 @@ interface ChatInterfaceProps {
 
 const AnimatedDots = () => {
   const [dotCount, setDotCount] = useState(1)
-  
+
   useEffect(() => {
     const interval = setInterval(() => {
       setDotCount((prev) => (prev % 3) + 1)
     }, 500)
-    
+
     return () => clearInterval(interval)
   }, [])
-  
+
   return <span>{'.'.repeat(dotCount)}</span>
 }
 
@@ -165,7 +165,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
   const isUserScrollingRef = useRef(false) // Track if user is actively scrolling
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  
+
   const MAX_TEXTAREA_HEIGHT = 160
   const MAX_TITLE_LENGTH = 50
   const SOCKET_READY_DELAY_MS = 100
@@ -229,7 +229,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
   // Use refs to store stable values that don't trigger re-renders
   const agentIdRef = useRef(agent.id)
   const agentNameRef = useRef(agent.name)
-  
+
   // Update refs when agent changes, but don't trigger re-renders
   useEffect(() => {
     agentIdRef.current = agent.id
@@ -240,7 +240,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
   const checkIfNearBottom = () => {
     const container = messagesContainerRef.current
     if (!container) return true
-    
+
     const threshold = 200 // pixels from bottom to consider "near bottom"
     const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
     return distanceFromBottom < threshold
@@ -269,12 +269,12 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
     const handleScroll = () => {
       // User is actively scrolling - disable auto-scroll
       isUserScrollingRef.current = true
-      
+
       // Clear previous timeout
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current)
       }
-      
+
       // After user stops scrolling for 150ms, check position
       scrollTimeoutRef.current = setTimeout(() => {
         const nearBottom = checkIfNearBottom()
@@ -369,7 +369,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
     const handleNewMessage = (data: any) => {
       console.log(' New message received:', data)
       console.log(' agentIdRef.current', agentIdRef.current);
-      
+
       const messageId = data.id || crypto.randomUUID()
       const newMessage: Message = {
         id: messageId,
@@ -404,30 +404,30 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
         const updated = [...prev, newMessage]
         return updated.sort((a, b) => a.createdAt - b.createdAt)
       })
-      
+
       // Stop typing indicator only for final summary messages or error messages
       if (newMessage.isAgent) {
         console.log(' newMessage.isAgent', newMessage.isAgent);
         // Hide dummy tool group when agent message arrives
         setShowDummyToolGroup(false)
-        
+
         // Check if this is a multi-step summary message
         const actions = newMessage.rawMessage?.actions || newMessage.metadata?.actions || []
         const isSummaryMessage = actions.includes('MULTI_STEP_SUMMARY')
         const isErrorMessage = newMessage.content.startsWith(' Error:')
-        
+
         // Only stop typing for summary or error messages
         if (isSummaryMessage || isErrorMessage) {
           setIsTyping(false)
           // Wait for DOM to update before scrolling
           setTimeout(() => scrollToBottom('smooth'), 0)
-          
+
           // If it's a summary message, trigger wallet refresh
           if (isSummaryMessage && onActionCompleted) {
             console.log(' Agent action completed - triggering wallet refresh')
             onActionCompleted()
           }
-          
+
           // If it's an error message, also clear the local error state
           if (isErrorMessage) {
             // The error is already shown in the message, so clear any pending local errors
@@ -454,23 +454,23 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!inputValue.trim() || isCreatingChannel) return
-    
+
     // Clear any previous errors
     setError(null)
-    
+
     // If in new chat mode, create channel first with generated title
     if (isNewChatMode && !channelId) {
       await createChannelWithGeneratedTitle(inputValue)
       setInputValue('')
       return
     }
-    
+
     // Normal message sending (channel already exists)
     if (!channelId) {
       console.warn(' Cannot send message: No channel ID')
       return
     }
-    
+
     console.log(' [ChatInterface] Sending message:', {
       channelId,
       text: inputValue,
@@ -478,14 +478,14 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
       userId,
       agentId: agent.id,
     })
-    
+
     // Send via socket (don't add optimistically - server will broadcast back)
     socketManager.sendMessage(channelId, inputValue, serverId, {
       userId,
       isDm: true,
       targetUserId: agent.id,
     })
-    
+
     setInputValue('')
     setIsTyping(true)
   }
@@ -501,42 +501,42 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
   // Handle prompt click - populate input instead of auto-sending
   const handlePromptClick = (message: string) => {
     if (!message.trim()) return
-    
+
     // Close modal if open
     setShowPromptsModal(false)
-    
+
     // Populate input field with the prompt
     setInputValue(message)
-    
+
     // Focus the input field
     const inputElement = document.querySelector('textarea');
     if (inputElement) {
       inputElement.focus();
     }
   }
-  
+
   // Legacy function for backward compatibility (if needed elsewhere)
   const handleQuickPrompt = async (message: string) => {
     if (isTyping || !message.trim() || isCreatingChannel) return
-    
+
     // Close modal if open
     setShowPromptsModal(false)
-    
+
     // Clear any previous errors
     setError(null)
-    
+
     // If in new chat mode, create channel first with generated title
     if (isNewChatMode && !channelId) {
       await createChannelWithGeneratedTitle(message)
       return
     }
-    
+
     // Normal quick prompt (channel already exists)
     if (!channelId) {
       console.warn(' Cannot send message: No channel ID')
       return
     }
-    
+
     console.log(' [ChatInterface] Sending quick prompt:', {
       channelId,
       text: message,
@@ -544,14 +544,14 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
       userId,
       agentId: agent.id,
     })
-    
+
     // Send via socket directly
     socketManager.sendMessage(channelId, message, serverId, {
       userId,
       isDm: true,
       targetUserId: agent.id,
     })
-    
+
     setIsTyping(true)
   }
 
@@ -559,11 +559,11 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
   const groupedMessages = messages.reduce<Array<Message | Message[]>>((acc, message, index) => {
     const isAction = isActionMessage(message)
     const prevItem = acc[acc.length - 1]
-    
+
     // If this is an action message and the previous item is an array of actions, add to that array
     if (isAction && Array.isArray(prevItem) && prevItem.length > 0 && isActionMessage(prevItem[0])) {
       prevItem.push(message)
-    } 
+    }
     // If this is an action message but previous was not, start a new array
     else if (isAction) {
       acc.push([message])
@@ -572,7 +572,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
     else {
       acc.push(message)
     }
-    
+
     return acc
   }, [])
 
@@ -592,7 +592,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                   const isLastGroup = groupIndex === groupedMessages.length - 1
                   // Find all chart data in this action group
                   const chartDataArray = findAllChartDataInGroup(actionGroup)
-                  
+
                   // Get the latest action's status and name for label
                   const latestAction = actionGroup[actionGroup.length - 1]
                   const latestActionStatus = latestAction.metadata?.actionStatus || latestAction.rawMessage?.actionStatus
@@ -636,21 +636,21 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                       )
                     }
                   }
-                  
+
                   return (
                     <div
                       key={`action-group-${groupIndex}-${firstAction.id}`}
                       className="flex flex-col gap-2 items-start"
                     >
                       <div className="max-w-[85%] w-full">
-                        <ToolGroup 
+                        <ToolGroup
                           defaultOpen={false}
                           label={groupLabel}
                         >
                           {actionGroup.map((message) => {
                             // Extract thought from rawMessage
                             const thought = message.thought || message.rawMessage?.thought || message.metadata?.thought
-                            
+
                             return (
                               <div key={message.id} className="space-y-2">
                                 {thought && (
@@ -658,7 +658,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                                     {thought}
                                   </div>
                                 )}
-                                <Tool 
+                                <Tool
                                   toolPart={convertActionMessageToToolPart(message)}
                                   defaultOpen={false}
                                 />
@@ -667,10 +667,10 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                           })}
                         </ToolGroup>
                       </div>
-                      
+
                       {/* Render all charts from this action group */}
                       {chartDataArray.length > 0 && chartDataArray.map((chartData, chartIndex) => (
-                        <div 
+                        <div
                           key={`chart-${groupIndex}-${chartIndex}`}
                           className="max-w-[85%] w-full bg-card rounded-lg border border-border p-4"
                         >
@@ -680,7 +680,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                     </div>
                   )
                 }
-                
+
                 // Handle single messages (user or agent text messages)
                 const message = item
                 const messageIndex = messages.indexOf(message)
@@ -714,9 +714,14 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                     key={message.id}
                     className={cn("flex flex-col gap-1", message.isAgent ? "items-start" : "items-end")}
                   >
+                    {/* UX IMPROVEMENT #1 & #4: AI message bubble with container and readability classes */}
                     <div
                       className={cn(
                         "max-w-[70%] rounded-lg px-3 py-2 text-base font-medium break-words whitespace-pre-wrap",
+                        // UX IMPROVEMENT #1: Add ai-message-bubble class for readability
+                        message.isAgent && "ai-message-bubble",
+                        // UX IMPROVEMENT #4: Add ai-message-container class for visual hierarchy
+                        message.isAgent && "ai-message-container",
                         isErrorMessage
                           ? "bg-destructive/10 border border-destructive/20 text-destructive"
                           : message.isAgent
@@ -738,7 +743,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                       </span>
                     </div>
 
-                    {/* Action Chips - Quick action buttons below agent messages */}
+                    {/* UX IMPROVEMENT #2: Action Chips - Quick action buttons below agent messages */}
                     {actionChips.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-1 max-w-[70%]">
                         {actionChips.map((chip) => (
@@ -759,12 +764,12 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                   </div>
                 )
               })}
-             
+
               {/* Dummy Tool Group - Shows while waiting for agent actions */}
               {isTyping && showDummyToolGroup && (
                 <div className="flex flex-col gap-1 items-start">
                   <div className="max-w-[85%] w-full">
-                    <ToolGroup 
+                    <ToolGroup
                       defaultOpen={false}
                       animate={true}
                       label={
@@ -783,7 +788,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                   </div>
                 </div>
               )}
-              
+
               {/* Error Message */}
               {error && (
                 <div className="flex flex-col gap-1 items-center">
@@ -800,7 +805,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                   </div>
                 </div>
               )}
-              
+
               <div ref={messagesEndRef} />
             </div>
 
@@ -821,7 +826,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                     {selectedPlugin ? PLUGIN_ACTIONS[selectedPlugin].name : 'Quick Start'}
                   </p>
                 </div>
-                
+
                 {/* Show plugins or plugin-specific prompts */}
                 {!selectedPlugin ? (
                   // Plugin Grid
@@ -865,9 +870,9 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
         </CardContent>
       </Card>
 
-      {/* Sticky Input Container */}
-      <div className="sticky bottom-0 bg-background">
-        <div className="border-t-2 border-muted bg-secondary min-h-12 p-1 relative">
+      {/* UX IMPROVEMENT #5: Floating Input Container with chat-input-container class */}
+      <div className="sticky bottom-0 bg-background pt-2 pb-4 px-4">
+        <div className="chat-input-container relative">
           {/* Slash Command Menu */}
           <SlashCommandMenu
             isOpen={slashCommands.isOpen}
@@ -878,46 +883,48 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
             onSelectedIndexChange={slashCommands.setSelectedIndex}
           />
 
-          <Textarea
-            ref={textareaRef}
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Type your message... (use / for commands)"
-            disabled={isTyping || isCreatingChannel}
-            className={cn(
-              "flex-1 rounded-none border-none text-foreground placeholder-foreground/40 text-sm font-mono resize-none overflow-y-auto min-h-10 py-2.5",
-              "focus-visible:outline-none focus-visible:ring-0"
-            )}
-            style={{ maxHeight: `${MAX_TEXTAREA_HEIGHT}px` }}
-            onKeyDown={(e) => {
-              // Let slash commands handle keyboard navigation first
-              if (slashCommands.handleKeyDown(e)) {
-                return
-              }
+          <div className="p-1">
+            <Textarea
+              ref={textareaRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder="Type your message... (use / for commands)"
+              disabled={isTyping || isCreatingChannel}
+              className={cn(
+                "flex-1 rounded-none border-none text-foreground placeholder-foreground/40 text-sm font-mono resize-none overflow-y-auto min-h-10 py-2.5",
+                "focus-visible:outline-none focus-visible:ring-0"
+              )}
+              style={{ maxHeight: `${MAX_TEXTAREA_HEIGHT}px` }}
+              onKeyDown={(e) => {
+                // Let slash commands handle keyboard navigation first
+                if (slashCommands.handleKeyDown(e)) {
+                  return
+                }
 
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault()
-                handleSubmit(e)
-              }
-              // Shift+Enter will insert a newline (default behavior)
-            }}
-          />
-          <Button
-            variant={inputValue.trim() ? "default" : "outline"}
-            onClick={handleSubmit}
-            disabled={!inputValue.trim() || isTyping || isCreatingChannel}
-            className="absolute right-1.5 top-1.5 h-8 w-12 p-0"
-          >
-            {isTyping || isCreatingChannel ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <ArrowRightIcon className="w-4 h-4" />
-            )}
-          </Button>
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSubmit(e)
+                }
+                // Shift+Enter will insert a newline (default behavior)
+              }}
+            />
+            <Button
+              variant={inputValue.trim() ? "default" : "outline"}
+              onClick={handleSubmit}
+              disabled={!inputValue.trim() || isTyping || isCreatingChannel}
+              className="absolute right-2 top-2 h-8 w-12 p-0"
+            >
+              {isTyping || isCreatingChannel ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <ArrowRightIcon className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
         </div>
 
         {/* ElizaOS Attribution Badge */}
-        <div className="px-3 pb-4 pt-3 flex items-center gap-3">
+        <div className="px-3 pt-3 flex items-center gap-3 max-w-[900px] mx-auto">
           <img
             src="/assets/elizaos_badge.svg"
             alt="Powered by ElizaOS"
@@ -931,5 +938,5 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
     </div>
 
 
-  )  
+  )
 }

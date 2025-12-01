@@ -13,157 +13,128 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-display: "Rebels", sans-serif;
+  --font-display: Cormorant, Rebels, serif;
   --font-mono: "Roboto Mono", monospace;
 
+  /* ... existing theme mappings ... */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-pop: var(--pop);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
   --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
   --color-success: var(--success);
   --color-warning: var(--warning);
 
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-active: var(--sidebar-accent-hover);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
   --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-
   --spacing-gap: var(--gap);
   --spacing-sides: var(--sides);
   --spacing-header-mobile: var(--header-mobile);
-
   --ease-anticipate: cubic-bezier(1, -0.4, 0.35, 0.95);
 
   --animate-marquee-up: marquee-up 6s ease-in-out infinite;
   --animate-marquee-down: marquee-down 6s ease-in-out infinite;
   --animate-marquee-pulse: marquee-pulse 3s ease-in-out infinite;
-
-  --animate-marquee-pulse: marquee-pulse 1s linear infinite;
 }
 
 :root {
+  /* Default variables (light mode fallbacks) */
   --radius: 0.25rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  /* bl0ck purple as primary brand color */
   --primary: oklch(0.5225 0.2931 292.54);
   --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  /* light gray accent - monochrome system */
-  --accent: oklch(0.95 0 0);
-  --accent-foreground: oklch(0.145 0 0);
-  --border: oklch(0.922 0 0);
-  --pop: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.5225 0.2931 292.54);
-
-  --success: oklch(0.7775 0.2447 144.9);
-  --destructive: oklch(0.577 0.245 27.325);
-  /* muted amber for warnings - less intense than gold */
-  --warning: oklch(0.75 0.12 60);
-
-  /* Chart colors: purple variations + grays + subtle teal */
-  --chart-1: oklch(0.5225 0.2931 292.54); /* bl0ck purple */
-  --chart-2: oklch(0.7 0.2 292.54); /* light purple */
-  --chart-3: oklch(0.35 0.25 292.54); /* dark purple */
-  --chart-4: oklch(0.6 0.15 200); /* muted teal for contrast */
-  --chart-5: oklch(0.5 0 0); /* medium gray */
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  /* bl0ck purple for sidebar primary */
-  --sidebar-primary: oklch(0.5225 0.2931 292.54);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.5225 0.2931 292.54);
-
   --gap: 2rem;
   --sides: 1rem;
   --header-mobile: 3.8rem;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   CATPPUCCIN MOCHA PALETTE
+   Cozy, High-Contrast Dark Theme
+   ═══════════════════════════════════════════════════════════════════════════ */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.9851 0 0);
-  --card: oklch(0.2029 0.0037 345.62);
-  --card-foreground: oklch(0.9851 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  /* bl0ck purple as primary brand color - brighter for dark mode */
-  --primary: oklch(0.65 0.2931 292.54);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.2393 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  /* dark gray accent - monochrome system */
-  --accent: oklch(0.3 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --pop: oklch(0.9851 0 0 / 2.5%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.65 0.2931 292.54);
+  /* 1. BACKGROUNDS - Mocha Base */
+  --background: #1e1e2e;  /* Base */
+  --foreground: #cdd6f4;  /* Text */
 
-  --success: oklch(0.7775 0.2447 144.9);
-  /* muted amber for warnings - less intense than gold */
-  --warning: oklch(0.7 0.1 60);
-  --destructive: oklch(0.5961 0.2006 36.48);
+  /* 2. SURFACES - Cards pop with Surface0 */
+  --card: #313244;        /* Surface0 */
+  --card-foreground: #cdd6f4;
+  --popover: #1e1e2e;     /* Base (or Mantle #181825) */
+  --popover-foreground: #cdd6f4;
 
-  /* Chart colors for dark mode: purple variations + grays + subtle teal */
-  --chart-1: oklch(0.65 0.2931 292.54); /* bl0ck purple (bright) */
-  --chart-2: oklch(0.75 0.25 292.54); /* light purple */
-  --chart-3: oklch(0.45 0.28 292.54); /* deep purple */
-  --chart-4: oklch(0.6 0.15 200); /* muted teal for contrast */
-  --chart-5: oklch(0.6 0 0); /* medium gray */
+  /* 3. PRIMARY ACTION - Mauve (Signature Catppuccin) */
+  --primary: #cba6f7;     /* Mauve */
+  --primary-foreground: #1e1e2e; /* Dark text on light accent */
 
-  --sidebar: oklch(0.145 0 0);
-  --sidebar-foreground: oklch(0.9851 0 0);
-  /* bl0ck purple for sidebar primary - brighter for dark mode */
-  --sidebar-primary: oklch(0.65 0.2931 292.54);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.9851 0 0 / 5%);
-  --sidebar-accent-hover: oklch(0.9851 0 0 / 10%);
-  --sidebar-accent-foreground: oklch(0.9851 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.65 0.2931 292.54);
+  /* 4. ACCENTS & INTERACTION */
+  --secondary: #45475a;   /* Surface1 */
+  --secondary-foreground: #cdd6f4;
+
+  --accent: #45475a;      /* Surface1 - Hover states */
+  --accent-foreground: #cdd6f4;
+
+  --muted: #313244;       /* Surface0 */
+  --muted-foreground: #a6adc8; /* Subtext0 */
+
+  /* 5. BORDERS - Structural */
+  --border: #45475a;      /* Surface1 */
+  --input: #313244;       /* Surface0 */
+  --ring: #cba6f7;        /* Mauve */
+
+  /* 6. STATUS COLORS */
+  --destructive: #f38ba8; /* Red */
+  --destructive-foreground: #1e1e2e;
+  --success: #a6e3a1;     /* Green */
+  --warning: #fab387;     /* Peach */
+
+  /* 7. CHART / DATA COLORS */
+  --chart-1: #cba6f7; /* Mauve */
+  --chart-2: #f38ba8; /* Red */
+  --chart-3: #fab387; /* Peach */
+  --chart-4: #a6e3a1; /* Green */
+  --chart-5: #89b4fa; /* Blue */
+
+  /* 8. SIDEBAR - Mantle (Slightly darker for depth) */
+  --sidebar: #181825;     /* Mantle */
+  --sidebar-foreground: #a6adc8;
+  --sidebar-primary: #cba6f7;
+  --sidebar-primary-foreground: #1e1e2e;
+  --sidebar-accent: #313244;
+  --sidebar-accent-foreground: #cdd6f4;
+  --sidebar-border: #313244;
+  --sidebar-ring: #cba6f7;
 }
 
 @layer base {
@@ -174,154 +145,127 @@
     min-height: 100%;
   }
   body {
-    @apply bg-muted text-foreground;
+    @apply bg-background text-foreground;
     font-family: "Roboto Mono", monospace;
   }
   .font-display {
-    font-family: "Rebels", sans-serif !important;
+    font-family: Cormorant, Rebels, serif !important;
   }
 
-  /* Ensure all clickable elements have pointer cursor */
-  button,
-  a,
-  [role="button"],
-  [role="link"],
-  [role="tab"],
-  [role="menuitem"],
-  [role="option"],
-  [role="checkbox"],
-  [role="radio"],
-  [role="switch"],
-  [role="combobox"],
-  [role="listbox"],
-  [role="gridcell"],
-  label,
-  select,
-  input[type="checkbox"],
-  input[type="radio"],
-  input[type="button"],
-  input[type="submit"],
-  input[type="reset"],
-  input[type="file"],
-  summary,
-  details,
-  .cursor-pointer {
-    cursor: pointer;
+  /* SCANLINE OVERLAY - Adapted for Mocha (Overlay1 color) */
+  .dark body::before {
+    content: "";
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(127, 132, 156, 0.05) 0px, /* Overlay1 with very low opacity */
+      rgba(127, 132, 156, 0.05) 1px,
+      transparent 1px,
+      transparent 2px
+    );
+    pointer-events: none;
+    z-index: 99998;
+    opacity: 0.1;
   }
 
-  /* Ensure disabled elements don't show pointer cursor */
-  button:disabled,
-  a:disabled,
-  [aria-disabled="true"],
-  [disabled] {
-    cursor: not-allowed;
+  /* INTERACTION RESETS */
+  button, a, [role="button"], .cursor-pointer { cursor: pointer; }
+  button:disabled, a:disabled, [disabled] { cursor: not-allowed; }
+
+  /* UTILITIES */
+  .dark .glow-neon {
+    box-shadow: 0 0 15px rgba(203, 166, 247, 0.25); /* Mauve glow */
   }
 
-  /* Ensure text inputs don't get pointer cursor */
-  input[type="text"],
-  input[type="email"],
-  input[type="password"],
-  input[type="search"],
-  input[type="url"],
-  input[type="tel"],
-  input[type="number"],
-  textarea {
-    cursor: text;
+  /* ═══════════════════════════════════════════════════════════════════════════
+     UX IMPROVEMENT #1: Better Readability for AI Messages
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  .ai-message-bubble {
+    line-height: 1.7;
+  }
+
+  .ai-message-bubble p {
+    max-width: 65ch;
+    line-height: 1.7;
+    margin-bottom: 1rem;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     UX IMPROVEMENT #3: Warning Callout Styling
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  .warning-box {
+    background: rgba(250, 179, 135, 0.1); /* Peach with opacity */
+    border-left: 3px solid var(--warning);
+    padding: 1rem;
+    border-radius: 0 4px 4px 0;
+    margin: 1rem 0;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     UX IMPROVEMENT #4: Visual Hierarchy - Bot Message Containers
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  .dark .ai-message-container {
+    background-color: rgba(24, 24, 37, 0.6); /* Mantle with opacity */
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     UX IMPROVEMENT #5: Floating Input Bar
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  .chat-input-container {
+    max-width: 900px;
+    margin: 0 auto 20px auto;
+    border-radius: 12px;
+    background: var(--card); /* Surface0 */
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+  }
+
+  .chat-input-container:focus-within {
+    border-color: var(--ring);
+    box-shadow: 0 4px 20px rgba(203, 166, 247, 0.15), 0 0 0 1px var(--ring);
+  }
+
+  /* CHAT BUBBLE OVERRIDES - Standardized */
+  .dark .ai-message-bubble {
+    background-color: transparent !important;
+    border: 1px solid var(--border);
+    color: var(--foreground);
+  }
+
+  .dark .user-message-bubble {
+    background-color: var(--secondary) !important; /* Surface1 */
+    color: var(--foreground) !important;
+    border: 1px solid var(--border);
   }
 }
 
+/* Recharts & Animations */
 .recharts-cartesian-grid-vertical :first-child,
-.recharts-cartesian-grid-vertical :last-child {
-  opacity: 0;
-}
+.recharts-cartesian-grid-vertical :last-child { opacity: 0; }
 
-@media (min-width: 1028px) {
-  html {
-    font-size: 0.7em;
-  }
-}
+@media (min-width: 1028px) { html { font-size: 0.7em; } }
+@media (min-width: 1240px) and (max-width: 1920px) { html { font-size: 0.75em; } }
+@media (min-width: 1920px) { html { font-size: 1em; } }
+@media (min-width: 2160px) { html { font-size: 1.2em; } }
 
-@media (min-width: 1240px) and (max-width: 1920px) {
-  html {
-    font-size: 0.75em;
-  }
-}
-
-@media (min-width: 1920px) {
-  html {
-    font-size: 1em;
-  }
-}
-
-@media (min-width: 2160px) {
-  html {
-    font-size: 1.2em;
-  }
-}
-
-/* Stat Marquee Animations */
-@keyframes marquee-up {
-  0% {
-    transform: translate3d(0, 0, 0);
-  }
-  100% {
-    transform: translate3d(0, -50%, 0);
-  }
-}
-
-@keyframes marquee-down {
-  0% {
-    transform: translate3d(0, -50%, 0);
-  }
-  100% {
-    transform: translate3d(0, 0, 0);
-  }
-}
-
+@keyframes marquee-up { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(0, -50%, 0); } }
+@keyframes marquee-down { 0% { transform: translate3d(0, -50%, 0); } 100% { transform: translate3d(0, 0, 0); } }
 @keyframes marquee-pulse {
-  0%,
-  100% {
-    opacity: 0.15;
-    transform: scale(1) translateY(0);
-  }
-  25% {
-    opacity: 0.4;
-    transform: scale(1.02) translateY(-1px);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.05) translateY(-2px);
-  }
-  75% {
-    opacity: 0.6;
-    transform: scale(1.02) translateY(-1px);
-  }
+  0%, 100% { opacity: 0.15; transform: scale(1) translateY(0); }
+  50% { opacity: 0.8; transform: scale(1.05) translateY(-2px); }
 }
 
-/* Hover interactions */
-.group:hover .animate-marquee-pulse {
-  animation-play-state: paused;
-}
-
+.group:hover .animate-marquee-pulse,
 .group:hover .animate-marquee-up,
-.group:hover .animate-marquee-down {
-  animation-play-state: paused;
-}
+.group:hover .animate-marquee-down { animation-play-state: paused; }
 
-/* CDP Modal z-index fix - ensure it's always on top */
-/* Target the root app container */
-#root {
-  position: relative;
-  z-index: 1;
-}
-
-/* Target CDP's modal portal and overlays */
-body > div[style*="position: fixed"],
-body > div[style*="position:fixed"],
-body > div[class*="Modal"],
-body > div[class*="overlay"],
-body > .Modal-module__overlay,
-[data-radix-portal],
-dialog {
-  z-index: 99999 !important;
-}
+#root { position: relative; z-index: 1; }
+body > div[style*="position: fixed"], [data-radix-portal], dialog { z-index: 99999 !important; }

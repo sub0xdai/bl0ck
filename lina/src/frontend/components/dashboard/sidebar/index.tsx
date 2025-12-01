@@ -68,22 +68,6 @@ export function DashboardSidebar({
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [deletingChannelId, setDeletingChannelId] = useState<string | null>(null);
 
-  const handleDeleteChannel = async (e: React.MouseEvent, channelId: string) => {
-    e.stopPropagation(); // Prevent channel selection
-    if (!onDeleteChannel) return;
-
-    // Confirm deletion
-    const confirmed = window.confirm('Delete this chat? This action cannot be undone.');
-    if (!confirmed) return;
-
-    setDeletingChannelId(channelId);
-    try {
-      await onDeleteChannel(channelId);
-    } finally {
-      setDeletingChannelId(null);
-    }
-  };
-
   // Render a single channel item with delete button
   const renderChannelItem = (channel: Channel) => {
     const isDeleting = deletingChannelId === channel.id;
@@ -104,7 +88,17 @@ export function DashboardSidebar({
         </SidebarMenuButton>
         {onDeleteChannel && !isDeleting && (
           <button
-            onClick={(e) => handleDeleteChannel(e, channel.id)}
+            onClick={async (e) => {
+              e.stopPropagation();
+              const confirmed = window.confirm('Delete this chat? This action cannot be undone.');
+              if (!confirmed) return;
+              setDeletingChannelId(channel.id);
+              try {
+                await onDeleteChannel(channel.id);
+              } finally {
+                setDeletingChannelId(null);
+              }
+            }}
             className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/channel:opacity-100 hover:text-destructive transition-opacity p-1 rounded hover:bg-sidebar-accent"
             title="Delete chat"
           >

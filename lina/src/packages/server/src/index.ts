@@ -552,6 +552,9 @@ export class AgentServer {
               },
           // Cross-Origin Embedder Policy - disabled for compatibility
           crossOriginEmbedderPolicy: false,
+          // Cross-Origin Opener Policy - disabled for Base Account SDK popup communication
+          // See: https://docs.base.org/smart-wallet/quickstart#cross-origin-opener-policy
+          crossOriginOpenerPolicy: false,
           // Cross-Origin Resource Policy
           crossOriginResourcePolicy: { policy: 'cross-origin' },
           // Frame Options - allow same-origin iframes to align with frameSrc CSP

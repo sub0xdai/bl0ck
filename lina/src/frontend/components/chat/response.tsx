@@ -47,12 +47,20 @@ export const Response = memo(
           "focus-visible:[&_a]:outline-none focus-visible:[&_a]:ring-1 focus-visible:[&_a]:ring-blue-400/40 focus-visible:[&_a]:rounded-sm",
           "[&_a]:wrap-break-word",
 
-          // === Blockquote Styles (Notes/Warnings) ===
-          "[&_blockquote]:my-2 [&_blockquote]:pl-3 [&_blockquote]:py-1.5",
-          "[&_blockquote]:border-l-2 [&_blockquote]:rounded-r",
-          "[&_blockquote]:bg-amber-500/10 [&_blockquote]:border-amber-500/50",
-          "[&_blockquote]:text-amber-200",
-          "[&_blockquote_p]:m-0 [&_blockquote_p]:text-sm",
+          // === UX IMPROVEMENT #3: Enhanced Blockquote Styles (Warning Callouts) ===
+          "[&_blockquote]:my-3 [&_blockquote]:pl-4 [&_blockquote]:py-2.5",
+          "[&_blockquote]:border-l-4 [&_blockquote]:rounded-r",
+          // Amber/Yellow warning color - more prominent
+          "[&_blockquote]:bg-amber-500/10 [&_blockquote]:border-amber-500",
+          "[&_blockquote]:text-amber-100",
+          "[&_blockquote_p]:m-0 [&_blockquote_p]:text-sm [&_blockquote_p]:leading-relaxed",
+          // Add a subtle icon effect via before pseudo-element
+          "[&_blockquote]:relative",
+          "before:[&_blockquote]:content-['⚠'] before:[&_blockquote]:absolute before:[&_blockquote]:-left-1",
+          "before:[&_blockquote]:top-2 before:[&_blockquote]:text-amber-500 before:[&_blockquote]:text-lg",
+
+          // === UX IMPROVEMENT #1: Better paragraph spacing and line-height ===
+          "[&_p]:my-2 [&_p]:leading-relaxed",
 
           // === List Styles (Grid-like appearance) ===
           "[&_ul]:my-2 [&_ul]:space-y-1",
@@ -92,4 +100,3 @@ export const Response = memo(
 );
 
 Response.displayName = "Response";
-
