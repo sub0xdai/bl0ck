@@ -1,6 +1,7 @@
 import V0ParticleAnimation from "@/components/v0-particle-animation"
 import Navbar from "@/components/navbar"
 import ContractAddress from "@/components/contract-address"
+import FloatingGif from "@/components/floating-gif"
 
 export default function Home() {
   return (
@@ -14,6 +15,7 @@ export default function Home() {
       </div>
 
       <ContractAddress />
+      <FloatingGif />
     </main>
   )
 }
