@@ -2,13 +2,37 @@
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import * as THREE from "three"
+import { Sparkles, Waves, Wind, Flame, Zap, Target, RotateCcw, Palette } from "lucide-react"
+
 type Effect = "default" | "spark" | "wave" | "vortex"
 type AdditionalEffect = "explode" | "scatter" | "implode" | "spiral" | "morph"
 type ColorMode = "default" | "sapphire" | "gold"
+
+const baseEffects: { id: Effect; label: string; icon: React.ReactNode }[] = [
+  { id: "default", label: "Default", icon: <Wind className="w-4 h-4" /> },
+  { id: "spark", label: "Spark", icon: <Zap className="w-4 h-4" /> },
+  { id: "wave", label: "Wave", icon: <Waves className="w-4 h-4" /> },
+  { id: "vortex", label: "Vortex", icon: <RotateCcw className="w-4 h-4" /> },
+]
+
+const additionalEffects: { id: AdditionalEffect; label: string; icon: React.ReactNode }[] = [
+  { id: "scatter", label: "Scatter", icon: <Sparkles className="w-4 h-4" /> },
+  { id: "explode", label: "Explode", icon: <Flame className="w-4 h-4" /> },
+  { id: "implode", label: "Implode", icon: <Target className="w-4 h-4" /> },
+  { id: "spiral", label: "Spiral", icon: <RotateCcw className="w-4 h-4" /> },
+  { id: "morph", label: "Morph", icon: <Palette className="w-4 h-4" /> },
+]
+
+const colorModes: { id: ColorMode; label: string; color: string }[] = [
+  { id: "default", label: "White", color: "bg-white" },
+  { id: "sapphire", label: "Sapphire", color: "bg-blue-500" },
+  { id: "gold", label: "Gold", color: "bg-yellow-500" },
+]
 export default function V0ParticleAnimation() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [currentEffect, setCurrentEffect] = useState<Effect>("default")
   const [activeEffects, setActiveEffects] = useState<{ [key in AdditionalEffect]?: boolean }>({})
+  const [showControls, setShowControls] = useState(false)
   const [colorMode, setColorMode] = useState<ColorMode>("default")
   const sceneRef = useRef<{
     scene: THREE.Scene
@@ -549,6 +573,19 @@ export default function V0ParticleAnimation() {
     }
   }
 
+  const toggleAdditionalEffect = (effect: AdditionalEffect) => {
+    setActiveEffects((prev) => ({
+      ...prev,
+      [effect]: !prev[effect],
+    }))
+  }
+
+  const clearAllEffects = () => {
+    setCurrentEffect("default")
+    setActiveEffects({})
+    setColorMode("default")
+  }
+
   return (
     <div className="relative flex items-center justify-center min-h-screen">
       <canvas
@@ -564,6 +601,93 @@ export default function V0ParticleAnimation() {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       />
+
+      {/* Toggle Button */}
+      <button
+        onClick={() => setShowControls(!showControls)}
+        className="absolute bottom-6 right-6 p-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20 transition-all z-20"
+        aria-label="Toggle effects panel"
+      >
+        <Sparkles className="w-5 h-5" />
+      </button>
+
+      {/* Controls Panel */}
+      <div
+        className={`absolute bottom-20 right-6 w-72 rounded-xl bg-black/80 backdrop-blur-md border border-white/10 p-4 transition-all duration-300 z-10 ${
+          showControls ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
+        }`}
+      >
+        {/* Base Effects */}
+        <div className="mb-4">
+          <h3 className="text-white/60 text-xs uppercase tracking-wider mb-2">Hover Effect</h3>
+          <div className="grid grid-cols-4 gap-2">
+            {baseEffects.map((effect) => (
+              <button
+                key={effect.id}
+                onClick={() => setCurrentEffect(effect.id)}
+                className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all ${
+                  currentEffect === effect.id
+                    ? "bg-purple-600 text-white"
+                    : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                {effect.icon}
+                <span className="text-[10px]">{effect.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Additional Effects */}
+        <div className="mb-4">
+          <h3 className="text-white/60 text-xs uppercase tracking-wider mb-2">Global Effects</h3>
+          <div className="grid grid-cols-5 gap-2">
+            {additionalEffects.map((effect) => (
+              <button
+                key={effect.id}
+                onClick={() => toggleAdditionalEffect(effect.id)}
+                className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all ${
+                  activeEffects[effect.id]
+                    ? "bg-purple-600 text-white"
+                    : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                {effect.icon}
+                <span className="text-[10px]">{effect.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Color Modes */}
+        <div className="mb-4">
+          <h3 className="text-white/60 text-xs uppercase tracking-wider mb-2">Color</h3>
+          <div className="flex gap-2">
+            {colorModes.map((mode) => (
+              <button
+                key={mode.id}
+                onClick={() => setColorMode(mode.id)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all flex-1 ${
+                  colorMode === mode.id
+                    ? "bg-purple-600 text-white"
+                    : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <div className={`w-3 h-3 rounded-full ${mode.color}`} />
+                <span className="text-xs">{mode.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Reset Button */}
+        <button
+          onClick={clearAllEffects}
+          className="w-full py-2 rounded-lg bg-white/5 text-white/60 hover:bg-white/10 hover:text-white transition-all text-sm"
+        >
+          Reset All
+        </button>
+      </div>
     </div>
   )
 }
