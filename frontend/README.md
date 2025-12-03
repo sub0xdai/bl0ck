@@ -110,3 +110,4 @@ Check out the [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 - [GitHub Repository](https://github.com/sub0xdai/bl0ck)
 - [lina AI Agent](../lina/README.md)
 - [bl0ck Protocol](../bl0ck/README.md)
+# deployed
