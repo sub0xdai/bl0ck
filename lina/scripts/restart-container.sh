@@ -15,7 +15,7 @@ echo "Removing lina container..."
 podman rm lina 2>/dev/null || true
 
 echo "Building new image..."
-podman build -t lina:latest .
+podman build --no-cache -t lina:latest .
 
 echo "Starting lina container..."
 podman run -d \
