@@ -12,7 +12,6 @@ on:
 jobs:
   deploy-lina:
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.modified, 'lina/') || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
