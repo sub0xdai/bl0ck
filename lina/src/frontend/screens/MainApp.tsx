@@ -663,7 +663,7 @@ function AppContent({
       />
 
       {/* Desktop Layout - 3 columns */}
-      <div className="w-full min-h-[100dvh] lg:min-h-screen grid grid-cols-1 lg:grid-cols-12 gap-gap lg:px-sides">
+      <div className="w-full h-[100dvh] lg:h-screen overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-gap lg:px-sides">
         {/* Left Sidebar - Chat History */}
         <div className="hidden lg:block col-span-2 top-0 relative">
           <DashboardSidebar
@@ -682,7 +682,7 @@ function AppContent({
         </div>
 
         {/* Center - Chat Interface / Account */}
-        <div className="col-span-1 lg:col-span-7 lg:h-screen lg:overflow-hidden">
+        <div className="col-span-1 lg:col-span-7 h-full overflow-hidden">
           {currentView === 'account' ? (
             <AccountPage
               totalBalance={totalBalance}
@@ -692,7 +692,7 @@ function AppContent({
               onBack={() => setCurrentView('chat')}
             />
           ) : (
-            <div className="flex flex-col relative w-full gap-1 lg:min-h-0 lg:h-full">
+            <div className="flex flex-col relative w-full gap-1 min-h-0 h-full">
               {/* Header */}
               <div className="flex items-center lg:items-baseline gap-2.5 md:gap-4 px-4 md:px-6 py-3 md:pb-4 lg:pt-7 ring-2 ring-pop sticky top-header-mobile lg:top-0 bg-background z-10">
                <h1 className="text-xl lg:text-4xl font-display leading-none mb-1">
@@ -709,7 +709,7 @@ function AppContent({
               </div>
 
               {/* Content Area */}
-              <div className="min-h-0 flex-1 flex flex-col gap-8 md:gap-14 px-3 lg:px-6 pt-10 md:pt-6 ring-2 ring-pop bg-background">
+              <div className="min-h-0 flex-1 flex flex-col px-3 lg:px-6 ring-2 ring-pop bg-background">
                 {connected && !isLoadingChannels && (activeChannelId || isNewChatMode) && (
                   <div className="flex-1 min-h-0">
                     <ChatInterface

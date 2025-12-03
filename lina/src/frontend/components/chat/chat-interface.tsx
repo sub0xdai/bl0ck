@@ -245,9 +245,15 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
   }
 
 
-  // Helper function to scroll to bottom
+  // Helper function to scroll to bottom (uses scrollTo to avoid scroll chaining)
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
-    messagesEndRef.current?.scrollIntoView({ behavior })
+    const container = messagesContainerRef.current
+    if (!container) return
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior
+    })
   }
 
   // Helper function to resize textarea based on content
