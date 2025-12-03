@@ -1,4 +1,6 @@
 import { logger } from '@elizaos/core';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
 import { CdpClient } from '@coinbase/cdp-sdk';
 import { createWalletClient, createPublicClient, http } from 'viem';
 import type { WalletClient, PublicClient } from 'viem';
@@ -104,6 +106,10 @@ interface SendNFTResult {
   network: string;
 }
 
+interface CdpWalletStorage {
+  wallets: Record<string, { address: string; createdAt: number }>;
+}
+
 // ============================================================================
 // CDP Transaction Manager Class (Singleton)
 // ============================================================================
@@ -114,8 +120,10 @@ export class CdpTransactionManager {
   private cdpClient: CdpClient | null = null;
   private tokensCache = new Map<string, CacheEntry<any>>();
   private nftsCache = new Map<string, CacheEntry<any>>();
+  private walletsCache = new Map<string, CacheEntry<{ address: string; accountName: string }>>();
   private iconCache = new Map<string, string | null>(); // Global icon cache: contractAddress -> iconUrl (null = no icon)
   private readonly CACHE_TTL = 300 * 1000; // 5 minutes
+  private readonly WALLET_STORAGE_PATH = 'data/cdp-wallets.json';
 
   // Private constructor to prevent direct instantiation
   private constructor() {
@@ -130,6 +138,40 @@ export class CdpTransactionManager {
       CdpTransactionManager.instance = new CdpTransactionManager();
     }
     return CdpTransactionManager.instance;
+  }
+
+  // ============================================================================
+  // Wallet Storage (Local Persistence)
+  // ============================================================================
+
+  private loadWalletStorage(): CdpWalletStorage {
+    try {
+      if (fs.existsSync(this.WALLET_STORAGE_PATH)) {
+        const data = fs.readFileSync(this.WALLET_STORAGE_PATH, 'utf-8');
+        return JSON.parse(data);
+      }
+    } catch (error) {
+      logger.warn('[CdpTransactionManager] Failed to load wallet storage:', error instanceof Error ? error.message : String(error));
+    }
+    return { wallets: {} };
+  }
+
+  private saveWalletToStorage(userId: string, address: string): void {
+    try {
+      const storage = this.loadWalletStorage();
+      storage.wallets[userId] = { address, createdAt: Date.now() };
+
+      // Ensure data directory exists
+      const dir = this.WALLET_STORAGE_PATH.substring(0, this.WALLET_STORAGE_PATH.lastIndexOf('/'));
+      if (dir && !fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      fs.writeFileSync(this.WALLET_STORAGE_PATH, JSON.stringify(storage, null, 2));
+      logger.info(`[CdpTransactionManager] Saved wallet to storage for user: ${userId.substring(0, 8)}...`);
+    } catch (error) {
+      logger.error('[CdpTransactionManager] Failed to save wallet to storage:', error instanceof Error ? error.message : String(error));
+    }
   }
 
   // ============================================================================
@@ -148,11 +190,14 @@ export class CdpTransactionManager {
     let walletSecret = process.env.CDP_WALLET_SECRET;
 
     if (!apiKeyId || !apiKeySecret || !walletSecret) {
-      logger.warn('[CdpTransactionManager] Missing CDP credentials in environment variables');
-      return;
+      const missing: string[] = [];
+      if (!apiKeyId) missing.push('CDP_API_KEY_ID');
+      if (!apiKeySecret) missing.push('CDP_API_KEY_SECRET');
+      if (!walletSecret) missing.push('CDP_WALLET_SECRET');
+      const errorMsg = `CDP credentials missing: ${missing.join(', ')}`;
+      logger.error(`[CdpTransactionManager] ${errorMsg}`);
+      throw new Error(errorMsg);
     }
-
-    const crypto = require('crypto');
 
     // Convert SEC1 EC key format to PKCS8 if needed
     // CDP SDK's jose library requires PKCS8 format (-----BEGIN PRIVATE KEY-----)
@@ -292,59 +337,77 @@ export class CdpTransactionManager {
   async getOrCreateWallet(userId: string): Promise<{ address: string; accountName: string }> {
     logger.info(`[CdpTransactionManager] Getting/creating wallet for user: ${userId.substring(0, 8)}...`);
 
-    const client = this.getCdpClient();
+    // 1. Check cache first (like Solana)
+    const cached = this.walletsCache.get(userId);
+    if (cached && (Date.now() - cached.timestamp) < this.CACHE_TTL) {
+      logger.info(`[CdpTransactionManager] Returning cached wallet: ${cached.data.address.substring(0, 8)}...`);
+      return cached.data;
+    }
 
-    // CDP SDK may return partial account on first call during wallet creation
-    // Retry up to 3 times with delay if address is not immediately available
-    const MAX_RETRIES = 3;
-    const RETRY_DELAY_MS = 500;
+    // 2. Check local storage (like Solana)
+    const storage = this.loadWalletStorage();
+    const storedWallet = storage.wallets[userId];
+    if (storedWallet?.address) {
+      logger.info(`[CdpTransactionManager] Restored wallet from storage: ${storedWallet.address.substring(0, 8)}...`);
+      const result = { address: storedWallet.address, accountName: userId };
+      this.walletsCache.set(userId, { data: result, timestamp: Date.now() });
+      return result;
+    }
+
+    // 3. Create via CDP SDK with exponential backoff
+    const client = this.getCdpClient();
+    const MAX_RETRIES = 5;
+    let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      const account = await client.evm.getOrCreateAccount({ name: userId });
+      try {
+        const account = await client.evm.getOrCreateAccount({ name: userId });
 
-      // Debug: Log the entire account object to see its structure
-      logger.info(`[CdpTransactionManager] Attempt ${attempt}/${MAX_RETRIES} - Account object keys:`, Object.keys(account));
+        // Extract address - try multiple possible properties
+        let address: string | undefined = account.address
+          || (account as any).walletAddress
+          || (account as any).defaultAddress;
 
-      // Extract address - try multiple possible properties
-      let address: string | undefined;
-
-      if (account.address) {
-        address = account.address;
-        logger.info(`[CdpTransactionManager] Found address in account.address: ${address}`);
-      } else if ((account as any).walletAddress) {
-        address = (account as any).walletAddress;
-        logger.info(`[CdpTransactionManager] Found address in account.walletAddress: ${address}`);
-      } else if ((account as any).defaultAddress) {
-        address = (account as any).defaultAddress;
-        logger.info(`[CdpTransactionManager] Found address in account.defaultAddress: ${address}`);
-      } else {
-        // Try using toAccount from viem to see if it extracts the address
-        try {
-          const viemAccount = toAccount(account);
-          address = viemAccount.address;
-          logger.info(`[CdpTransactionManager] Extracted address from toAccount: ${address}`);
-        } catch (toAccountError) {
-          logger.warn(`[CdpTransactionManager] Failed to extract address using toAccount:`, toAccountError instanceof Error ? toAccountError.message : String(toAccountError));
+        if (!address) {
+          // Try using toAccount from viem to extract the address
+          try {
+            const viemAccount = toAccount(account);
+            address = viemAccount.address;
+          } catch {
+            // Ignore toAccount errors
+          }
         }
+
+        if (address) {
+          logger.info(`[CdpTransactionManager] Wallet ready: ${address}`);
+
+          // Save to local storage (like Solana)
+          this.saveWalletToStorage(userId, address);
+
+          // Cache result
+          const result = { address, accountName: userId };
+          this.walletsCache.set(userId, { data: result, timestamp: Date.now() });
+
+          return result;
+        }
+
+        // Address not in response - treat as error for retry
+        lastError = new Error('CDP returned account without address');
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        logger.warn(`[CdpTransactionManager] Attempt ${attempt}/${MAX_RETRIES} failed:`, lastError.message);
       }
 
-      if (address) {
-        logger.info(`[CdpTransactionManager] Wallet ready: ${address}`);
-        return {
-          address,
-          accountName: userId,
-        };
-      }
-
-      // Address not available yet - retry after delay (except on last attempt)
+      // Exponential backoff: 500ms, 1s, 2s, 4s, 8s
       if (attempt < MAX_RETRIES) {
-        logger.info(`[CdpTransactionManager] Address not available yet, retrying in ${RETRY_DELAY_MS}ms...`);
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+        const delay = 500 * Math.pow(2, attempt - 1);
+        logger.info(`[CdpTransactionManager] Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
 
-    logger.error(`[CdpTransactionManager] Could not find address after ${MAX_RETRIES} attempts for user ${userId.substring(0, 8)}...`);
-    throw new Error('Failed to get wallet address from CDP account');
+    logger.error(`[CdpTransactionManager] Could not create wallet after ${MAX_RETRIES} attempts for user ${userId.substring(0, 8)}...`);
+    throw new Error(`Failed to create CDP wallet after ${MAX_RETRIES} attempts: ${lastError?.message}`);
   }
 
   /**
