@@ -745,7 +745,7 @@ function AppContent({
 
         {/* Right Sidebar - Chain Selector & Widget & CDP Wallet & Notifications */}
         <div className="col-span-3 hidden lg:block">
-          <div className="space-y-gap py-sides min-h-screen max-h-screen sticky top-0 overflow-visible">
+          <div className="space-y-gap py-sides h-full flex flex-col overflow-hidden">
             <Widget />
             <CDPWalletCard userId={userId} walletAddress={userProfile?.walletAddress} onBalanceChange={handleBalanceChange} />
             <CollapsibleNotifications />
