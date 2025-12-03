@@ -8,10 +8,8 @@ ARG VITE_CDP_PROJECT_ID
 ENV VITE_WALLETCONNECT_PROJECT_ID=$VITE_WALLETCONNECT_PROJECT_ID
 ENV VITE_CDP_PROJECT_ID=$VITE_CDP_PROJECT_ID
 
-COPY package.json bun.lock* ./
-RUN bun install --ignore-scripts
-
 COPY . .
+RUN bun install --ignore-scripts || true
 RUN bun run build
 
 EXPOSE 3000
