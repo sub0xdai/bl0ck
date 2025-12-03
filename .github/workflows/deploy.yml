@@ -86,12 +86,12 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
-        run: npm run build
-
-      - name: Verify build output
         run: |
-          echo "Checking frontend/out contents:"
-          ls -la frontend/out/ || echo "out/ directory not found!"
+          echo "Starting build..."
+          npm run build
+          echo "Build completed. Checking output..."
+          ls -la
+          ls -la out/ || echo "out/ not found in frontend/"
 
       - name: Deploy to server via rsync
         uses: burnett01/rsync-deployments@6.0.0

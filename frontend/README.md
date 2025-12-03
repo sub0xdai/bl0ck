@@ -112,3 +112,4 @@ Check out the [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 - [bl0ck Protocol](../bl0ck/README.md)
 # deployed
 # Wed Dec  3 09:44:47 PM AEDT 2025
+# debug
