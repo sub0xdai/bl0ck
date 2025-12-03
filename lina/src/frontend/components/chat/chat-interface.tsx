@@ -575,10 +575,10 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
   }, [])
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
       {/* Scrollable messages area */}
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto min-h-0 p-6 pb-2">
-        <div className="space-y-4 flex flex-col min-h-full">
+        <div className="space-y-4 flex flex-col">
             {/* Messages */}
             <div className="flex-1 space-y-4">
               {groupedMessages.map((item, groupIndex) => {
