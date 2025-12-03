@@ -112,7 +112,7 @@ export function DepositOnboardingContent({
           <WalletRow
             label="EVM (Base, Ethereum, Polygon)"
             address={evmAddress}
-            icon="/chains/base.svg"
+            icon="/assets/walletIcon/base.svg"
             copied={copiedAddress === 'evm'}
             onCopy={() => handleCopy(evmAddress, 'evm')}
           />
@@ -122,7 +122,7 @@ export function DepositOnboardingContent({
           <WalletRow
             label="Solana"
             address={solanaAddress}
-            icon="/chains/solana.svg"
+            icon="/assets/walletIcon/solana.svg"
             copied={copiedAddress === 'solana'}
             onCopy={() => handleCopy(solanaAddress, 'solana')}
           />

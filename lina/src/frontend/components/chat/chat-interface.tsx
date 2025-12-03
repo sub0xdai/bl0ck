@@ -4,7 +4,6 @@ import { AnimatedResponse } from "@/components/chat/animated-response"
 import { ChatPriceChart } from "@/components/chat/chat-price-chart"
 import ArrowRightIcon from "@/components/icons/arrow-right"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { convertActionMessageToToolPart, isActionMessage } from "@/lib/action-message-utils"
 import { SlashCommandMenu, useSlashCommands } from "@/components/chat/slash-commands"
 import { elizaClient } from '@/lib/elizaClient'
@@ -576,11 +575,10 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
   }, [])
 
   return (
-    <div className="flex flex-col h-full min-h-0 gap-0">
-      <Card className="flex-1 overflow-hidden">
-        <CardContent className="h-full p-0">
-          <div ref={messagesContainerRef} className="h-full overflow-y-auto p-6 pb-2">
-            <div className="space-y-4 flex flex-col min-h-full">
+    <div className="flex flex-col h-full min-h-0">
+      {/* Scrollable messages area */}
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto min-h-0 p-6 pb-2">
+        <div className="space-y-4 flex flex-col min-h-full">
             {/* Messages */}
             <div className="flex-1 space-y-4">
               {groupedMessages.map((item, groupIndex) => {
@@ -829,13 +827,11 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
                 )}
               </div>
             )}
-            </div>
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
-      {/* UX IMPROVEMENT #5: Floating Input Container with chat-input-container class */}
-      <div className="sticky bottom-0 bg-background pt-2 pb-4 px-4">
+      {/* Input Container - fixed at bottom */}
+      <div className="shrink-0 bg-background pt-2 pb-4 px-4">
         <div className="chat-input-container relative">
           {/* Slash Command Menu */}
           <SlashCommandMenu
