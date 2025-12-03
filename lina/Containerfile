@@ -1,0 +1,31 @@
+# Lina AI Agent - Podman Container
+FROM docker.io/oven/bun:1.2.21-debian
+
+WORKDIR /app
+
+# Build-time args for Vite frontend (VITE_ vars get baked into JS bundle)
+ARG VITE_WALLETCONNECT_PROJECT_ID
+ARG VITE_CDP_PROJECT_ID
+
+# Set as env vars so Vite can read them during build
+ENV VITE_WALLETCONNECT_PROJECT_ID=$VITE_WALLETCONNECT_PROJECT_ID
+ENV VITE_CDP_PROJECT_ID=$VITE_CDP_PROJECT_ID
+
+# Copy everything first so Bun can detect workspaces properly
+COPY . .
+
+# Install dependencies (no frozen-lockfile to allow workspace resolution)
+RUN bun install
+
+# Build all packages (Vite reads VITE_* env vars during this step)
+RUN bun run build
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:3000/healthz || exit 1
+
+# Start command
+CMD ["bun", "run", "start"]

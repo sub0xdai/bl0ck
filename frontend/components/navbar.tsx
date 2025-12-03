@@ -5,7 +5,7 @@ export default function Navbar() {
         <div className="text-white font-bold text-xl">BL0CK</div>
         <div className="flex items-center gap-6">
           <a
-            href="https://github.com/sub0xdai/bl0ck"
+            href="https://github.com/sub0xdai/linafrmda_bl0ck/blob/main/README.md"
             target="_blank"
             rel="noopener noreferrer"
             className="text-gray-300 hover:text-white transition"
@@ -13,7 +13,7 @@ export default function Navbar() {
             GitHub
           </a>
           <a
-            href={process.env.NEXT_PUBLIC_LINA_URL || "http://localhost:3000"}
+            href={process.env.NEXT_PUBLIC_LINA_URL || "https://app.lina4rmdabl0ck.xyz"}
             target="_blank"
             rel="noopener noreferrer"
             className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition"
