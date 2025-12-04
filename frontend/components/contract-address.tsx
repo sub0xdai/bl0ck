@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Copy, Check } from "lucide-react"
 
 // Leave empty until launch, then add the contract address
-const CONTRACT_ADDRESS: string = ""
+const CONTRACT_ADDRESS: string = "u4nJrPcuABnthzfm3CPZ9G4FA3bcoa5XXa2B5kkvHC8"
 
 export default function ContractAddress() {
   const [copied, setCopied] = useState(false)
