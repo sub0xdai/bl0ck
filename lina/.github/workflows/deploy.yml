@@ -20,7 +20,6 @@ jobs:
         working-directory: lina
         run: |
           docker build \
-            --platform linux/amd64 \
             --build-arg VITE_WALLETCONNECT_PROJECT_ID="${{ secrets.VITE_WALLETCONNECT_PROJECT_ID }}" \
             --build-arg VITE_CDP_PROJECT_ID="${{ secrets.VITE_CDP_PROJECT_ID }}" \
             -t lina:latest -f Containerfile .
