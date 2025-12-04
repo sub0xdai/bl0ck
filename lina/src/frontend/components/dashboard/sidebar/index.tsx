@@ -227,7 +227,7 @@ export function DashboardSidebar({
           </SidebarGroupLabel>
 
           <SidebarGroupContent className="min-h-0 flex-1 overflow-hidden">
-            <div className="h-full overflow-y-auto">
+            <div className="overflow-y-auto">
               <SidebarMenu>
                 {channels.length === 0 ? (
                   <div className="px-2 py-8 text-center">
