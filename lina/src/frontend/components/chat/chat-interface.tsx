@@ -241,7 +241,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
     const container = messagesContainerRef.current
     if (!container) return true
 
-    const threshold = 200 // pixels from bottom to consider "near bottom"
+    const threshold = 100 // pixels from bottom to consider "near bottom"
     // With flex-col-reverse, we're at bottom when scrollTop is near 0
     return container.scrollTop < threshold
   }
@@ -251,12 +251,17 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     const container = messagesContainerRef.current
     if (!container) return
-
+    
+    try {
     container.scrollTo({
       top: 0,
+      left: 0,
       behavior
     })
-  }
+  } catch (e) {
+    container.scrollTop = 0 
+    }
+}
 
   // Helper function to resize textarea based on content
   const resizeTextarea = useCallback(() => {
@@ -274,6 +279,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
     if (!container) return
 
     const handleScroll = () => {
+      isUserScrollingRef.current = true;
       // Clear previous timeout
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current)
@@ -311,11 +317,15 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
     const content = messagesContentRef.current;
     if (!content) return;
 
-    const resizeObserver = new ResizeObserver(() => {
-      if (!isUserScrollingRef.current && checkIfNearBottom()) {
-        scrollToBottom('auto');
-      }
-    });
+   // SEARCH FOR: ResizeObserver logic (Around Line 313)
+const resizeObserver = new ResizeObserver(() => {
+  // 🟢 FIX: Only auto-scroll if we were ALREADY at the bottom
+  // This prevents the view from jumping if the user is reading history
+  // while a tool expands below.
+  if (checkIfNearBottom()) {
+    scrollToBottom('auto') // 'auto' (instant) is better for resizing than 'smooth'
+  }
+});
 
     resizeObserver.observe(content);
     return () => resizeObserver.disconnect();

@@ -711,32 +711,30 @@ function AppContent({
               {/* Content Area */}
               <div className="min-h-0 flex-1 flex flex-col px-3 lg:px-6 ring-2 ring-pop bg-background overflow-hidden">
                 {connected && !isLoadingChannels && (activeChannelId || isNewChatMode) && (
-                  <div className="flex-1 min-h-0">
-                    <ChatInterface
-                      agent={agent}
-                      userId={userId}
-                      serverId={userId}
-                      channelId={activeChannelId}
-                      isNewChatMode={isNewChatMode}
-                      onChannelCreated={(channelId, channelName) => {
-                        const now = Date.now();
-                        setChannels((prev: Channel[]) => [
-                          {
-                            id: channelId,
-                            name: channelName,
-                            createdAt: now,
-                          },
-                          ...prev,
-                        ]);
-                        setActiveChannelId(channelId);
-                        setIsNewChatMode(false);
-                      }}
-                      onActionCompleted={async () => {
-                        console.log('[MainApp] Agent action completed - refreshing wallet...');
-                        await refreshAll();
-                      }}
-                    />
-                  </div>
+                  <ChatInterface
+                    agent={agent}
+                    userId={userId}
+                    serverId={userId}
+                    channelId={activeChannelId}
+                    isNewChatMode={isNewChatMode}
+                    onChannelCreated={(channelId, channelName) => {
+                      const now = Date.now();
+                      setChannels((prev: Channel[]) => [
+                        {
+                          id: channelId,
+                          name: channelName,
+                          createdAt: now,
+                        },
+                        ...prev,
+                      ]);
+                      setActiveChannelId(channelId);
+                      setIsNewChatMode(false);
+                    }}
+                    onActionCompleted={async () => {
+                      console.log('[MainApp] Agent action completed - refreshing wallet...');
+                      await refreshAll();
+                    }}
+                  />
                 )}
               </div>
             </div>
