@@ -296,6 +296,31 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
     }
   }, [])
 
+  // Auto-scroll when messages array changes (new messages arrive)
+  useEffect(() => {
+    if (isUserScrollingRef.current) return;
+    requestAnimationFrame(() => {
+      if (checkIfNearBottom() || messages.length === 1) {
+        scrollToBottom('smooth');
+      }
+    });
+  }, [messages]);
+
+  // Auto-scroll when container height changes (dynamic content like expanding tool groups)
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (!isUserScrollingRef.current && checkIfNearBottom()) {
+        scrollToBottom('auto');
+      }
+    });
+
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
+  }, []);
+
   // Resize textarea when input value changes
   useEffect(() => {
     resizeTextarea()
