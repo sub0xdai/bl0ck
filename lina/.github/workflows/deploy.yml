@@ -16,26 +16,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.2.21
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Install dependencies
-        working-directory: lina
-        run: bun install --ignore-scripts || true
-
-      - name: Build application
-        working-directory: lina
-        env:
-          VITE_WALLETCONNECT_PROJECT_ID: ${{ secrets.VITE_WALLETCONNECT_PROJECT_ID }}
-          VITE_CDP_PROJECT_ID: ${{ secrets.VITE_CDP_PROJECT_ID }}
-        run: bun run build
-
-      - name: Build runtime container
+      - name: Build container image
         working-directory: lina
         run: |
-          docker build -t lina:latest -f Containerfile.runtime .
+          docker build \
+            --build-arg VITE_WALLETCONNECT_PROJECT_ID="${{ secrets.VITE_WALLETCONNECT_PROJECT_ID }}" \
+            --build-arg VITE_CDP_PROJECT_ID="${{ secrets.VITE_CDP_PROJECT_ID }}" \
+            -t lina:latest -f Containerfile .
           docker save lina:latest | gzip > lina-image.tar.gz
 
       - name: Copy image to server

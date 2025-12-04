@@ -14,8 +14,8 @@ ENV VITE_CDP_PROJECT_ID=$VITE_CDP_PROJECT_ID
 # Copy everything first so Bun can detect workspaces properly
 COPY . .
 
-# Install dependencies (ignore postinstall failures from untrusted packages)
-RUN bun install --ignore-scripts || true
+# Install dependencies (no frozen-lockfile to allow workspace resolution)
+RUN bun install
 
 # Build all packages (Vite reads VITE_* env vars during this step)
 RUN bun run build
