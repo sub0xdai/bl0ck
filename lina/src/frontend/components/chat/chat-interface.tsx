@@ -616,7 +616,7 @@ const resizeObserver = new ResizeObserver(() => {
   }, [])
 
   return (
-    <div className="flex flex-col h-full min-h-0 overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       {/* Scrollable messages area - flex-col-reverse anchors to bottom like Slack/Discord */}
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto min-h-0 p-6 pb-2 flex flex-col-reverse">
         {/* Inner wrapper - reversed back to normal order, observed for resize */}
