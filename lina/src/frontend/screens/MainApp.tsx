@@ -665,7 +665,7 @@ function AppContent({
       {/* Desktop Layout - 3 columns */}
       <div className="w-full h-full overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-gap lg:px-sides">
         {/* Left Sidebar - Chat History */}
-        <div className="hidden lg:block col-span-2 top-0 relative">
+        <div className="hidden lg:block col-span-2 h-full">
           <DashboardSidebar
             channels={channels}
             activeChannelId={activeChannelId}
