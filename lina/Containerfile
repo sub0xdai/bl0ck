@@ -17,8 +17,8 @@ COPY . .
 # Install dependencies (ignore postinstall failures from untrusted packages)
 RUN bun install --ignore-scripts || true
 
-# Build only required packages (exclude plugins with native binaries that fail in CI)
-RUN turbo run build --filter=@elizaos/server --filter=@elizaos/api-client --filter=@elizaos/plugin-bootstrap && bun run build:backend && bun run build:frontend
+# Build all packages (Vite reads VITE_* env vars during this step)
+RUN bun run build
 
 # Expose port
 EXPOSE 3000
