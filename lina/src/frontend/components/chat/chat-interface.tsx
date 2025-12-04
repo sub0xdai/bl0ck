@@ -612,7 +612,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
         {/* Inner wrapper - reversed back to normal order, observed for resize */}
         <div ref={messagesContentRef} className="space-y-4 flex flex-col">
             {/* Messages */}
-            <div className="flex-1 space-y-4">
+            <div className="space-y-4">
               {groupedMessages.map((item, groupIndex) => {
                 // Handle grouped action messages
                 if (Array.isArray(item)) {
