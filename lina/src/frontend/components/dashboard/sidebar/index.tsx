@@ -146,7 +146,7 @@ export function DashboardSidebar({
       }
 
       const channelDate = new Date(timestamp);
-      
+
       if (channelDate >= today) {
         groups.today.push(channel);
       } else if (channelDate >= yesterday) {
@@ -157,10 +157,10 @@ export function DashboardSidebar({
         groups.lastMonth.push(channel);
       } else {
         // Format date as "MMM DD, YYYY" for items older than 30 days
-        const dateKey = channelDate.toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: '2-digit', 
-          year: 'numeric' 
+        const dateKey = channelDate.toLocaleDateString('en-US', {
+          month: 'short',
+          day: '2-digit',
+          year: 'numeric'
         });
         if (!groups.older.has(dateKey)) {
           groups.older.set(dateKey, []);
@@ -176,7 +176,7 @@ export function DashboardSidebar({
       const bTime = b[1][0]?.lastMessageAt || b[1][0]?.createdAt || 0;
       return bTime - aTime;
     });
-    
+
     groups.older = new Map(sortedOlderEntries);
 
     return groups;
@@ -186,8 +186,8 @@ export function DashboardSidebar({
 
   return (
     <Sidebar {...props} className={cn("h-full", className)}>
-      <SidebarHeader className="rounded-t-lg flex gap-3 flex-row rounded-b-none">
-        <button 
+      <SidebarHeader className="rounded-t-lg flex gap-3 flex-row rounded-b-none shrink-0">
+        <button
           onClick={onHomeClick}
           className="flex gap-3 flex-row flex-1 group cursor-pointer hover:opacity-80 transition-opacity"
         >
@@ -201,9 +201,9 @@ export function DashboardSidebar({
         </button>
       </SidebarHeader>
 
-      <SidebarContent>
-        <SidebarGroup className="rounded-t-none">
-          <SidebarGroupLabel className="flex items-center justify-between">
+      <SidebarContent className="min-h-0 flex-1 overflow-hidden">
+        <SidebarGroup className="rounded-t-none min-h-0 flex-1 flex flex-col overflow-hidden">
+          <SidebarGroupLabel className="flex items-center justify-between shrink-0">
             <div className="flex items-center">
               <Bullet className="mr-2" />
               <span>Chat History</span>
@@ -225,9 +225,9 @@ export function DashboardSidebar({
               )}
             </Button>
           </SidebarGroupLabel>
-          
-          <SidebarGroupContent>
-            <div className="max-h-[calc(100vh-24rem)] overflow-y-auto">
+
+          <SidebarGroupContent className="min-h-0 flex-1 overflow-hidden">
+            <div className="h-full overflow-y-auto">
               <SidebarMenu>
                 {channels.length === 0 ? (
                   <div className="px-2 py-8 text-center">
@@ -243,7 +243,7 @@ export function DashboardSidebar({
                     {/* Today */}
                     {groupedChannels.today.length > 0 && (
                       <>
-                        <div className="sticky top-0 z-10 bg-background text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2">
+                        <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2">
                           Today
                         </div>
                         {groupedChannels.today.map(renderChannelItem)}
@@ -253,7 +253,7 @@ export function DashboardSidebar({
                     {/* Yesterday */}
                     {groupedChannels.yesterday.length > 0 && (
                       <>
-                        <div className="sticky top-0 z-10 bg-background text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
+                        <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
                           Yesterday
                         </div>
                         {groupedChannels.yesterday.map(renderChannelItem)}
@@ -263,7 +263,7 @@ export function DashboardSidebar({
                     {/* Last 7 Days */}
                     {groupedChannels.lastWeek.length > 0 && (
                       <>
-                        <div className="sticky top-0 z-10 bg-background text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
+                        <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
                           Last 7 Days
                         </div>
                         {groupedChannels.lastWeek.map(renderChannelItem)}
@@ -273,7 +273,7 @@ export function DashboardSidebar({
                     {/* Last 30 Days */}
                     {groupedChannels.lastMonth.length > 0 && (
                       <>
-                        <div className="sticky top-0 z-10 bg-background text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
+                        <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
                           Last 30 Days
                         </div>
                         {groupedChannels.lastMonth.map(renderChannelItem)}
@@ -285,7 +285,7 @@ export function DashboardSidebar({
                       <>
                         {Array.from(groupedChannels.older.entries()).map(([date, dateChannels]) => (
                           <div key={date}>
-                            <div className="sticky top-0 z-10 bg-background text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
+                            <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
                               {date}
                             </div>
                             {dateChannels.map(renderChannelItem)}
@@ -301,7 +301,7 @@ export function DashboardSidebar({
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-0">
+      <SidebarFooter className="p-0 shrink-0">
         <SidebarGroup>
           <SidebarGroupLabel>
             <Bullet className="mr-2" />
@@ -332,7 +332,7 @@ export function DashboardSidebar({
                   <PopoverContent className="w-56 p-0" side="bottom" align="end" sideOffset={4}>
                     <div className="flex flex-col">
                       {onAccountClick && (
-                        <button 
+                        <button
                           onClick={() => {
                             onAccountClick();
                             setIsPopoverOpen(false);
@@ -343,7 +343,7 @@ export function DashboardSidebar({
                         </button>
                       )}
                       {onSignOut && (
-                        <button 
+                        <button
                           onClick={() => {
                             onSignOut();
                             setIsPopoverOpen(false);
