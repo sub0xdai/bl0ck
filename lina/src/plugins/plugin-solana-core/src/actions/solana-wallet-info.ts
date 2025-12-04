@@ -105,8 +105,8 @@ export const solanaWalletInfo: Action = {
             const userId = await getEntityUserId(runtime, message);
             const network = service.getNetwork();
 
-            // Get token balances (uses 5-minute cache by default)
-            const result = await service.getTokenBalances(userId, false);
+            // Get token balances (force fresh fetch)
+            const result = await service.getTokenBalances(userId, true);
 
             // Format response text
             const text = formatWalletInfo(result, network);

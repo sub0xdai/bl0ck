@@ -34,18 +34,31 @@ interface TokensResponse {
 }
 
 /**
+ * Fetch live SOL price from CoinGecko
+ */
+async function getSolPrice(): Promise<number> {
+  try {
+    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+    const data = await res.json();
+    return data.solana?.usd || 200;
+  } catch {
+    return 200; // Fallback
+  }
+}
+
+/**
  * Map Solana wallet data to unified Token format
  */
-function mapSolanaToTokensResponse(
+async function mapSolanaToTokensResponse(
   publicKey: string,
   solBalance: number,
   chain: string
-): TokensResponse {
+): Promise<TokensResponse> {
   const tokens: Token[] = [];
   let totalUsdValue = 0;
 
-  // Estimate SOL price (TODO: fetch from CoinGecko)
-  const solPrice = 200; // Fallback estimate
+  // Fetch live SOL price
+  const solPrice = await getSolPrice();
 
   if (solBalance > 0) {
     const usdValue = solBalance * solPrice;
@@ -112,7 +125,7 @@ export function walletRouter(_serverInstance: AgentServer): express.Router {
         const solBalance = Number(balance) / LAMPORTS_PER_SOL;
 
         // Map to unified format
-        const result = mapSolanaToTokensResponse(publicKey, solBalance, chain);
+        const result = await mapSolanaToTokensResponse(publicKey, solBalance, chain);
 
         sendSuccess(res, result);
       } else {
@@ -165,7 +178,7 @@ export function walletRouter(_serverInstance: AgentServer): express.Router {
         const solBalance = Number(balance) / LAMPORTS_PER_SOL;
 
         // Map to unified format
-        const result = mapSolanaToTokensResponse(publicKey, solBalance, chain);
+        const result = await mapSolanaToTokensResponse(publicKey, solBalance, chain);
 
         sendSuccess(res, { ...result, synced: true });
       } else {
