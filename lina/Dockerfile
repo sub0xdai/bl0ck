@@ -9,7 +9,7 @@ ENV VITE_WALLETCONNECT_PROJECT_ID=$VITE_WALLETCONNECT_PROJECT_ID
 ENV VITE_CDP_PROJECT_ID=$VITE_CDP_PROJECT_ID
 
 COPY . .
-RUN bun install --ignore-scripts || true
+RUN bun install --ignore-scripts; exit 0
 RUN bun run build
 
 EXPOSE 3000
