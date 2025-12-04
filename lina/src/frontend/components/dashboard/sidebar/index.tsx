@@ -226,77 +226,75 @@ export function DashboardSidebar({
             </Button>
           </SidebarGroupLabel>
 
-          <SidebarGroupContent className="min-h-0 flex-1 overflow-hidden">
-            <div className="overflow-y-auto">
-              <SidebarMenu>
-                {channels.length === 0 ? (
-                  <div className="px-2 py-8 text-center">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                      No conversations yet
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Click + to start a new chat
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Today */}
-                    {groupedChannels.today.length > 0 && (
-                      <>
-                        <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2">
-                          Today
-                        </div>
-                        {groupedChannels.today.map(renderChannelItem)}
-                      </>
-                    )}
+          <SidebarGroupContent className="min-h-0 flex-1 overflow-y-auto">
+            <SidebarMenu>
+              {channels.length === 0 ? (
+                <div className="px-2 py-8 text-center">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                    No conversations yet
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Click + to start a new chat
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Today */}
+                  {groupedChannels.today.length > 0 && (
+                    <>
+                      <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2">
+                        Today
+                      </div>
+                      {groupedChannels.today.map(renderChannelItem)}
+                    </>
+                  )}
 
-                    {/* Yesterday */}
-                    {groupedChannels.yesterday.length > 0 && (
-                      <>
-                        <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
-                          Yesterday
-                        </div>
-                        {groupedChannels.yesterday.map(renderChannelItem)}
-                      </>
-                    )}
+                  {/* Yesterday */}
+                  {groupedChannels.yesterday.length > 0 && (
+                    <>
+                      <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
+                        Yesterday
+                      </div>
+                      {groupedChannels.yesterday.map(renderChannelItem)}
+                    </>
+                  )}
 
-                    {/* Last 7 Days */}
-                    {groupedChannels.lastWeek.length > 0 && (
-                      <>
-                        <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
-                          Last 7 Days
-                        </div>
-                        {groupedChannels.lastWeek.map(renderChannelItem)}
-                      </>
-                    )}
+                  {/* Last 7 Days */}
+                  {groupedChannels.lastWeek.length > 0 && (
+                    <>
+                      <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
+                        Last 7 Days
+                      </div>
+                      {groupedChannels.lastWeek.map(renderChannelItem)}
+                    </>
+                  )}
 
-                    {/* Last 30 Days */}
-                    {groupedChannels.lastMonth.length > 0 && (
-                      <>
-                        <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
-                          Last 30 Days
-                        </div>
-                        {groupedChannels.lastMonth.map(renderChannelItem)}
-                      </>
-                    )}
+                  {/* Last 30 Days */}
+                  {groupedChannels.lastMonth.length > 0 && (
+                    <>
+                      <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
+                        Last 30 Days
+                      </div>
+                      {groupedChannels.lastMonth.map(renderChannelItem)}
+                    </>
+                  )}
 
-                    {/* Older - Group by exact date */}
-                    {groupedChannels.older.size > 0 && (
-                      <>
-                        {Array.from(groupedChannels.older.entries()).map(([date, dateChannels]) => (
-                          <div key={date}>
-                            <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
-                              {date}
-                            </div>
-                            {dateChannels.map(renderChannelItem)}
+                  {/* Older - Group by exact date */}
+                  {groupedChannels.older.size > 0 && (
+                    <>
+                      {Array.from(groupedChannels.older.entries()).map(([date, dateChannels]) => (
+                        <div key={date}>
+                          <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
+                            {date}
                           </div>
-                        ))}
-                      </>
-                    )}
-                  </>
-                )}
-              </SidebarMenu>
-            </div>
+                          {dateChannels.map(renderChannelItem)}
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </>
+              )}
+            </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
