@@ -155,7 +155,20 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
         })}
       </div>
 
-      <Card className="max-h-[calc(100vh-2rem)] w-full flex flex-col">
+      <Card className="max-h-[calc(100vh-2rem)] w-full flex flex-col relative">
+        {/* MAINTENANCE OVERLAY - Remove when wallet persistence is verified */}
+        <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 rounded-lg">
+          <div className="text-4xl mb-4">🔧</div>
+          <h3 className="text-lg font-semibold text-yellow-500 mb-2">Wallet Under Maintenance</h3>
+          <p className="text-sm text-muted-foreground text-center max-w-xs mb-4">
+            Deposits and withdrawals are temporarily disabled while we verify wallet persistence.
+          </p>
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-md p-3 max-w-xs">
+            <p className="text-xs text-yellow-600 dark:text-yellow-400 text-center">
+              Your funds are safe. Testing in progress.
+            </p>
+          </div>
+        </div>
         <CardHeader className="flex items-center justify-between pl-3 pr-1 relative z-10">
           <CardTitle className="flex items-center gap-2.5 text-sm font-medium uppercase">
             <Bullet />
