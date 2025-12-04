@@ -665,7 +665,7 @@ function AppContent({
       {/* Desktop Layout - 3 columns */}
       <div className="w-full h-full overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-gap lg:px-sides">
         {/* Left Sidebar - Chat History */}
-        <div className="hidden lg:block col-span-2 h-full">
+        <div className="hidden lg:block col-span-2 h-full overflow-hidden">
           <DashboardSidebar
             channels={channels}
             activeChannelId={activeChannelId}
@@ -744,7 +744,7 @@ function AppContent({
         </div>
 
         {/* Right Sidebar - Chain Selector & Widget & CDP Wallet & Notifications */}
-        <div className="col-span-3 hidden lg:block">
+        <div className="col-span-3 hidden lg:block relative">
           <div className="space-y-gap py-sides h-full flex flex-col overflow-hidden">
             <Widget />
             <CDPWalletCard userId={userId} walletAddress={userProfile?.walletAddress} onBalanceChange={handleBalanceChange} />
