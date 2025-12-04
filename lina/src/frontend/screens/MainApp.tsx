@@ -709,7 +709,7 @@ function AppContent({
               </div>
 
               {/* Content Area */}
-              <div className="min-h-0 flex-1 flex flex-col px-3 lg:px-6 ring-2 ring-pop bg-background">
+              <div className="min-h-0 flex-1 flex flex-col px-3 lg:px-6 ring-2 ring-pop bg-background overflow-hidden">
                 {connected && !isLoadingChannels && (activeChannelId || isNewChatMode) && (
                   <div className="flex-1 min-h-0">
                     <ChatInterface
