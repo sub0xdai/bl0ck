@@ -326,19 +326,6 @@ export class SocketIORouter {
             }
           }
 
-          // Ensure at least one agent is added as a participant for DM channels
-          // This is critical for the MessageBusService to process messages
-          const agents = this.elizaOS.getAgents();
-          if (agents.length > 0) {
-            const agentId = agents[0].agentId;
-            if (!participants.includes(agentId)) {
-              participants.push(agentId);
-              logger.info(
-                `[SocketIO ${socket.id}] Added agent ${agentId} as participant to ensure message processing`
-              );
-            }
-          }
-
           await this.serverInstance.createChannel(channelData, participants);
           logger.info(
             `[SocketIO ${socket.id}] Auto-created ${isDmChannel ? ChannelType.DM : ChannelType.GROUP} channel ${channelId} for message submission with ${participants.length} participants`
