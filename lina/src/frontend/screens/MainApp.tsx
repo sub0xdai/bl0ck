@@ -663,7 +663,7 @@ function AppContent({
       />
 
       {/* Desktop Layout - 3 columns */}
-      <div className="w-full h-[100dvh] lg:h-screen overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-gap lg:px-sides">
+      <div className="w-full h-full overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-gap lg:px-sides">
         {/* Left Sidebar - Chat History */}
         <div className="hidden lg:block col-span-2 top-0 relative">
           <DashboardSidebar
