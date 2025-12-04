@@ -160,6 +160,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const messagesContentRef = useRef<HTMLDivElement>(null) // Inner content for ResizeObserver
   const isUserScrollingRef = useRef(false) // Track if user is actively scrolling
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -305,10 +306,10 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
     });
   }, [messages]);
 
-  // Auto-scroll when container height changes (dynamic content like expanding tool groups)
+  // Auto-scroll when content height changes (dynamic content like expanding tool groups)
   useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
+    const content = messagesContentRef.current;
+    if (!content) return;
 
     const resizeObserver = new ResizeObserver(() => {
       if (!isUserScrollingRef.current && checkIfNearBottom()) {
@@ -316,7 +317,7 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
       }
     });
 
-    resizeObserver.observe(container);
+    resizeObserver.observe(content);
     return () => resizeObserver.disconnect();
   }, []);
 
@@ -608,8 +609,8 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
       {/* Scrollable messages area - flex-col-reverse anchors to bottom like Slack/Discord */}
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto min-h-0 p-6 pb-2 flex flex-col-reverse">
-        {/* Inner wrapper - reversed back to normal order */}
-        <div className="space-y-4 flex flex-col">
+        {/* Inner wrapper - reversed back to normal order, observed for resize */}
+        <div ref={messagesContentRef} className="space-y-4 flex flex-col">
             {/* Messages */}
             <div className="flex-1 space-y-4">
               {groupedMessages.map((item, groupIndex) => {
