@@ -325,6 +325,19 @@ export class MessageBusService extends Service {
       }
     }
 
+    // Fix for worlds created with default "local" serverId
+    // Update the world's serverId if it's "local" (SQL schema default)
+    const existingWorld = await this.runtime.getWorld(agentWorldId);
+    if (existingWorld && existingWorld.serverId === 'local') {
+      logger.info(
+        `[${this.runtime.character.name}] MessageBusService: Updating world ${agentWorldId} serverId from "local" to ${message.server_id}`
+      );
+      await this.runtime.updateWorld({
+        ...existingWorld,
+        serverId: message.server_id,
+      });
+    }
+
     try {
       await this.runtime.ensureRoomExists({
         id: agentRoomId,
