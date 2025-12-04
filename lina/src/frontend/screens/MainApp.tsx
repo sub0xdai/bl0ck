@@ -94,8 +94,8 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
       showLoading('Initializing...', loadingMessage, loadingPanelId);
     } else if (currentView === 'chat' && (!connected || isLoadingChannels || (!activeChannelId && !isNewChatMode))) {
       const message = !connected ? 'Connecting to server...' :
-                     isLoadingChannels ? 'Loading channels...' :
-                     'Select a chat';
+        isLoadingChannels ? 'Loading channels...' :
+          'Select a chat';
       showLoading('Loading Chat...', message, loadingPanelId);
     } else {
       hide(loadingPanelId);
@@ -532,7 +532,7 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
 
   return (
     <AgentWalletProvider userId={userId}>
-      <SidebarProvider>
+      <SidebarProvider className="h-svh overflow-hidden">
         <AppContent
           agent={agent}
           userId={userId}
@@ -656,97 +656,99 @@ function AppContent({
 
   return (
     <>
-      {/* Mobile Header */}
-      <MobileHeader
-        onHomeClick={() => setCurrentView('chat')}
-        userId={userId || undefined}
-      />
+      <div className="flex flex-col h-full">
+        {/* Mobile Header */}
+        <MobileHeader
+          onHomeClick={() => setCurrentView('chat')}
+          userId={userId || undefined}
+        />
 
-      {/* Desktop Layout - 3 columns */}
-      <div className="w-full h-full overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-gap lg:px-sides">
-        {/* Left Sidebar - Chat History */}
-        <div className="hidden lg:block col-span-2 h-full overflow-hidden">
-          <DashboardSidebar
-            channels={channels}
-            activeChannelId={activeChannelId}
-            onChannelSelect={onChannelSelect}
-            onDeleteChannel={undefined /* TODO: Fix handleDeleteChannel scope issue */}
-            onNewChat={onNewChat}
-            isCreatingChannel={isCreatingChannel}
-            userProfile={userProfile}
-            onSignOut={signOut}
-            onChatClick={() => setCurrentView('chat')}
-            onAccountClick={() => setCurrentView('account')}
-            onHomeClick={() => setCurrentView('chat')}
-          />
-        </div>
-
-        {/* Center - Chat Interface / Account */}
-        <div className="col-span-1 lg:col-span-7 h-full overflow-hidden">
-          {currentView === 'account' ? (
-            <AccountPage
-              totalBalance={totalBalance}
+        {/* Desktop Layout - 3 columns */}
+        <div className="w-full flex-1 min-h-0 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-gap lg:px-sides">
+          {/* Left Sidebar - Chat History */}
+          <div className="hidden lg:block col-span-2 h-full overflow-hidden">
+            <DashboardSidebar
+              channels={channels}
+              activeChannelId={activeChannelId}
+              onChannelSelect={onChannelSelect}
+              onDeleteChannel={undefined /* TODO: Fix handleDeleteChannel scope issue */}
+              onNewChat={onNewChat}
+              isCreatingChannel={isCreatingChannel}
               userProfile={userProfile}
-              onUpdateProfile={updateUserProfile}
               onSignOut={signOut}
-              onBack={() => setCurrentView('chat')}
+              onChatClick={() => setCurrentView('chat')}
+              onAccountClick={() => setCurrentView('account')}
+              onHomeClick={() => setCurrentView('chat')}
             />
-          ) : (
-            <div className="flex flex-col relative w-full gap-1 min-h-0 h-full">
-              {/* Header */}
-              <div className="flex items-center lg:items-baseline gap-2.5 md:gap-4 px-4 md:px-6 py-3 md:pb-4 lg:pt-7 ring-2 ring-pop sticky top-header-mobile lg:top-0 bg-background z-10">
-               <h1 className="text-xl lg:text-4xl font-display leading-none mb-1">
-                  CHAT
-                </h1>
-                <button
-                  className="ml-auto rounded-full px-3 py-2 transition-colors hover:bg-accent flex items-center gap-2"
-                  title="About"
-                  onClick={handleOpenAbout}
-                >
-                  <Info className="size-4 md:size-5 text-muted-foreground" />
-                  <span className="text-sm md:text-base text-muted-foreground uppercase">ABOUT</span>
-                </button>
-              </div>
+          </div>
 
-              {/* Content Area */}
-              <div className="min-h-0 flex-1 flex flex-col px-3 lg:px-6 ring-2 ring-pop bg-background overflow-hidden">
-                {connected && !isLoadingChannels && (activeChannelId || isNewChatMode) && (
-                  <ChatInterface
-                    agent={agent}
-                    userId={userId}
-                    serverId={userId}
-                    channelId={activeChannelId}
-                    isNewChatMode={isNewChatMode}
-                    onChannelCreated={(channelId, channelName) => {
-                      const now = Date.now();
-                      setChannels((prev: Channel[]) => [
-                        {
-                          id: channelId,
-                          name: channelName,
-                          createdAt: now,
-                        },
-                        ...prev,
-                      ]);
-                      setActiveChannelId(channelId);
-                      setIsNewChatMode(false);
-                    }}
-                    onActionCompleted={async () => {
-                      console.log('[MainApp] Agent action completed - refreshing wallet...');
-                      await refreshAll();
-                    }}
-                  />
-                )}
+          {/* Center - Chat Interface / Account */}
+          <div className="col-span-1 lg:col-span-7 h-full overflow-hidden">
+            {currentView === 'account' ? (
+              <AccountPage
+                totalBalance={totalBalance}
+                userProfile={userProfile}
+                onUpdateProfile={updateUserProfile}
+                onSignOut={signOut}
+                onBack={() => setCurrentView('chat')}
+              />
+            ) : (
+              <div className="flex flex-col relative w-full gap-1 min-h-0 h-full">
+                {/* Header */}
+                <div className="flex items-center lg:items-baseline gap-2.5 md:gap-4 px-4 md:px-6 py-3 md:pb-4 lg:pt-7 ring-2 ring-pop sticky top-header-mobile lg:top-0 bg-background z-10">
+                  <h1 className="text-xl lg:text-4xl font-display leading-none mb-1">
+                    CHAT
+                  </h1>
+                  <button
+                    className="ml-auto rounded-full px-3 py-2 transition-colors hover:bg-accent flex items-center gap-2"
+                    title="About"
+                    onClick={handleOpenAbout}
+                  >
+                    <Info className="size-4 md:size-5 text-muted-foreground" />
+                    <span className="text-sm md:text-base text-muted-foreground uppercase">ABOUT</span>
+                  </button>
+                </div>
+
+                {/* Content Area */}
+                <div className="min-h-0 flex-1 flex flex-col px-3 lg:px-6 ring-2 ring-pop bg-background overflow-hidden">
+                  {connected && !isLoadingChannels && (activeChannelId || isNewChatMode) && (
+                    <ChatInterface
+                      agent={agent}
+                      userId={userId}
+                      serverId={userId}
+                      channelId={activeChannelId}
+                      isNewChatMode={isNewChatMode}
+                      onChannelCreated={(channelId, channelName) => {
+                        const now = Date.now();
+                        setChannels((prev: Channel[]) => [
+                          {
+                            id: channelId,
+                            name: channelName,
+                            createdAt: now,
+                          },
+                          ...prev,
+                        ]);
+                        setActiveChannelId(channelId);
+                        setIsNewChatMode(false);
+                      }}
+                      onActionCompleted={async () => {
+                        console.log('[MainApp] Agent action completed - refreshing wallet...');
+                        await refreshAll();
+                      }}
+                    />
+                  )}
+                </div>
               </div>
+            )}
+          </div>
+
+          {/* Right Sidebar - Chain Selector & Widget & CDP Wallet & Notifications */}
+          <div className="col-span-3 hidden lg:block relative">
+            <div className="space-y-gap py-sides h-full flex flex-col overflow-hidden">
+              <Widget />
+              <CDPWalletCard userId={userId} walletAddress={userProfile?.walletAddress} onBalanceChange={handleBalanceChange} />
+              <CollapsibleNotifications />
             </div>
-          )}
-        </div>
-
-        {/* Right Sidebar - Chain Selector & Widget & CDP Wallet & Notifications */}
-        <div className="col-span-3 hidden lg:block relative">
-          <div className="space-y-gap py-sides h-full flex flex-col overflow-hidden">
-            <Widget />
-            <CDPWalletCard userId={userId} walletAddress={userProfile?.walletAddress} onBalanceChange={handleBalanceChange} />
-            <CollapsibleNotifications />
           </div>
         </div>
       </div>
