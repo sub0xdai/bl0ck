@@ -17,6 +17,10 @@ build/
 .eliza/
 .elizadb/
 
+# Wallet storage (encrypted but should NEVER be in git)
+# CRITICAL: Wallets must persist via Docker/Podman volumes, NOT git commits
+data/
+
 # IDE
 .vscode/
 .idea/
@@ -49,4 +53,3 @@ packages/*/dist/
 packages/*/node_modules/
 packages/*/.turbo/
 packages/*/tsconfig.tsbuildinfo
-

@@ -20,6 +20,11 @@ RUN bun install
 # Build all packages (Vite reads VITE_* env vars during this step)
 RUN bun run build
 
+# Create data directory for wallet storage
+# CRITICAL: This directory MUST be volume-mounted to persist wallet data
+# Mount with: -v /var/lib/lina-data:/app/data:rw
+RUN mkdir -p /app/data && chmod 755 /app/data
+
 # Expose port
 EXPOSE 3000
 

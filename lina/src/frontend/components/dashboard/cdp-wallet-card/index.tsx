@@ -185,24 +185,26 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
                   SOL
                 </button>
               </div>
-              {/* Wallet Address Display - Click to copy */}
+              {/* Wallet Address Display - DISABLED during maintenance */}
               {isLoadingAddresses ? (
                 <span className="text-[10px] text-muted-foreground animate-pulse">Loading...</span>
               ) : currentAddress ? (
-                <button
-                  onClick={copyAddress}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                  title={`Click to copy: ${currentAddress}`}
-                >
-                  <span className="text-[10px] font-mono">
-                    {formatAddress(currentAddress)}
-                  </span>
-                  {isCopied ? (
-                    <Check className="w-3 h-3 text-green-500" />
-                  ) : (
-                    <Copy className="w-3 h-3" />
-                  )}
-                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className="flex items-center gap-1.5 px-2 py-1 rounded bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 cursor-not-allowed"
+                      title="Deposits disabled during maintenance"
+                    >
+                      <span className="text-[10px] font-mono">
+                        {formatAddress(currentAddress)}
+                      </span>
+                      <span className="text-[10px]">⚠️</span>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent sideOffset={4}>
+                    <p className="text-xs">Deposits temporarily disabled - maintenance in progress</p>
+                  </TooltipContent>
+                </Tooltip>
               ) : (
                 <span className="text-[10px] text-red-400" title={addressError || 'No address available'}>
                   No address
@@ -251,27 +253,24 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
               </div>
             )}
           </div>
+          {/* MAINTENANCE WARNING - Deposits temporarily disabled */}
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-md p-2 mb-2">
+            <p className="text-xs text-yellow-600 dark:text-yellow-400 font-medium text-center">
+              ⚠️ Deposits temporarily disabled - maintenance in progress
+            </p>
+          </div>
+
           {/* Action Buttons */}
           <div className="grid grid-cols-3 gap-2">
             <Button
               onClick={() => {
-                onActionClick?.();
-
-                showModal(
-                  <FundModalContent
-                    walletAddress={currentAddress || ''}
-                    shortAddress={formatAddress(currentAddress || '')}
-                  />,
-                  'fund-modal',
-                  { closeOnBackdropClick: true, className: 'max-w-md' }
-                );
+                // DISABLED: Deposits temporarily disabled during maintenance
+                alert('⚠️ Deposits are temporarily disabled while we perform maintenance. Please try again later.');
               }}
-              className={cn(
-                "flex-1",
-                totalUsdValue === 0 && "ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse"
-              )}
+              className="flex-1 opacity-50 cursor-not-allowed"
               variant="default"
               size="sm"
+              disabled
             >
               Fund
             </Button>
