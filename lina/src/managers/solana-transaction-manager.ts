@@ -460,8 +460,9 @@ export class SolanaTransactionManager {
 
     let keypair: Keypair;
 
-    if (storedWallet && storedWallet.network === this.network) {
+    if (storedWallet) {
       // Restore wallet from encrypted storage
+      // Note: Solana keypairs are network-independent - same address works on devnet and mainnet
       try {
         logger.info(`[SolanaTransactionManager] Restoring wallet from storage for user: ${userId.substring(0, 8)}...`);
 
@@ -469,6 +470,16 @@ export class SolanaTransactionManager {
         keypair = Keypair.fromSecretKey(decryptedSeed);
 
         logger.info(`[SolanaTransactionManager] Wallet restored: ${keypair.publicKey.toBase58().substring(0, 8)}...`);
+
+        // Update network in storage if it changed (keypair stays the same)
+        if (storedWallet.network !== this.network) {
+          logger.info(`[SolanaTransactionManager] Updating wallet network: ${storedWallet.network} -> ${this.network}`);
+          storage.wallets[userId] = {
+            ...storedWallet,
+            network: this.network,
+          };
+          this.saveWalletStorage(storage);
+        }
       } catch (error) {
         // Decryption failed - regenerate wallet
         logger.warn(
