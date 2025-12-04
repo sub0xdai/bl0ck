@@ -235,23 +235,24 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
   }, [agent.id, agent.name])
 
   // Helper function to check if user is near bottom of the chat
+  // With flex-col-reverse, scrollTop = 0 is the bottom
   const checkIfNearBottom = () => {
     const container = messagesContainerRef.current
     if (!container) return true
 
     const threshold = 200 // pixels from bottom to consider "near bottom"
-    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
-    return distanceFromBottom < threshold
+    // With flex-col-reverse, we're at bottom when scrollTop is near 0
+    return container.scrollTop < threshold
   }
 
 
-  // Helper function to scroll to bottom (uses scrollTo to avoid scroll chaining)
+  // Helper function to scroll to bottom (with flex-col-reverse, bottom is scrollTop = 0)
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     const container = messagesContainerRef.current
     if (!container) return
 
     container.scrollTo({
-      top: container.scrollHeight,
+      top: 0,
       behavior
     })
   }
@@ -266,14 +267,12 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
   }, [MAX_TEXTAREA_HEIGHT])
 
   // Track scroll position - detect when user is actively scrolling
+  // With flex-col-reverse, scrollTop = 0 is bottom, higher values = scrolled up
   useEffect(() => {
     const container = messagesContainerRef.current
     if (!container) return
 
     const handleScroll = () => {
-      // User is actively scrolling - disable auto-scroll
-      isUserScrollingRef.current = true
-
       // Clear previous timeout
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current)
@@ -607,8 +606,9 @@ export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMod
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      {/* Scrollable messages area */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto min-h-0 p-6 pb-2">
+      {/* Scrollable messages area - flex-col-reverse anchors to bottom like Slack/Discord */}
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto min-h-0 p-6 pb-2 flex flex-col-reverse">
+        {/* Inner wrapper - reversed back to normal order */}
         <div className="space-y-4 flex flex-col">
             {/* Messages */}
             <div className="flex-1 space-y-4">
