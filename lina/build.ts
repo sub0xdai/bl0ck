@@ -17,23 +17,23 @@ async function cleanBuild(outdir = 'dist') {
 
 async function copySharedModules() {
   console.log(' Copying shared modules...');
-  
+
   // Copy and compile managers directory to dist/managers
   if (existsSync('./src/managers')) {
     await cp('./src/managers', './dist/managers', { recursive: true });
     console.log(' Copied managers/');
   }
-  
+
   // Copy and compile constants directory to dist/constants
   if (existsSync('./src/constants')) {
     await cp('./src/constants', './dist/constants', { recursive: true });
     console.log(' Copied constants/');
   }
-  
+
   // Compile the TypeScript files in place
   try {
     console.log(' Compiling shared modules...');
-    
+
     // Build managers
     const managersResult = await Bun.build({
       entrypoints: ['./dist/managers/cdp-transaction-manager.ts'],
@@ -43,7 +43,7 @@ async function copySharedModules() {
       external: ['@elizaos/core', '@coinbase/cdp-sdk', 'viem', 'viem/accounts'],
       naming: { entry: '[name].js' },
     });
-    
+
     // Build constants
     const constantsResult = await Bun.build({
       entrypoints: ['./dist/constants/chains.ts'],
@@ -53,7 +53,7 @@ async function copySharedModules() {
       external: ['viem/chains'],
       naming: { entry: '[name].js' },
     });
-    
+
     if (managersResult.success && constantsResult.success) {
       console.log(' Shared modules compiled successfully');
     } else {
@@ -114,10 +114,12 @@ async function build() {
             '@solana/web3.js',
             '@solana/spl-token',
             'unique-names-generator', // 3-5MB of data dictionaries!
+            'uuid',
             'bignumber.js',
             'bs58',
             'tweetnacl',
             '@jup-ag/api',
+            '@drift-labs/sdk',
             '@morpho-org/*',
             'clanker-sdk',
             'siwe',
@@ -201,4 +203,3 @@ build()
     console.error('Build script error:', error);
     process.exit(1);
   });
-

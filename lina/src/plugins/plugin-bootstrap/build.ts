@@ -22,6 +22,8 @@ const run = createBuildRunner({
       'zod',
       '@elizaos/core',
       '@elizaos/plugin-sql',
+      'uuid',
+      'unique-names-generator',
     ],
     sourcemap: true,
     minify: false,

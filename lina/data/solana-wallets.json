@@ -23,6 +23,12 @@
       "encryptedSeedPhrase": "i6COIqCA6eCcd984EWXtooELwe4mYJaD798Li0VcB4wShrXOh/28KPVIng+QBMqtfDrVAddn2CKnraT1TtgDEyI3y/rp3D2lPa8jx/0qqyahG+yNq4yVCSUuSqI=",
       "network": "solana",
       "createdAt": 1764391119198
+    },
+    "9fbf4828-00ed-4f25-b216-0fb37a9b734d": {
+      "userId": "9fbf4828-00ed-4f25-b216-0fb37a9b734d",
+      "encryptedSeedPhrase": "3s/0T73HH65RQ1gFkXJAZZhrKl7xJm8QYFXKx7OnDsYGFjC0tRtOBGlBU6MDg1to5eKrL60TrFyRb7t0P16Wl5m8RQctHl8ol4xveAY/64CqSjlhC9LSZ7FM/wk=",
+      "network": "solana",
+      "createdAt": 1764500088175
     }
   }
 }

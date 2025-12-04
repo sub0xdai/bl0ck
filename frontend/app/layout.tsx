@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "BL0CK - Privacy-First DeFi Ecosystem",
-  description: "Privacy-first DeFi ecosystem combining AI trading with zkVM privacy tech. Prove you belong. Never prove who you are.",
+  description: "DeFi ecosystem combining AI trading Godess with zkVM privacy tech. Prove you belong. Never prove who you are.",
 };
 
 export default function RootLayout({
