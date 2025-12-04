@@ -185,7 +185,7 @@ export function DashboardSidebar({
   const groupedChannels = groupChannelsByDate(channels);
 
   return (
-    <Sidebar {...props} className={cn("py-sides", className)}>
+    <Sidebar {...props} className={cn("h-full", className)}>
       <SidebarHeader className="rounded-t-lg flex gap-3 flex-row rounded-b-none">
         <button 
           onClick={onHomeClick}
