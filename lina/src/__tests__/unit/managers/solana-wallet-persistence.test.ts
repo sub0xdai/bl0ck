@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, mock, spyOn } from 'bun:test';
+import { describe, it, expect, beforeEach, mock, afterEach } from 'bun:test';
 import { SolanaTransactionManager } from '../../../managers/solana-transaction-manager';
+import { WalletRepository } from '../../../repositories/wallet-repository';
 import { Keypair } from '@solana/web3.js';
 import * as fs from 'fs';
-import { join } from 'path';
 
-// Mock fs module
+// Mock fs module (for file fallback tests)
 mock.module('fs', () => ({
     existsSync: mock(() => false),
     mkdirSync: mock(() => { }),
@@ -31,9 +31,12 @@ describe('SolanaTransactionManager Persistence', () => {
         // Reset env var
         process.env.SOLANA_WALLET_SECRET = TEST_SECRET;
         process.env.SOLANA_NETWORK = 'solana-devnet';
+        // No database by default (tests file fallback)
+        delete process.env.POSTGRES_URL;
 
-        // Reset singleton instance (hacky but needed for testing singleton)
+        // Reset singleton instances
         (SolanaTransactionManager as any).instance = null;
+        (WalletRepository as any).instance = null;
         manager = SolanaTransactionManager.getInstance();
 
         // Reset mocks
@@ -43,6 +46,11 @@ describe('SolanaTransactionManager Persistence', () => {
         (fs.existsSync as any).mockImplementation(() => false);
         (fs.readFileSync as any).mockImplementation(() => '');
         (fs.writeFileSync as any).mockImplementation(() => { });
+    });
+
+    afterEach(() => {
+        // Clean up
+        delete process.env.POSTGRES_URL;
     });
 
     describe('Encryption', () => {
@@ -78,7 +86,7 @@ describe('SolanaTransactionManager Persistence', () => {
         });
     });
 
-    describe('Wallet Persistence', () => {
+    describe('Wallet Persistence (File Fallback)', () => {
         it('should generate new wallet if storage is empty', async () => {
             // Mock empty storage
             (fs.existsSync as any).mockImplementation(() => false);
@@ -90,7 +98,7 @@ describe('SolanaTransactionManager Persistence', () => {
             expect(fs.writeFileSync).toHaveBeenCalled(); // Should save to disk
         });
 
-        it('should load existing wallet from storage', async () => {
+        it('should load existing wallet from file storage', async () => {
             // 1. Generate a wallet and encrypt it manually to simulate storage
             const kp = Keypair.generate();
             const encryptedSeed = manager.encryptSeedPhrase(kp.secretKey);
@@ -138,6 +146,62 @@ describe('SolanaTransactionManager Persistence', () => {
 
             // 3. Verify NO write occurred (no new wallet generated)
             expect(fs.writeFileSync).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('WalletRepository', () => {
+        it('should return not configured when POSTGRES_URL is not set', () => {
+            delete process.env.POSTGRES_URL;
+            (WalletRepository as any).instance = null;
+            const repo = WalletRepository.getInstance();
+            expect(repo.isConfigured()).toBe(false);
+        });
+
+        it('should return configured when POSTGRES_URL is set', () => {
+            process.env.POSTGRES_URL = 'postgres://test:test@localhost:5432/test';
+            (WalletRepository as any).instance = null;
+            const repo = WalletRepository.getInstance();
+            expect(repo.isConfigured()).toBe(true);
+        });
+
+        it('should be a singleton', () => {
+            const repo1 = WalletRepository.getInstance();
+            const repo2 = WalletRepository.getInstance();
+            expect(repo1).toBe(repo2);
+        });
+    });
+
+    describe('Database Priority', () => {
+        it('should prefer database over file storage when configured', async () => {
+            // This test verifies the logic flow - actual DB calls would need integration tests
+            process.env.POSTGRES_URL = 'postgres://test:test@localhost:5432/test';
+            (WalletRepository as any).instance = null;
+            (SolanaTransactionManager as any).instance = null;
+
+            const newManager = SolanaTransactionManager.getInstance();
+
+            // Verify repository is configured
+            expect((newManager as any).walletRepository.isConfigured()).toBe(true);
+        });
+
+        it('should fall back to file storage when database not configured', async () => {
+            delete process.env.POSTGRES_URL;
+            (WalletRepository as any).instance = null;
+            (SolanaTransactionManager as any).instance = null;
+
+            const newManager = SolanaTransactionManager.getInstance();
+
+            // Verify repository is NOT configured
+            expect((newManager as any).walletRepository.isConfigured()).toBe(false);
+
+            // Mock empty file storage
+            (fs.existsSync as any).mockImplementation(() => false);
+
+            // Generate wallet - should use file fallback
+            const { publicKey } = await newManager.getOrCreateWallet(TEST_USER_ID);
+
+            expect(publicKey).toBeDefined();
+            expect(fs.writeFileSync).toHaveBeenCalled(); // File fallback used
         });
     });
 });

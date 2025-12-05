@@ -13,6 +13,12 @@ coverage = true
 # Test environment
 env = "node"
 
+# Path aliases (must match tsconfig.json paths)
+[test.alias]
+"@/managers" = "./src/managers"
+"@/constants" = "./src/constants"
+"@/repositories" = "./src/repositories"
+
 # Coverage exclusions
 coverage-exclude = [
   "**/dist/**",

@@ -24,7 +24,8 @@
     "allowUnusedLabels": true,
     "paths": {
       "@/managers/*": ["managers/*"],
-      "@/constants/*": ["constants/*"]
+      "@/constants/*": ["constants/*"],
+      "@/repositories/*": ["repositories/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "../../**/*.ts", "../../**/*.tsx"],

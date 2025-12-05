@@ -19,7 +19,8 @@
     "paths": {
       "@/*": ["./src/frontend/*"],
       "@/managers/*": ["./src/managers/*"],
-      "@/constants/*": ["./src/constants/*"]
+      "@/constants/*": ["./src/constants/*"],
+      "@/repositories/*": ["./src/repositories/*"]
     }
   },
   "include": ["src/**/*"],
