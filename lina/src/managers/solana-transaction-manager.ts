@@ -386,10 +386,14 @@ export class SolanaTransactionManager {
 
       // Load storage file
       if (existsSync(this.WALLET_STORAGE_PATH)) {
+        logger.info(`[Persistence] Loading wallet storage from: ${this.WALLET_STORAGE_PATH}`);
         const fileContent = readFileSync(this.WALLET_STORAGE_PATH, 'utf-8');
-        return JSON.parse(fileContent);
+        const data = JSON.parse(fileContent);
+        logger.info(`[Persistence] Loaded ${Object.keys(data.wallets || {}).length} wallets from disk`);
+        return data;
       }
 
+      logger.warn(`[Persistence] Storage file not found at: ${this.WALLET_STORAGE_PATH}. Creating new storage.`);
       // Create empty storage if file doesn't exist
       return { wallets: {} };
     } catch (error) {
@@ -457,6 +461,8 @@ export class SolanaTransactionManager {
     // Load storage
     const storage = this.loadWalletStorage();
     const storedWallet = storage.wallets[userId];
+
+    logger.info(`[Persistence] Lookup for userId ${userId}: ${storedWallet ? 'FOUND' : 'NOT FOUND'} in storage`);
 
     let keypair: Keypair;
 

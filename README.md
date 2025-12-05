@@ -1,4 +1,4 @@
- # Lina
+## Lina
  _This is still in beta_
 
   Multi-chain AI trading agent built on ElizaOS. Trade across EVM + Solana from a single chat interface.
