@@ -44,7 +44,9 @@ export class WalletRepository {
   private postgresUrl: string | null = null;
 
   private constructor() {
-    this.postgresUrl = process.env.POSTGRES_URL || null;
+    // Use WALLET_DB_URL for wallet persistence (separate from ElizaOS's POSTGRES_URL)
+    // This avoids conflicts with ElizaOS's migration system
+    this.postgresUrl = process.env.WALLET_DB_URL || null;
   }
 
   /**
