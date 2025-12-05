@@ -28,6 +28,9 @@ interface WalletRow {
  * Replaces file-based storage (solana-wallets.json) with PostgreSQL.
  * Survives server rebuilds when using external database (Supabase/Neon).
  *
+ * IMPORTANT: Uses WALLET_DB_URL (not POSTGRES_URL) to avoid conflicts
+ * with ElizaOS's internal migration system.
+ *
  * Table schema:
  * CREATE TABLE solana_wallets (
  *   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
