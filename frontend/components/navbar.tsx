@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/sheet"
 
 const LINKTREE_URL = "https://linktr.ee/bl0ck_"
-const GITHUB_URL = "https://github.com/sub0xdai/linafrmda_bl0ck/blob/main/README.md"
+const GITHUB_URL = "https://github.com/sub0xdai/bl0ck"
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
@@ -23,9 +23,8 @@ export default function Navbar() {
         href={GITHUB_URL}
         target="_blank"
         rel="noopener noreferrer"
-        className={`flex items-center gap-2 text-gray-300 hover:text-white transition ${
-          mobile ? "w-full py-3 px-4 hover:bg-white/5 rounded-lg" : ""
-        }`}
+        className={`flex items-center gap-2 text-gray-300 hover:text-white transition ${mobile ? "w-full py-3 px-4 hover:bg-white/5 rounded-lg" : ""
+          }`}
         onClick={() => mobile && setIsOpen(false)}
       >
         <Github className="w-4 h-4" />
@@ -35,9 +34,8 @@ export default function Navbar() {
         href={LINKTREE_URL}
         target="_blank"
         rel="noopener noreferrer"
-        className={`flex items-center gap-2 text-gray-300 hover:text-white transition ${
-          mobile ? "w-full py-3 px-4 hover:bg-white/5 rounded-lg" : ""
-        }`}
+        className={`flex items-center gap-2 text-gray-300 hover:text-white transition ${mobile ? "w-full py-3 px-4 hover:bg-white/5 rounded-lg" : ""
+          }`}
         onClick={() => mobile && setIsOpen(false)}
       >
         <ExternalLink className="w-4 h-4" />
@@ -47,9 +45,8 @@ export default function Navbar() {
         href={linaUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className={`px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition ${
-          mobile ? "w-full text-center mt-4" : ""
-        }`}
+        className={`px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition ${mobile ? "w-full text-center mt-4" : ""
+          }`}
         onClick={() => mobile && setIsOpen(false)}
       >
         Launch Lina
