@@ -156,19 +156,7 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
       </div>
 
       <Card className="max-h-[calc(100vh-2rem)] w-full flex flex-col relative">
-        {/* MAINTENANCE OVERLAY - Remove when wallet persistence is verified */}
-        <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 rounded-lg">
-          <div className="text-4xl mb-4">🔧</div>
-          <h3 className="text-lg font-semibold text-yellow-500 mb-2">Wallet Under Maintenance</h3>
-          <p className="text-sm text-muted-foreground text-center max-w-xs mb-4">
-            Deposits and withdrawals are temporarily disabled while we verify wallet persistence.
-          </p>
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-md p-3 max-w-xs">
-            <p className="text-xs text-yellow-600 dark:text-yellow-400 text-center">
-              Your funds are safe. Testing in progress.
-            </p>
-          </div>
-        </div>
+
         <CardHeader className="flex items-center justify-between pl-3 pr-1 relative z-10">
           <CardTitle className="flex items-center gap-2.5 text-sm font-medium uppercase">
             <Bullet />
@@ -198,24 +186,28 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
                   SOL
                 </button>
               </div>
-              {/* Wallet Address Display - DISABLED during maintenance */}
+              {/* Wallet Address Display */}
               {isLoadingAddresses ? (
                 <span className="text-[10px] text-muted-foreground animate-pulse">Loading...</span>
               ) : currentAddress ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span
-                      className="flex items-center gap-1.5 px-2 py-1 rounded bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 cursor-not-allowed"
-                      title="Deposits disabled during maintenance"
+                    <button
+                      onClick={copyAddress}
+                      className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-muted transition-colors group"
                     >
-                      <span className="text-[10px] font-mono">
+                      <span className="text-[10px] text-muted-foreground group-hover:text-foreground font-mono transition-colors">
                         {formatAddress(currentAddress)}
                       </span>
-                      <span className="text-[10px]">⚠️</span>
-                    </span>
+                      {isCopied ? (
+                        <Check className="w-3 h-3 text-green-500" />
+                      ) : (
+                        <Copy className="w-3 h-3 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      )}
+                    </button>
                   </TooltipTrigger>
                   <TooltipContent sideOffset={4}>
-                    <p className="text-xs">Deposits temporarily disabled - maintenance in progress</p>
+                    <p className="text-xs">Copy Address</p>
                   </TooltipContent>
                 </Tooltip>
               ) : (
@@ -224,355 +216,353 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
                 </span>
               )}
             </div>
-        </CardTitle>
-        <Button
-          onClick={handleManualRefresh}
-          disabled={isRefreshing || !userId || isLoadingTokens}
-          variant="ghost"
-          size="sm"
-          className="text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground"
-        >
-          {isLoadingHistory || isLoadingNfts || isLoadingTokens ? 'Loading...' : isRefreshing ? 'Refreshing...' : 'Refresh'}
-        </Button>
-      </CardHeader>
-      <CardContent className="bg-accent p-2 flex-1 flex-col overflow-auto relative w-full">
-        <div className="space-y-4 bg-background rounded-lg p-3 sm:p-4 border border-border/30 w-full overflow-hidden">
-          {/* Error message */}
-          {tokensError && (
-            <div className="text-xs text-red-500 bg-red-500/10 p-2 rounded border border-red-500/20">
-              {tokensError}
-            </div>
-          )}
-
-          {/* Total Balance - Centered */}
-          <div className="flex flex-col items-center gap-3 py-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider cursor-help">
-                  Agent Wallet Balance
-                </span>
-              </TooltipTrigger>
-              <TooltipContent sideOffset={4}>
-                Lina manages this wallet for your trades. Deposit funds here to get started.
-              </TooltipContent>
-            </Tooltip>
-            {isLoadingTokens && tokens.length === 0 ? (
-              <div className="h-10 w-32 bg-muted animate-pulse rounded"></div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-3xl font-mono font-bold">
-                  ${formatUsdValue(totalUsdValue)}
-                </span>
+          </CardTitle>
+          <Button
+            onClick={handleManualRefresh}
+            disabled={isRefreshing || !userId || isLoadingTokens}
+            variant="ghost"
+            size="sm"
+            className="text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground"
+          >
+            {isLoadingHistory || isLoadingNfts || isLoadingTokens ? 'Loading...' : isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
+        </CardHeader>
+        <CardContent className="bg-accent p-2 flex-1 flex-col overflow-auto relative w-full">
+          <div className="space-y-4 bg-background rounded-lg p-3 sm:p-4 border border-border/30 w-full overflow-hidden">
+            {/* Error message */}
+            {tokensError && (
+              <div className="text-xs text-red-500 bg-red-500/10 p-2 rounded border border-red-500/20">
+                {tokensError}
               </div>
             )}
+
+            {/* Total Balance - Centered */}
+            <div className="flex flex-col items-center gap-3 py-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider cursor-help">
+                    Agent Wallet Balance
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={4}>
+                  Lina manages this wallet for your trades. Deposit funds here to get started.
+                </TooltipContent>
+              </Tooltip>
+              {isLoadingTokens && tokens.length === 0 ? (
+                <div className="h-10 w-32 bg-muted animate-pulse rounded"></div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-3xl font-mono font-bold">
+                    ${formatUsdValue(totalUsdValue)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                onClick={() => {
+                  onActionClick?.();
+                  showModal(
+                    <FundModalContent
+                      walletAddress={currentAddress || ''}
+                      shortAddress={currentAddress ? formatAddress(currentAddress) : ''}
+                    />,
+                    'fund-modal',
+                    { closeOnBackdropClick: true, className: 'max-w-md' }
+                  );
+                }}
+                className="flex-1"
+                variant="default"
+                size="sm"
+                disabled={!currentAddress || isLoadingAddresses}
+              >
+                Fund
+              </Button>
+              <Button
+                onClick={() => {
+                  onActionClick?.();
+
+                  showModal(
+                    <SendModalContent
+                      tokens={filteredTokens as any}
+                      userId={userId}
+                      onSuccess={() => {
+                        syncTokens();
+                      }}
+                    />,
+                    'send-modal',
+                    { closeOnBackdropClick: true, className: 'max-w-xl' }
+                  );
+                }}
+                className="flex-1"
+                variant="outline"
+                size="sm"
+                disabled={filteredTokens.length === 0 || isLoadingTokens}
+              >
+                Send
+              </Button>
+              <Button
+                onClick={() => {
+                  onActionClick?.();
+
+                  showModal(
+                    <SwapModalContent
+                      tokens={filteredTokens}
+                      userId={userId}
+                      onSuccess={() => {
+                        syncTokens();
+                      }}
+                    />,
+                    'swap-modal',
+                    { closeOnBackdropClick: true, className: 'max-w-lg' }
+                  );
+                }}
+                className="flex-1"
+                variant="outline"
+                size="sm"
+                disabled={filteredTokens.length === 0 || isLoadingTokens}
+              >
+                Swap
+              </Button>
+            </div>
           </div>
-          {/* MAINTENANCE WARNING - Deposits temporarily disabled */}
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-md p-2 mb-2">
-            <p className="text-xs text-yellow-600 dark:text-yellow-400 font-medium text-center">
-              ⚠️ Deposits temporarily disabled - maintenance in progress
-            </p>
-          </div>
 
-          {/* Action Buttons */}
-          <div className="grid grid-cols-3 gap-2">
-            <Button
-              onClick={() => {
-                // DISABLED: Deposits temporarily disabled during maintenance
-                alert('⚠️ Deposits are temporarily disabled while we perform maintenance. Please try again later.');
-              }}
-              className="flex-1 opacity-50 cursor-not-allowed"
-              variant="default"
-              size="sm"
-              disabled
-            >
-              Fund
-            </Button>
-            <Button
-              onClick={() => {
-                onActionClick?.();
-
-                showModal(
-                  <SendModalContent
-                    tokens={filteredTokens as any}
-                    userId={userId}
-                    onSuccess={() => {
-                      syncTokens();
-                    }}
-                  />,
-                  'send-modal',
-                  { closeOnBackdropClick: true, className: 'max-w-xl' }
-                );
-              }}
-              className="flex-1"
-              variant="outline"
-              size="sm"
-              disabled={filteredTokens.length === 0 || isLoadingTokens}
-            >
-              Send
-            </Button>
-            <Button
-              onClick={() => {
-                onActionClick?.();
-
-                showModal(
-                  <SwapModalContent
-                    tokens={filteredTokens}
-                    userId={userId}
-                    onSuccess={() => {
-                      syncTokens();
-                    }}
-                  />,
-                  'swap-modal',
-                  { closeOnBackdropClick: true, className: 'max-w-lg' }
-                );
-              }}
-              className="flex-1"
-              variant="outline"
-              size="sm"
-              disabled={filteredTokens.length === 0 || isLoadingTokens}
-            >
-              Swap
-            </Button>
-          </div>
-        </div>
-
-        <div className="mt-2 space-y-4 bg-background rounded-lg p-3 sm:p-4 border border-border/30 w-full overflow-hidden">
-          {/* Tabs */}
-          <div className="flex gap-1 border-b border-border overflow-x-auto scrollbar-hide">
+          <div className="mt-2 space-y-4 bg-background rounded-lg p-3 sm:p-4 border border-border/30 w-full overflow-hidden">
+            {/* Tabs */}
+            <div className="flex gap-1 border-b border-border overflow-x-auto scrollbar-hide">
               <button
                 onClick={() => setActiveTab('tokens')}
-                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
-                  activeTab === 'tokens'
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'tokens'
                     ? 'text-foreground border-b-2 border-primary'
                     : 'text-muted-foreground hover:text-foreground'
-                }`}
+                  }`}
               >
                 Tokens
               </button>
               <button
                 onClick={() => setActiveTab('collections')}
-                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
-                  activeTab === 'collections'
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'collections'
                     ? 'text-foreground border-b-2 border-primary'
                     : 'text-muted-foreground hover:text-foreground'
-                }`}
+                  }`}
               >
                 Collections
               </button>
               <button
                 onClick={() => setActiveTab('history')}
-                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
-                  activeTab === 'history'
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'history'
                     ? 'text-foreground border-b-2 border-primary'
                     : 'text-muted-foreground hover:text-foreground'
-                }`}
+                  }`}
               >
                 History
               </button>
             </div>
 
-          {/* Content */}
-          <div className="space-y-2 h-[250px] overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
-            {activeTab === 'tokens' ? (
-              isLoadingTokens && filteredTokens.length === 0 ? (
-                // Loading skeletons
-                Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="flex items-center justify-between p-2 rounded hover:bg-muted/50">
-                    <div className="flex items-center gap-3 flex-1">
-                      <div className="w-8 h-8 rounded-full bg-muted animate-pulse"></div>
-                      <div className="flex flex-col gap-1">
-                        <div className="h-4 w-16 bg-muted animate-pulse rounded"></div>
-                        <div className="h-3 w-24 bg-muted animate-pulse rounded"></div>
+            {/* Content */}
+            <div className="space-y-2 h-[250px] overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
+              {activeTab === 'tokens' ? (
+                isLoadingTokens && filteredTokens.length === 0 ? (
+                  // Loading skeletons
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-center justify-between p-2 rounded hover:bg-muted/50">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className="w-8 h-8 rounded-full bg-muted animate-pulse"></div>
+                        <div className="flex flex-col gap-1">
+                          <div className="h-4 w-16 bg-muted animate-pulse rounded"></div>
+                          <div className="h-3 w-24 bg-muted animate-pulse rounded"></div>
+                        </div>
                       </div>
+                      <div className="h-4 w-16 bg-muted animate-pulse rounded"></div>
                     </div>
-                    <div className="h-4 w-16 bg-muted animate-pulse rounded"></div>
+                  ))
+                ) : filteredTokens.length === 0 ? (
+                  <EmptyState
+                    type="tokens"
+                    chain={walletView === 'solana' ? 'solana' : 'evm'}
+                  />
+                ) : (
+                  // Token list
+                  filteredTokens.map((token, index) => (
+                    <button
+                      key={`${token.chain}-${token.contractAddress || token.symbol}-${index}`}
+                      onClick={() => {
+                        onActionClick?.();
+                        showModal(
+                          <TokenDetailModalContent token={token as any} />,
+                          'token-detail-modal',
+                          { closeOnBackdropClick: true, className: 'max-w-2xl' }
+                        );
+                      }}
+                      className="w-full flex items-center justify-between p-2 rounded hover:bg-muted/50 transition-colors min-w-0 cursor-pointer text-left"
+                    >
+                      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                          {renderTokenIcon(token)}
+                        </div>
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                            <span className="text-xs sm:text-sm font-medium truncate">{token.symbol}</span>
+                            <span className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase font-mono whitespace-nowrap">
+                              {token.chain}
+                            </span>
+                          </div>
+                          <span className="text-xs text-muted-foreground truncate">
+                            {formatTokenBalance(token.balanceFormatted)}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-xs sm:text-sm font-mono shrink-0 ml-2">
+                        ${formatUsdValue(token.usdValue)}
+                      </span>
+                    </button>
+                  ))
+                )
+              ) : activeTab === 'collections' ? (
+                // NFT List
+                isLoadingNfts ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                   </div>
-                ))
-              ) : filteredTokens.length === 0 ? (
-                <EmptyState
-                  type="tokens"
-                  chain={walletView === 'solana' ? 'solana' : 'evm'}
-                />
-              ) : (
-                // Token list
-                filteredTokens.map((token, index) => (
-                  <button
-                    key={`${token.chain}-${token.contractAddress || token.symbol}-${index}`}
-                    onClick={() => {
-                      onActionClick?.();
-                      showModal(
-                        <TokenDetailModalContent token={token as any} />,
-                        'token-detail-modal',
-                        { closeOnBackdropClick: true, className: 'max-w-2xl' }
-                      );
-                    }}
-                    className="w-full flex items-center justify-between p-2 rounded hover:bg-muted/50 transition-colors min-w-0 cursor-pointer text-left"
-                  >
-                    <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0">
-                        {renderTokenIcon(token)}
+                ) : nfts.length === 0 ? (
+                  <EmptyState type="nfts" />
+                ) : (
+                  // NFT list
+                  nfts.map((nft, index) => (
+                    <button
+                      key={`${nft.chain}-${nft.contractAddress}-${nft.tokenId}-${index}`}
+                      onClick={() => {
+                        onActionClick?.();
+                        showModal(
+                          <NFTDetailModalContent
+                            nft={nft}
+                            userId={userId}
+                            onSuccess={() => {
+                              fetchNfts();
+                            }}
+                          />,
+                          'nft-detail-modal',
+                          {
+                            closeOnBackdropClick: true,
+                            className: 'max-w-2xl mx-4 shadow-xl',
+                            showCloseButton: false
+                          }
+                        );
+                      }}
+                      className="w-full flex items-center gap-2 sm:gap-3 p-2 rounded hover:bg-muted/50 transition-colors min-w-0 cursor-pointer text-left"
+                    >
+                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-muted flex items-center justify-center overflow-hidden shrink-0 border border-border/30">
+                        <NFTImage imageUrl={nft.image} alt={nft.name} />
                       </div>
                       <div className="flex flex-col min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                          <span className="text-xs sm:text-sm font-medium truncate">{token.symbol}</span>
-                          <span className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase font-mono whitespace-nowrap">
-                            {token.chain}
+                        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                          <span className="text-xs sm:text-sm font-medium truncate flex-1 min-w-0">{nft.name}</span>
+                          <span className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase font-mono whitespace-nowrap shrink-0">
+                            {nft.chain}
                           </span>
                         </div>
                         <span className="text-xs text-muted-foreground truncate">
-                          {formatTokenBalance(token.balanceFormatted)}
+                          {nft.contractName}
                         </span>
-                      </div>
-                    </div>
-                    <span className="text-xs sm:text-sm font-mono shrink-0 ml-2">
-                      ${formatUsdValue(token.usdValue)}
-                    </span>
-                  </button>
-                ))
-              )
-            ) : activeTab === 'collections' ? (
-              // NFT List
-              isLoadingNfts ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              ) : nfts.length === 0 ? (
-                <EmptyState type="nfts" />
-              ) : (
-                // NFT list
-                nfts.map((nft, index) => (
-                  <button
-                    key={`${nft.chain}-${nft.contractAddress}-${nft.tokenId}-${index}`}
-                    onClick={() => {
-                      onActionClick?.();
-                      showModal(
-                        <NFTDetailModalContent
-                          nft={nft}
-                          userId={userId}
-                          onSuccess={() => {
-                            fetchNfts();
-                          }}
-                        />,
-                        'nft-detail-modal',
-                        {
-                          closeOnBackdropClick: true,
-                          className: 'max-w-2xl mx-4 shadow-xl',
-                          showCloseButton: false
-                        }
-                      );
-                    }}
-                    className="w-full flex items-center gap-2 sm:gap-3 p-2 rounded hover:bg-muted/50 transition-colors min-w-0 cursor-pointer text-left"
-                  >
-                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-muted flex items-center justify-center overflow-hidden shrink-0 border border-border/30">
-                      <NFTImage imageUrl={nft.image} alt={nft.name} />
-                    </div>
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                        <span className="text-xs sm:text-sm font-medium truncate flex-1 min-w-0">{nft.name}</span>
-                        <span className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase font-mono whitespace-nowrap shrink-0">
-                          {nft.chain}
-                        </span>
-                      </div>
-                      <span className="text-xs text-muted-foreground truncate">
-                        {nft.contractName}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground/70 font-mono">
-                          #{nft.tokenId}
-                        </span>
-                        {nft.balance && nft.tokenType === 'ERC1155' && (
-                          <>
-                            <span className="text-[10px] text-muted-foreground/70">•</span>
-                            <span className="text-[10px] text-muted-foreground/70">
-                              x{nft.balance}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                ))
-              )
-            ) : (
-              // Transaction History
-              isLoadingHistory ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              ) : transactions.length === 0 ? (
-                <EmptyState type="transactions" />
-              ) : (
-                <div className="space-y-3">
-                  {orderedDates.map((date) => {
-                    const txs = groupedTransactions[date];
-                    return (
-                      <div key={date}>
-                        <div className="sticky top-0 bg-background/95  text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1">
-                          {date}
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground/70 font-mono">
+                            #{nft.tokenId}
+                          </span>
+                          {nft.balance && nft.tokenType === 'ERC1155' && (
+                            <>
+                              <span className="text-[10px] text-muted-foreground/70">•</span>
+                              <span className="text-[10px] text-muted-foreground/70">
+                                x{nft.balance}
+                              </span>
+                            </>
+                          )}
                         </div>
-                        <div className="space-y-1">
-                          {txs.map((tx, index) => {
-                            const isReceived = tx.direction === 'received';
-                            const amount = parseFloat(tx.value || '0');
+                      </div>
+                    </button>
+                  ))
+                )
+              ) : (
+                // Transaction History
+                isLoadingHistory ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                ) : transactions.length === 0 ? (
+                  <EmptyState type="transactions" />
+                ) : (
+                  <div className="space-y-3">
+                    {orderedDates.map((date) => {
+                      const txs = groupedTransactions[date];
+                      return (
+                        <div key={date}>
+                          <div className="sticky top-0 bg-background/95  text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1">
+                            {date}
+                          </div>
+                          <div className="space-y-1">
+                            {txs.map((tx, index) => {
+                              const isReceived = tx.direction === 'received';
+                              const amount = parseFloat(tx.value || '0');
 
-                            let amountStr = amount.toFixed(4);
-                            if (amountStr.length > 10) {
-                              amountStr = amount.toFixed(2);
-                            }
+                              let amountStr = amount.toFixed(4);
+                              if (amountStr.length > 10) {
+                                amountStr = amount.toFixed(2);
+                              }
 
-                            return (
-                              <a
-                                key={`${tx.hash}-${index}`}
-                                href={tx.explorerUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="w-full flex items-center justify-between p-2 rounded hover:bg-muted/50 transition-colors text-left cursor-pointer"
-                              >
-                                <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0">
-                                    {renderTransactionIcon(tx)}
-                                  </div>
-                                  <div className="flex flex-col min-w-0 flex-1">
-                                    <div className="flex items-center gap-1.5 sm:gap-2">
-                                      <span className="text-xs sm:text-sm font-medium truncate">
-                                        {isReceived ? 'Received' : 'Sent'}
-                                      </span>
-                                      <span className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase font-mono whitespace-nowrap shrink-0">
-                                        {tx.chain}
+                              return (
+                                <a
+                                  key={`${tx.hash}-${index}`}
+                                  href={tx.explorerUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="w-full flex items-center justify-between p-2 rounded hover:bg-muted/50 transition-colors text-left cursor-pointer"
+                                >
+                                  <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                                      {renderTransactionIcon(tx)}
+                                    </div>
+                                    <div className="flex flex-col min-w-0 flex-1">
+                                      <div className="flex items-center gap-1.5 sm:gap-2">
+                                        <span className="text-xs sm:text-sm font-medium truncate">
+                                          {isReceived ? 'Received' : 'Sent'}
+                                        </span>
+                                        <span className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase font-mono whitespace-nowrap shrink-0">
+                                          {tx.chain}
+                                        </span>
+                                      </div>
+                                      <span className="text-xs text-muted-foreground truncate">
+                                        {isReceived
+                                          ? `From: ${tx.from?.slice(0, 6)}...${tx.from?.slice(-4)}`
+                                          : `To: ${tx.to?.slice(0, 6)}...${tx.to?.slice(-4)}`
+                                        }
                                       </span>
                                     </div>
-                                    <span className="text-xs text-muted-foreground truncate">
-                                      {isReceived
-                                        ? `From: ${tx.from?.slice(0, 6)}...${tx.from?.slice(-4)}`
-                                        : `To: ${tx.to?.slice(0, 6)}...${tx.to?.slice(-4)}`
-                                      }
+                                  </div>
+                                  <div className="flex flex-col items-end shrink-0 ml-2" style={{ maxWidth: '35%', minWidth: 0 }}>
+                                    <span className={`text-xs sm:text-sm font-mono font-medium overflow-hidden text-ellipsis whitespace-nowrap w-full text-right ${isReceived ? 'text-green-500' : 'text-red-500'
+                                      }`} title={`${isReceived ? '+' : '-'}${amount.toFixed(8)} ${tx.asset}`}>
+                                      {isReceived ? '+' : '-'}{amountStr}
+                                    </span>
+                                    <span className="text-[10px] sm:text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap w-full text-right" title={tx.asset}>
+                                      {tx.asset}
                                     </span>
                                   </div>
-                                </div>
-                                <div className="flex flex-col items-end shrink-0 ml-2" style={{ maxWidth: '35%', minWidth: 0 }}>
-                                  <span className={`text-xs sm:text-sm font-mono font-medium overflow-hidden text-ellipsis whitespace-nowrap w-full text-right ${
-                                    isReceived ? 'text-green-500' : 'text-red-500'
-                                  }`} title={`${isReceived ? '+' : '-'}${amount.toFixed(8)} ${tx.asset}`}>
-                                    {isReceived ? '+' : '-'}{amountStr}
-                                  </span>
-                                  <span className="text-[10px] sm:text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap w-full text-right" title={tx.asset}>
-                                    {tx.asset}
-                                  </span>
-                                </div>
-                              </a>
-                            );
-                          })}
+                                </a>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )
-            )}
+                      );
+                    })}
+                  </div>
+                )
+              )}
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
     </>
   );
 }

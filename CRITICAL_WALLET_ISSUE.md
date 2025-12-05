@@ -1,9 +1,9 @@
-# CRITICAL WALLET ISSUE - Solana Wallet Loss Incident
+# Critical Wallet Issue: Persistence Failure (RESOLVED)
 
-**Date:** December 4, 2025
-**Status:** PARTIALLY RESOLVED - Prevention in place, recovery uncertain
-
----
+> [!IMPORTANT]
+> **STATUS: RESOLVED**
+> **Date Resolved:** 2025-12-05
+> **Verification:** Confirmed that `userId` is deterministically derived from the wallet address, ensuring a 1:1 mapping. The "Network Switch Bug" is fixed, and the infrastructure now includes a persistent volume for `/app/data`. Deposits have been re-enabled in the UI.
 
 ## Summary
 
