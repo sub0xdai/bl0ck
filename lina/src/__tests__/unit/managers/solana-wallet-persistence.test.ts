@@ -32,11 +32,11 @@ describe('SolanaTransactionManager Persistence', () => {
         process.env.SOLANA_WALLET_SECRET = TEST_SECRET;
         process.env.SOLANA_NETWORK = 'solana-devnet';
         // No database by default (tests file fallback)
-        delete process.env.POSTGRES_URL;
+        delete process.env.WALLET_DB_URL;
 
         // Reset singleton instances
         (SolanaTransactionManager as any).instance = null;
-        (WalletRepository as any).instance = null;
+        WalletRepository.resetInstance();
         manager = SolanaTransactionManager.getInstance();
 
         // Reset mocks
@@ -50,7 +50,7 @@ describe('SolanaTransactionManager Persistence', () => {
 
     afterEach(() => {
         // Clean up
-        delete process.env.POSTGRES_URL;
+        delete process.env.WALLET_DB_URL;
     });
 
     describe('Encryption', () => {
@@ -150,16 +150,16 @@ describe('SolanaTransactionManager Persistence', () => {
     });
 
     describe('WalletRepository', () => {
-        it('should return not configured when POSTGRES_URL is not set', () => {
-            delete process.env.POSTGRES_URL;
-            (WalletRepository as any).instance = null;
+        it('should return not configured when WALLET_DB_URL is not set', () => {
+            delete process.env.WALLET_DB_URL;
+            WalletRepository.resetInstance();
             const repo = WalletRepository.getInstance();
             expect(repo.isConfigured()).toBe(false);
         });
 
-        it('should return configured when POSTGRES_URL is set', () => {
-            process.env.POSTGRES_URL = 'postgres://test:test@localhost:5432/test';
-            (WalletRepository as any).instance = null;
+        it('should return configured when WALLET_DB_URL is set', () => {
+            process.env.WALLET_DB_URL = 'postgres://test:test@localhost:5432/test';
+            WalletRepository.resetInstance();
             const repo = WalletRepository.getInstance();
             expect(repo.isConfigured()).toBe(true);
         });
@@ -174,8 +174,8 @@ describe('SolanaTransactionManager Persistence', () => {
     describe('Database Priority', () => {
         it('should prefer database over file storage when configured', async () => {
             // This test verifies the logic flow - actual DB calls would need integration tests
-            process.env.POSTGRES_URL = 'postgres://test:test@localhost:5432/test';
-            (WalletRepository as any).instance = null;
+            process.env.WALLET_DB_URL = 'postgres://test:test@localhost:5432/test';
+            WalletRepository.resetInstance();
             (SolanaTransactionManager as any).instance = null;
 
             const newManager = SolanaTransactionManager.getInstance();
@@ -185,8 +185,8 @@ describe('SolanaTransactionManager Persistence', () => {
         });
 
         it('should fall back to file storage when database not configured', async () => {
-            delete process.env.POSTGRES_URL;
-            (WalletRepository as any).instance = null;
+            delete process.env.WALLET_DB_URL;
+            WalletRepository.resetInstance();
             (SolanaTransactionManager as any).instance = null;
 
             const newManager = SolanaTransactionManager.getInstance();

@@ -6,9 +6,10 @@ services:
     image: lina-agent
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
-      # Add other necessary env vars here or use .env file
     volumes:
       # CRITICAL: Persist wallet data
       - lina-data:/app/data

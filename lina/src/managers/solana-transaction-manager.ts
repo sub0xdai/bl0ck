@@ -93,6 +93,7 @@ export class SolanaTransactionManager {
 
   // Database-backed wallet storage (primary)
   private walletRepository: WalletRepository;
+  private walletRepositoryInitPromise: Promise<void> | null = null;
 
   // Transaction configuration (Task 1.5)
   private readonly MIN_SOL_BUFFER = 0.01 * LAMPORTS_PER_SOL; // 0.01 SOL for fees/rent
@@ -113,10 +114,11 @@ export class SolanaTransactionManager {
 
   /**
    * Initialize the wallet repository (database)
-   * Runs async but doesn't block constructor
+   * Stores promise to await before first wallet operation
    */
   private initializeWalletRepository(): void {
-    this.walletRepository.initialize().catch((error) => {
+    this.walletRepositoryInitPromise = this.walletRepository.initialize();
+    this.walletRepositoryInitPromise.catch((error) => {
       logger.error(
         '[SolanaTransactionManager] Failed to initialize wallet repository:',
         error instanceof Error ? error.message : String(error)
@@ -459,6 +461,11 @@ export class SolanaTransactionManager {
     keypair: Keypair;
   }> {
     logger.info(`[SolanaTransactionManager] Getting/creating wallet for user: ${userId.substring(0, 8)}...`);
+
+    // Wait for repository initialization before any wallet operations
+    if (this.walletRepositoryInitPromise) {
+      await this.walletRepositoryInitPromise;
+    }
 
     // Check cache first
     const cached = this.getCachedData(userId, this.walletsCache);
