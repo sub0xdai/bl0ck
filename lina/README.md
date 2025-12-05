@@ -36,6 +36,7 @@ This is a monorepo workspace project built with:
 - **Runtime**: Bun 1.2.21
 - **Frontend**: React 18 + TypeScript + Vite
 - **Backend**: Custom ElizaOS Server build (based on @elizaos/server)
+- **Database**: Supabase (PostgreSQL) - wallet persistence
 - **Build System**: Turbo
 - **Styling**: Tailwind CSS 4.x
 - **UI Components**: Radix UI
