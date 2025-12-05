@@ -204,9 +204,10 @@ export class CdpHyperliquidSigner {
     const walletClient = await this.getWalletClient();
 
     const signature = await walletClient.signTypedData({
+      account: walletClient.account!,
       domain: PHANTOM_DOMAIN,
       types: AGENT_TYPES,
-      primaryType: 'Agent',
+      primaryType: 'Agent' as const,
       message: phantomAgent,
     });
 
@@ -240,11 +241,12 @@ export class CdpHyperliquidSigner {
     const walletClient = await this.getWalletClient();
 
     const signature = await walletClient.signTypedData({
+      account: walletClient.account!,
       domain,
       types,
       primaryType,
       message: action,
-    });
+    } as any);
 
     return splitSignature(signature as Hex);
   }

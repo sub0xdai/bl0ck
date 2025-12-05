@@ -898,11 +898,10 @@ const syncSingleUser = async (
         | string,
       source,
       channelId,
-      serverId,
       type,
       worldId,
       metadata: worldMetadata,
-    });
+    } as Parameters<typeof runtime.ensureConnection>[0]);
 
     // Verify the world was created with proper metadata
     try {

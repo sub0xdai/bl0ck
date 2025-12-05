@@ -217,8 +217,8 @@ export class HyperliquidCdpClient {
       return this.marketsCache;
     }
 
-    const response = await this.makeInfoRequest({ type: 'meta' });
-    this.marketsCache = response.universe;
+    const response = await this.makeInfoRequest({ type: 'meta' }) as { universe: Market[] };
+    this.marketsCache = response.universe ?? [];
 
     // Build asset index cache
     this.marketsCache.forEach((market: Market, index: number) => {

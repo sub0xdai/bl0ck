@@ -208,10 +208,11 @@ export class CdpTransactionManager {
           key: apiKeySecret,
           format: 'pem',
         });
-        apiKeySecret = keyObject.export({
+        const exported = keyObject.export({
           type: 'pkcs8',
           format: 'pem',
         });
+        apiKeySecret = typeof exported === 'string' ? exported : exported.toString('utf-8');
         logger.info('[CdpTransactionManager] Converted API key from SEC1 to PKCS8 format');
       } catch (conversionError) {
         logger.error('[CdpTransactionManager] Failed to convert API key format:', conversionError instanceof Error ? conversionError.message : String(conversionError));
@@ -427,6 +428,9 @@ export class CdpTransactionManager {
     const chainConfig = getChainConfig(network);
     if (!chainConfig) {
       throw new Error(`Unsupported network: ${network}`);
+    }
+    if (chainConfig.chainType !== 'evm') {
+      throw new Error(`Network ${network} is not an EVM chain`);
     }
     const chain = chainConfig.chain;
 
