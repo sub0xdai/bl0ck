@@ -275,6 +275,31 @@ const message = await elizaClient.messaging.postMessage(channelId, text);
 const messages = await elizaClient.messaging.getMessagesForChannel(channelId);
 ```
 
+### Wallet Persistence (Solana)
+
+Solana wallets are persisted to PostgreSQL via `WalletRepository` to survive server rebuilds.
+
+**Configuration:**
+- Set `WALLET_DB_URL` in `.env` (NOT `POSTGRES_URL` - that's for ElizaOS)
+- Uses Supabase Transaction Pooler for IPv4 compatibility
+- Connection string format: `postgresql://postgres.[project]:[password]@aws-X-region.pooler.supabase.com:6543/postgres`
+
+**Important:**
+- URL-encode special characters in password (`^` → `%5E`, `#` → `%23`, `$` → `%24`)
+- Use Transaction Pooler (port 6543), NOT Direct Connection (IPv6 only)
+- Table `solana_wallets` is auto-created on first run
+
+**Architecture:**
+- `WalletRepository` (`src/repositories/wallet-repository.ts`) - Singleton with connection pooling
+- `SolanaTransactionManager` awaits repository initialization before wallet operations
+- Falls back to file storage (`data/solana-wallets.json`) if `WALLET_DB_URL` not set
+
+**Verify persistence:**
+```bash
+# Check database connection
+WALLET_DB_URL="..." bun -e "const{Pool}=require('pg');new Pool({connectionString:process.env.WALLET_DB_URL}).query('SELECT COUNT(*) FROM solana_wallets').then(r=>console.log(r.rows[0]))"
+```
+
 ## Troubleshooting
 
 ### Build Failures
@@ -316,8 +341,10 @@ SERVER_PORT=3001
 - `src/frontend/App.tsx` - Main React app with CDP integration
 - `src/frontend/lib/elizaClient.ts` - API client singleton
 - `src/frontend/lib/socketManager.ts` - WebSocket manager
+- `src/repositories/wallet-repository.ts` - PostgreSQL wallet persistence
+- `src/managers/solana-transaction-manager.ts` - Solana wallet/transaction management
 - `build.ts` - Backend build script (Bun.build)
-- `start-server.ts` - Server startup with custom UI path
+- `start-server.ts` - Server startup with custom UI path (loads dotenv first)
 - `vite.config.ts` - Frontend build config
 - `turbo.json` - Monorepo task orchestration
 - `.env.sample` - Canonical environment variable reference

@@ -3,6 +3,9 @@
  * Custom server start script that uses our custom UI
  */
 
+// CRITICAL: Load .env FIRST before any module imports that use process.env
+import 'dotenv/config';
+
 import { AgentServer, loadCharacters } from '@elizaos/server';
 import path from 'path';
 import { fileURLToPath } from 'url';
