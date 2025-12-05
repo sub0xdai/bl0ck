@@ -487,15 +487,13 @@ export class SolanaTransactionManager {
           this.saveWalletStorage(storage);
         }
       } catch (error) {
-        // Decryption failed - regenerate wallet
-        logger.warn(
-          `[SolanaTransactionManager] Failed to decrypt wallet, generating new one:`,
+        // CRITICAL: Do NOT regenerate wallet on decryption failure.
+        // This would cause permanent loss of funds in the existing wallet.
+        logger.error(
+          `[SolanaTransactionManager] FATAL: Failed to decrypt wallet for user ${userId}:`,
           error instanceof Error ? error.message : String(error)
         );
-        keypair = Keypair.generate();
-
-        // Update storage with new wallet
-        this.saveWalletWithEncryption(userId, keypair, storage);
+        throw new Error(`Failed to decrypt wallet. Please check SOLANA_WALLET_SECRET. Original error: ${error instanceof Error ? error.message : String(error)}`);
       }
     } else {
       // Generate new wallet
