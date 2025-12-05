@@ -1,5 +1,9 @@
 import { logger } from '@elizaos/core';
 import type { Pool, PoolClient } from 'pg';
+import dns from 'dns';
+
+// Force IPv4 resolution - fixes ENOTFOUND in containers with IPv6 DNS but no IPv6 routing
+dns.setDefaultResultOrder('ipv4first');
 
 /**
  * Encrypted wallet data structure (matches existing file-based format)
