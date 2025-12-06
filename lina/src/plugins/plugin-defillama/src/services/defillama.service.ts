@@ -189,11 +189,8 @@ export class DefiLlamaService extends Service {
       if (!Number.isNaN(parsed) && parsed >= 0) this.yieldsTtlMs = parsed;
     }
 
-    // Load both caches in parallel
-    await Promise.all([
-      this.loadIndex(),
-      this.loadYieldsPools()
-    ]);
+    // Lazy load caches on first use (don't block startup)
+    logger.info("[DefiLlama] Service initialized (indices will load on first query)");
   }
 
   async stop(): Promise<void> {}

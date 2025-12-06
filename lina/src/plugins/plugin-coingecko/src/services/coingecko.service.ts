@@ -82,7 +82,8 @@ export class CoinGeckoService extends Service {
   async initialize(runtime: IAgentRuntime): Promise<void> {
     // Prefer runtime settings, fallback to env
     this.proApiKey = (runtime.getSetting("COINGECKO_API_KEY") as string) || process.env.COINGECKO_API_KEY;
-    await this.loadCoinsIndex();
+    // Lazy load coins index on first use (don't block startup)
+    logger.info("[CoinGecko] Service initialized (coins index will load on first query)");
   }
 
   async stop(): Promise<void> {}
@@ -318,7 +319,14 @@ export class CoinGeckoService extends Service {
     }
   }
 
+  private async ensureCoinsIndexLoaded(): Promise<void> {
+    if (this.coinsCache.length === 0) {
+      await this.loadCoinsIndex();
+    }
+  }
+
   private async resolveCandidates(input: string): Promise<TokenMetadataCandidate[]> {
+    await this.ensureCoinsIndexLoaded();
     const query = (input || "").trim().toLowerCase();
     if (!query) {
       return [];
