@@ -206,8 +206,11 @@ export class DriftService extends Service {
       }
 
       // Get market info and oracle price
-      const marketAccount = await client.getMarketAccountAndSlot(marketIndex);
-      const oraclePrice = marketAccount.data.amm.historicalOracleData.lastOraclePrice;
+      const marketAccount = client.getPerpMarketAccount(marketIndex);
+      if (!marketAccount) {
+        throw new Error(`Market account not found for index ${marketIndex}`);
+      }
+      const oraclePrice = marketAccount.amm.historicalOracleData.lastOraclePrice;
 
       // Calculate required collateral
       const leverage = params.leverage || CONFIG.DEFAULT_LEVERAGE;
@@ -237,7 +240,7 @@ export class DriftService extends Service {
         marketType: MarketType.PERP,
       });
 
-      const txSig = await client.openPosition(orderParams);
+      const txSig = await client.placeAndTakePerpOrder(orderParams);
       await this.connection!.confirmTransaction(txSig, 'confirmed');
 
       // Get updated position
@@ -345,8 +348,11 @@ export class DriftService extends Service {
     }
 
     // Get oracle price
-    const marketAccount = await client.getMarketAccountAndSlot(marketIndex);
-    const oraclePrice = marketAccount.data.amm.historicalOracleData.lastOraclePrice;
+    const marketAccount = client.getPerpMarketAccount(marketIndex);
+    if (!marketAccount) {
+      return null;
+    }
+    const oraclePrice = marketAccount.amm.historicalOracleData.lastOraclePrice;
 
     // Calculate entry price
     const entryPrice = position.quoteAssetAmount.abs()
@@ -392,7 +398,7 @@ export class DriftService extends Service {
       subAccountId: userAccount.subAccountId,
       collateral: user.getTotalCollateral().toString(),
       freeCollateral: user.getFreeCollateral().toString(),
-      totalPositionValue: user.getTotalPerpPositionValue().toString(),
+      totalPositionValue: user.getTotalAssetValue().toString(),
       unrealizedPnl: user.getUnrealizedPNL().toString(),
       marginRatio: '0', // TODO: Calculate from user account
       leverage: user.getLeverage() / 10000,
@@ -445,9 +451,17 @@ export class DriftService extends Service {
         };
       }
 
+      // Get user's USDC ATA for deposit
+      const walletInfo = await this.solanaManager.getOrCreateWallet(userId);
+      const usdcAta = getAssociatedTokenAddressSync(
+        new PublicKey(MINTS.USDC),
+        walletInfo.keypair.publicKey
+      );
+
       // Deposit USDC from wallet to Drift (amount in base units - 6 decimals)
+      // marketIndex 0 = USDC spot market
       const depositAmount = new BN(amount * 1_000_000);
-      const txSig = await client.deposit(depositAmount);
+      const txSig = await client.deposit(depositAmount, 0, usdcAta);
 
       await this.connection!.confirmTransaction(txSig, 'confirmed');
 

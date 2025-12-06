@@ -195,6 +195,11 @@ export const settingsProvider: Provider = {
 
         serverId = world.serverId;
 
+        if (!serverId) {
+          logger.error('World has no serverId during onboarding');
+          throw new Error('World missing serverId for onboarding');
+        }
+
         // Fetch world settings based on the server ID
         try {
           worldSettings = await getWorldSettings(runtime, serverId);

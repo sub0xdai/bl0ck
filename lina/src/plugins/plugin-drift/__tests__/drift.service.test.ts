@@ -74,7 +74,8 @@ const mockGetUser = mock(() => ({
   }),
   getFreeCollateral: () => new MockBN(50000000), // $50
   getTotalCollateral: () => new MockBN(100000000), // $100
-  getTotalPerpPositionValue: () => new MockBN(200000000), // $200
+  getTotalPerpPositionValue: () => new MockBN(200000000),
+  getTotalAssetValue: () => new MockBN(200000000), // $200
   getUnrealizedPNL: () => new MockBN(5000000), // $5
   getLeverage: () => 50000 as number, // 5x (in basis points: 5 * 10000)
   subscribe: mock(() => Promise.resolve()),
@@ -84,12 +85,10 @@ const mockInitializeUserAccount = mock(() => Promise.resolve('mockTxSig123'));
 const mockDeposit = mock(() => Promise.resolve('mockDepositTx'));
 const mockOpenPosition = mock(() => Promise.resolve('mockPositionTx'));
 const mockClosePosition = mock(() => Promise.resolve('mockCloseTx'));
-const mockGetMarketAccountAndSlot = mock(() => ({
-  data: {
-    amm: {
-      historicalOracleData: {
-        lastOraclePrice: BigInt(67000000000), // $67,000
-      },
+const mockGetPerpMarketAccount = mock(() => ({
+  amm: {
+    historicalOracleData: {
+      lastOraclePrice: BigInt(67000000000), // $67,000
     },
   },
 }));
@@ -104,9 +103,9 @@ mock.module('@drift-labs/sdk', () => ({
     getUser = mockGetUser;
     initializeUserAccount = mockInitializeUserAccount;
     deposit = mockDeposit;
-    openPosition = mockOpenPosition;
+    placeAndTakePerpOrder = mockOpenPosition;
     closePosition = mockClosePosition;
-    getMarketAccountAndSlot = mockGetMarketAccountAndSlot;
+    getPerpMarketAccount = mockGetPerpMarketAccount;
   },
   Wallet: class {
     constructor(public keypair: any) { }
@@ -242,6 +241,7 @@ const resetMocksToDefault = () => {
     getFreeCollateral: () => new MockBN(50000000),
     getTotalCollateral: () => new MockBN(100000000),
     getTotalPerpPositionValue: () => new MockBN(200000000),
+  getTotalAssetValue: () => new MockBN(200000000),
     getUnrealizedPNL: () => new MockBN(5000000),
     getLeverage: () => 50000 as number,
     subscribe: mock(() => Promise.resolve()),
@@ -386,6 +386,7 @@ describe('DriftService - Client Management (Per-User Isolation)', () => {
       getFreeCollateral: () => new MockBN(50000000),
       getTotalCollateral: () => new MockBN(100000000),
       getTotalPerpPositionValue: () => new MockBN(200000000),
+  getTotalAssetValue: () => new MockBN(200000000),
       getUnrealizedPNL: () => new MockBN(5000000),
       getLeverage: () => 50000,
       subscribe: mock(() => Promise.resolve()),
@@ -417,6 +418,7 @@ describe('DriftService - Client Management (Per-User Isolation)', () => {
       getFreeCollateral: () => new MockBN(50000000),
       getTotalCollateral: () => new MockBN(100000000),
       getTotalPerpPositionValue: () => new MockBN(200000000),
+  getTotalAssetValue: () => new MockBN(200000000),
       getUnrealizedPNL: () => new MockBN(5000000),
       getLeverage: () => 50000,
       subscribe: mock(() => Promise.resolve()),
@@ -819,6 +821,7 @@ describe('DriftService - Position Operations', () => {
       getFreeCollateral: () => new MockBN(50000000),
       getTotalCollateral: () => new MockBN(100000000),
       getTotalPerpPositionValue: () => new MockBN(200000000),
+  getTotalAssetValue: () => new MockBN(200000000),
       getUnrealizedPNL: () => new MockBN(5000000),
       getLeverage: () => 50000,
       subscribe: mock(() => Promise.resolve()),
@@ -876,6 +879,7 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       getFreeCollateral: () => new MockBN(10000000), // $10 - insufficient for $20 margin
       getTotalCollateral: () => new MockBN(10000000),
       getTotalPerpPositionValue: () => new MockBN(0),
+  getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
       subscribe: mock(() => Promise.resolve()),
@@ -925,6 +929,7 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       getFreeCollateral: () => new MockBN(100000000), // $100 USDC - sufficient
       getTotalCollateral: () => new MockBN(100000000),
       getTotalPerpPositionValue: () => new MockBN(0),
+  getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
       subscribe: mock(() => Promise.resolve()),
@@ -968,6 +973,7 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       getFreeCollateral: () => new MockBN(0), // $0 - needs swap
       getTotalCollateral: () => new MockBN(0),
       getTotalPerpPositionValue: () => new MockBN(0),
+  getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
       subscribe: mock(() => Promise.resolve()),
@@ -1006,6 +1012,7 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       getFreeCollateral: () => new MockBN(0), // $0 - needs swap
       getTotalCollateral: () => new MockBN(0),
       getTotalPerpPositionValue: () => new MockBN(0),
+  getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
       subscribe: mock(() => Promise.resolve()),
@@ -1047,6 +1054,7 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       getFreeCollateral: () => new MockBN(0), // $0 - needs swap
       getTotalCollateral: () => new MockBN(0),
       getTotalPerpPositionValue: () => new MockBN(0),
+  getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
       subscribe: mock(() => Promise.resolve()),
@@ -1088,6 +1096,7 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       getFreeCollateral: () => new MockBN(0), // $0
       getTotalCollateral: () => new MockBN(0),
       getTotalPerpPositionValue: () => new MockBN(0),
+  getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
       subscribe: mock(() => Promise.resolve()),
@@ -1131,6 +1140,7 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       getFreeCollateral: () => new MockBN(0), // $0 - needs swap
       getTotalCollateral: () => new MockBN(0),
       getTotalPerpPositionValue: () => new MockBN(0),
+  getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
       subscribe: mock(() => Promise.resolve()),
@@ -1175,6 +1185,7 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       getFreeCollateral: () => new MockBN(0), // $0 - needs swap
       getTotalCollateral: () => new MockBN(0),
       getTotalPerpPositionValue: () => new MockBN(0),
+  getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
       subscribe: mock(() => Promise.resolve()),
@@ -1238,6 +1249,7 @@ describe('DriftService - Query Operations', () => {
       getFreeCollateral: () => new MockBN(50000000),
       getTotalCollateral: () => new MockBN(100000000),
       getTotalPerpPositionValue: () => new MockBN(200000000),
+  getTotalAssetValue: () => new MockBN(200000000),
       getUnrealizedPNL: () => new MockBN(5000000),
       getLeverage: () => 50000,
       subscribe: mock(() => Promise.resolve()),

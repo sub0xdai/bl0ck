@@ -55,6 +55,7 @@ const mockGetUser = mock(() => ({
   getFreeCollateral: () => new MockBN(50000000),
   getTotalCollateral: () => new MockBN(100000000),
   getTotalPerpPositionValue: () => new MockBN(200000000),
+  getTotalAssetValue: () => new MockBN(200000000),
   getUnrealizedPNL: () => new MockBN(5000000),
   getLeverage: () => 50000,
   subscribe: mock(() => Promise.resolve()),
@@ -72,13 +73,11 @@ mock.module('@drift-labs/sdk', () => ({
     getUser = mockGetUser;
     initializeUserAccount = mockInitializeUserAccount;
     deposit = mockDeposit;
-    openPosition = mockOpenPosition;
-    getMarketAccountAndSlot = mock(() => ({
-      data: {
-        amm: {
-          historicalOracleData: {
-            lastOraclePrice: BigInt(67000000000),
-          },
+    placeAndTakePerpOrder = mockOpenPosition;
+    getPerpMarketAccount = mock(() => ({
+      amm: {
+        historicalOracleData: {
+          lastOraclePrice: BigInt(67000000000),
         },
       },
     }));
@@ -194,6 +193,7 @@ const resetMocks = () => {
     getFreeCollateral: () => new MockBN(50000000),
     getTotalCollateral: () => new MockBN(100000000),
     getTotalPerpPositionValue: () => new MockBN(200000000),
+  getTotalAssetValue: () => new MockBN(200000000),
     getUnrealizedPNL: () => new MockBN(5000000),
     getLeverage: () => 50000,
     subscribe: mock(() => Promise.resolve()),

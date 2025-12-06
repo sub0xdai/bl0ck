@@ -55,6 +55,7 @@ const mockGetUser = mock(() => ({
   getFreeCollateral: () => new MockBN(50000000),
   getTotalCollateral: () => new MockBN(100000000),
   getTotalPerpPositionValue: () => new MockBN(200000000),
+  getTotalAssetValue: () => new MockBN(200000000),
   getUnrealizedPNL: () => new MockBN(5000000),
   getLeverage: () => 50000,
   subscribe: mock(() => Promise.resolve()),
@@ -73,14 +74,12 @@ mock.module('@drift-labs/sdk', () => ({
     getUser = mockGetUser;
     initializeUserAccount = mockInitializeUserAccount;
     deposit = mockDeposit;
-    openPosition = mockOpenPosition;
+    placeAndTakePerpOrder = mockOpenPosition;
     closePosition = mockClosePosition;
-    getMarketAccountAndSlot = mock(() => ({
-      data: {
-        amm: {
-          historicalOracleData: {
-            lastOraclePrice: BigInt(67000000000),
-          },
+    getPerpMarketAccount = mock(() => ({
+      amm: {
+        historicalOracleData: {
+          lastOraclePrice: BigInt(67000000000),
         },
       },
     }));
@@ -169,6 +168,7 @@ const resetMocks = () => {
     getFreeCollateral: () => new MockBN(50000000),
     getTotalCollateral: () => new MockBN(100000000),
     getTotalPerpPositionValue: () => new MockBN(200000000),
+  getTotalAssetValue: () => new MockBN(200000000),
     getUnrealizedPNL: () => new MockBN(5000000),
     getLeverage: () => 50000,
     subscribe: mock(() => Promise.resolve()),
@@ -499,6 +499,7 @@ describe('Error Handling - Edge Cases', () => {
       getFreeCollateral: () => new MockBN(50000000),
       getTotalCollateral: () => new MockBN(100000000),
       getTotalPerpPositionValue: () => new MockBN(0),
+  getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
       subscribe: mock(() => Promise.resolve()),
@@ -531,6 +532,7 @@ describe('Error Handling - Edge Cases', () => {
       getFreeCollateral: () => new MockBN(50000000),
       getTotalCollateral: () => new MockBN(100000000),
       getTotalPerpPositionValue: () => new MockBN(0),
+  getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
       subscribe: mock(() => Promise.resolve()),
