@@ -212,10 +212,36 @@ export const jupiterSwap: Action = {
             // Pre-flight: Check balance (force sync to get fresh data before swap)
             const balances = await solanaService.getTokenBalances(userId, true);
 
+            logger.info(`[SOLANA_SWAP] Balance check - tokens found: ${balances.tokens?.length || 0}, symbols: ${balances.tokens?.map(t => t.symbol).join(', ') || 'none'}`);
+
             // Find balance for input token
             let inputBalance: { symbol: string; balance: string; mintAddress?: string | null } | undefined;
             if (inputMint === TOKEN_MINTS.SOL) {
                 inputBalance = balances.tokens.find((t) => t.symbol === "SOL");
+
+                // Fallback: If SOL not in tokens array, fetch directly
+                if (!inputBalance) {
+                    logger.warn(`[SOLANA_SWAP] SOL not in tokens array, fetching directly from RPC`);
+                    try {
+                        const walletAddress = balances.address;
+                        if (walletAddress) {
+                            const { Connection, PublicKey, LAMPORTS_PER_SOL } = await import("@solana/web3.js");
+                            const connection = new Connection(
+                                process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com",
+                                "confirmed"
+                            );
+                            const lamports = await connection.getBalance(new PublicKey(walletAddress));
+                            inputBalance = {
+                                symbol: "SOL",
+                                balance: lamports.toString(),
+                                mintAddress: null,
+                            };
+                            logger.info(`[SOLANA_SWAP] Direct RPC balance: ${lamports / LAMPORTS_PER_SOL} SOL`);
+                        }
+                    } catch (rpcError) {
+                        logger.error(`[SOLANA_SWAP] Direct RPC fetch failed:`, rpcError);
+                    }
+                }
             } else {
                 inputBalance = balances.tokens.find(
                     (t) => t.mintAddress?.toLowerCase() === inputMint.toLowerCase()
@@ -224,7 +250,7 @@ export const jupiterSwap: Action = {
 
             if (!inputBalance) {
                 throw new Error(
-                    `No balance found for token ${inputToken}. You may need to add this token to your wallet.`
+                    `No balance found for token ${inputToken}. Tokens in wallet: ${balances.tokens?.map(t => `${t.symbol}:${t.balance}`).join(', ') || 'none'}. Try syncing your wallet.`
                 );
             }
 
