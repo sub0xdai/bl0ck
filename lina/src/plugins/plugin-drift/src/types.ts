@@ -1,114 +1,101 @@
 /**
- * Drift Protocol Plugin Types
- *
- * Type definitions for Solana perpetual futures trading via Drift Protocol.
+ * Drift Protocol Types
+ * Adapted from Hyperliquid types for Solana perpetuals
  */
 
-// Order types
 export type OrderType = 'market' | 'limit';
 export type PositionSide = 'long' | 'short';
 
-// Position-related types
+/**
+ * Represents an open perpetual position on Drift
+ */
 export interface DriftPosition {
   marketIndex: number;
-  symbol: string;               // 'SOL-PERP', 'BTC-PERP'
+  marketSymbol: string;           // 'SOL-PERP', 'BTC-PERP'
   side: PositionSide;
-  size: string;                 // Base asset amount (BN string)
-  notionalValue: string;        // USD value
+  size: string;                   // Base asset amount
+  notionalValue: string;          // USD value
   entryPrice: string;
   markPrice: string;
   liquidationPrice: string;
   unrealizedPnl: string;
   leverage: number;
   marginUsed: string;
-  timestamp: number;
 }
 
+/**
+ * Represents a perpetual market on Drift
+ */
+export interface DriftMarket {
+  marketIndex: number;
+  symbol: string;                 // 'SOL-PERP'
+  baseAsset: string;              // 'SOL'
+  price: string;
+  volume24h: string;
+  openInterest: string;
+  fundingRate: string;            // Current funding rate
+  maxLeverage: number;
+}
+
+/**
+ * User's Drift account information
+ */
+export interface DriftAccountInfo {
+  authority: string;              // User's Solana pubkey
+  subAccountId: number;
+  collateral: string;             // Total collateral (USDC)
+  freeCollateral: string;         // Available for new positions
+  totalPositionValue: string;
+  unrealizedPnl: string;
+  marginRatio: string;            // Current margin ratio
+  leverage: number;               // Account-level leverage
+}
+
+/**
+ * Parameters for opening a new position
+ */
 export interface OpenPositionParams {
-  userId: string;
-  symbol: string;
+  marketSymbol: string;           // 'SOL-PERP', 'BTC-PERP'
   side: PositionSide;
-  size: number;                 // USD value
-  leverage: number;
-  orderType: OrderType;
-  limitPrice?: number;
+  size: number;                   // In USD
+  leverage?: number;              // Default 1x, max 20x
+  orderType?: OrderType;
+  limitPrice?: number;            // For limit orders
   reduceOnly?: boolean;
 }
 
+/**
+ * Parameters for closing a position
+ */
 export interface ClosePositionParams {
-  userId: string;
-  symbol: string;
-  percentage: number;           // 1-100
-  orderType: OrderType;
-  limitPrice?: number;
+  marketSymbol: string;
+  percentage?: number;            // 1-100, default 100 (full close)
 }
 
+/**
+ * Result of a position operation
+ */
 export interface PositionResult {
   success: boolean;
   position?: DriftPosition;
   txSignature?: string;
-  message: string;
   error?: string;
 }
 
-export interface CloseResult {
+/**
+ * Result of a deposit operation
+ */
+export interface DepositResult {
   success: boolean;
   txSignature?: string;
-  closedSize: string;
-  realizedPnl: string;
-  message: string;
+  amount?: number;
   error?: string;
 }
 
-// Market-related types
-export interface DriftMarket {
-  marketIndex: number;
-  symbol: string;               // 'SOL-PERP'
-  baseAsset: string;            // 'SOL'
-  price: string;
-  volume24h: string;
-  openInterest: string;
-  fundingRate: string;
-  maxLeverage: number;
-}
-
-// Account-related types
-export interface DriftAccountInfo {
-  authority: string;            // User's Solana pubkey
-  subAccountId: number;
-  equity: string;
-  availableBalance: string;
-  marginUsed: string;
-  unrealizedPnl: string;
-  totalPositionValue: string;
-  leverage: number;
-  marginRatio: string;
-}
-
-// Service configuration
-export interface DriftConfig {
-  testnet: boolean;
-  maxLeverage: number;          // Hard cap at 20x
-}
-
-// Validation result type
+/**
+ * Validation result for position parameters
+ */
 export interface ValidationResult {
   valid: boolean;
   errors: string[];
-}
-
-// Action parameter types (for ElizaOS action handlers)
-export interface PerpOpenParams {
-  symbol: string;
-  size: number;
-  leverage?: number;
-  orderType?: OrderType;
-  limitPrice?: number;
-}
-
-export interface PerpCloseParams {
-  symbol: string;
-  percentage?: number;
-  orderType?: OrderType;
-  limitPrice?: number;
 }

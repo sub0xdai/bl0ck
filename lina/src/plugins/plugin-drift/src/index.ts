@@ -1,30 +1,19 @@
 /**
- * Drift Protocol Plugin
- *
- * Enables perpetual futures trading on Solana via Drift Protocol with up to 20x leverage.
- * Supports market and limit orders for opening/closing positions across 30+ markets.
- *
- * Features:
- * - SOL, BTC, ETH, WIF, JUP, BONK, and 25+ more markets
- * - Up to 20x leverage
- * - Market and limit orders
- * - Cross-margin support
- * - Integration with SolanaTransactionManager for wallet management
+ * Drift Protocol Plugin for ElizaOS
+ * Enables Solana perpetual futures trading with up to 20x leverage
  */
 
 import type { Plugin } from '@elizaos/core';
 import { DriftService } from './services/drift.service';
 
-// Actions
-import {
-  driftOpenLong,
-  driftOpenShort,
-  driftClosePosition,
-  driftGetPositions,
-  driftGetMarkets,
-  driftAccountInfo,
-  driftDeposit,
-} from './actions/drift-actions';
+// Actions will be imported as they are implemented
+// import { driftOpenLong } from './actions/drift-open-long';
+// import { driftOpenShort } from './actions/drift-open-short';
+// import { driftClosePosition } from './actions/drift-close-position';
+// import { driftGetPositions } from './actions/drift-get-positions';
+// import { driftGetMarkets } from './actions/drift-get-markets';
+// import { driftAccountInfo } from './actions/drift-account-info';
+// import { driftDeposit } from './actions/drift-deposit';
 
 export const driftPlugin: Plugin = {
   name: 'drift',
@@ -32,33 +21,21 @@ export const driftPlugin: Plugin = {
   evaluators: [],
   providers: [],
   actions: [
-    driftOpenLong,
-    driftOpenShort,
-    driftClosePosition,
-    driftGetPositions,
-    driftGetMarkets,
-    driftAccountInfo,
-    driftDeposit,
+    // Actions will be added as they are implemented
+    // driftOpenLong,
+    // driftOpenShort,
+    // driftClosePosition,
+    // driftGetPositions,
+    // driftGetMarkets,
+    // driftAccountInfo,
+    // driftDeposit,
   ],
   services: [DriftService],
 };
 
 export default driftPlugin;
 
-// Export types for consumers
-export type {
-  DriftPosition,
-  DriftMarket,
-  DriftAccountInfo,
-  OpenPositionParams,
-  ClosePositionParams,
-  PositionResult,
-  CloseResult,
-  DriftConfig,
-  OrderType,
-  PositionSide,
-  ValidationResult,
-} from './types';
-
+// Re-export types for external use
+export * from './types';
+export * from './constants';
 export { DriftService } from './services/drift.service';
-export { SERVICE_CONFIG, ACTION_NAMES, ERROR_MESSAGES, MARKETS, MARKET_SYMBOLS } from './constants';

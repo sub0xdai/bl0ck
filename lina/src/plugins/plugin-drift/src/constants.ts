@@ -1,27 +1,25 @@
 /**
- * Drift Protocol Plugin Constants
+ * Drift Protocol Constants
+ * Contains configuration, market indices, and action names
  */
 
-// Program ID
+// Drift Program ID (same for devnet and mainnet)
 export const DRIFT_PROGRAM_ID = 'dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH';
 
-// Service configuration defaults
-export const SERVICE_CONFIG = {
-  DEFAULT_LEVERAGE: 1,
-  MAX_LEVERAGE: 20,
-  MIN_LEVERAGE: 1,
-  HIGH_RISK_LEVERAGE_THRESHOLD: 5,
-  DEFAULT_SLIPPAGE: 0.5,        // 0.5%
-  CACHE_TTL_MS: 5 * 60 * 1000,  // 5 minutes
-  RETRY_ATTEMPTS: 3,
-  RETRY_DELAY_MS: 1000,
-  MARKETS_DISPLAY_COUNT: 15,    // Max markets to show in list
-  MIN_COLLATERAL: 10,           // $10 minimum
-  SUBACCOUNT_ID: 0,             // Default subaccount
-} as const;
+// Service name for ElizaOS runtime
+export const SERVICE_NAME = 'DRIFT_SERVICE';
 
-// Market indices (Drift mainnet)
-export const MARKETS = {
+/**
+ * CRITICAL: Devnet has different/fewer markets than mainnet
+ * Always use the correct market map based on network
+ */
+export const DEVNET_MARKETS: Record<string, number> = {
+  'SOL-PERP': 0,
+  'BTC-PERP': 1,
+  'ETH-PERP': 2,
+};
+
+export const MAINNET_MARKETS: Record<string, number> = {
   'SOL-PERP': 0,
   'BTC-PERP': 1,
   'ETH-PERP': 2,
@@ -41,66 +39,35 @@ export const MARKETS = {
   'INJ-PERP': 16,
   'LINK-PERP': 17,
   'PEPE-PERP': 18,
-  'TIA-PERP': 19,
-  'SEI-PERP': 20,
-  'ONDO-PERP': 21,
-  'W-PERP': 22,
-  'WLD-PERP': 23,
-  'STRK-PERP': 24,
-  'MEME-PERP': 25,
-  'ORDI-PERP': 26,
-  'DYM-PERP': 27,
-  'BONK-PERP': 28,
-  'POPCAT-PERP': 29,
+  'LDO-PERP': 19,
+  'UNI-PERP': 20,
+  'MKR-PERP': 21,
+  'AAVE-PERP': 22,
+  'CRV-PERP': 23,
+  'SNX-PERP': 24,
+  'NEAR-PERP': 25,
+  'ATOM-PERP': 26,
+  'FTM-PERP': 27,
+  'SEI-PERP': 28,
+  'TIA-PERP': 29,
+};
+
+/**
+ * Service configuration
+ */
+export const CONFIG = {
+  MAX_LEVERAGE: 20,
+  DEFAULT_LEVERAGE: 1,
+  DEFAULT_SLIPPAGE: 0.5,         // 0.5%
+  MIN_COLLATERAL: 10,            // $10 minimum position size
+  MIN_SOL_FOR_INIT: 0.02,        // SOL needed for Drift account initialization
+  SUBACCOUNT_ID: 0,              // Default subaccount
+  HIGH_RISK_LEVERAGE_THRESHOLD: 5, // Warn user above this leverage
 } as const;
 
-export const MARKET_SYMBOLS = Object.keys(MARKETS) as (keyof typeof MARKETS)[];
-
-// Popular markets to show first
-export const POPULAR_MARKETS = [
-  'SOL-PERP',
-  'BTC-PERP',
-  'ETH-PERP',
-  'WIF-PERP',
-  'JUP-PERP',
-  'BONK-PERP',
-  'DOGE-PERP',
-  'AVAX-PERP',
-  'ARB-PERP',
-  'OP-PERP',
-] as const;
-
-// Error messages
-export const ERROR_MESSAGES = {
-  // Validation errors
-  INVALID_SYMBOL: 'Invalid trading symbol',
-  INVALID_SIZE: 'Invalid position size',
-  INVALID_LEVERAGE: 'Leverage must be between 1 and 20',
-  INVALID_LIMIT_PRICE: 'Limit price must be positive',
-  INVALID_PERCENTAGE: 'Close percentage must be between 1 and 100',
-  MIN_COLLATERAL: `Minimum position size is $${SERVICE_CONFIG.MIN_COLLATERAL}`,
-
-  // Execution errors
-  INSUFFICIENT_MARGIN: 'Insufficient margin for this position',
-  POSITION_NOT_FOUND: 'No open position found for this symbol',
-  ORDER_FAILED: 'Order execution failed',
-  ACCOUNT_NOT_INITIALIZED: 'Drift account not initialized',
-
-  // Network errors
-  API_ERROR: 'Drift API error',
-  NETWORK_ERROR: 'Network connection error',
-  RPC_ERROR: 'Solana RPC error',
-} as const;
-
-// Success messages
-export const SUCCESS_MESSAGES = {
-  POSITION_OPENED: 'Position opened successfully',
-  POSITION_CLOSED: 'Position closed successfully',
-  ORDER_PLACED: 'Order placed successfully',
-  ACCOUNT_INITIALIZED: 'Drift account initialized',
-} as const;
-
-// Action names
+/**
+ * Action names for ElizaOS action registration
+ */
 export const ACTION_NAMES = {
   DRIFT_OPEN_LONG: 'DRIFT_OPEN_LONG',
   DRIFT_OPEN_SHORT: 'DRIFT_OPEN_SHORT',
@@ -111,5 +78,45 @@ export const ACTION_NAMES = {
   DRIFT_DEPOSIT: 'DRIFT_DEPOSIT',
 } as const;
 
-// Service name
-export const SERVICE_NAME = 'drift' as const;
+/**
+ * Token mint addresses for auto-collateral swaps
+ */
+export const MINTS = {
+  SOL: 'So11111111111111111111111111111111111111112',
+  USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+} as const;
+
+/**
+ * Error message builders for consistent error handling
+ */
+export const ERRORS = {
+  unknownMarket: (symbol: string, available: string[]) =>
+    'Unknown market: ' + symbol + '. Available: ' + available.join(', '),
+  insufficientCollateral: (required: number, available: number) =>
+    'Insufficient collateral. Need $' + required.toFixed(2) + ', have $' + available.toFixed(2),
+  insufficientSol: (required: number, current: number) =>
+    'Need at least ' + required + ' SOL to initialize Drift account. Current: ' + current.toFixed(4) + ' SOL',
+  noPosition: (symbol: string) =>
+    'No open position in ' + symbol,
+  leverageTooHigh: (requested: number, max: number) =>
+    'Leverage ' + requested + 'x exceeds maximum ' + max + 'x',
+  sizeTooSmall: (size: number, min: number) =>
+    'Position size $' + size + ' is below minimum $' + min,
+  SERVICE_NOT_FOUND: 'Drift service not initialized',
+  JUPITER_NOT_FOUND: 'Jupiter service not available for auto-collateral swap',
+} as const;
+
+/**
+ * Helper to get market symbols for current network
+ */
+export function getMarketSymbols(isDevnet: boolean): string[] {
+  return Object.keys(isDevnet ? DEVNET_MARKETS : MAINNET_MARKETS);
+}
+
+/**
+ * Helper to get market index for a symbol
+ */
+export function getMarketIndex(symbol: string, isDevnet: boolean): number | undefined {
+  const markets = isDevnet ? DEVNET_MARKETS : MAINNET_MARKETS;
+  return markets[symbol];
+}
