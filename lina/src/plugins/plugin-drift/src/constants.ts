@@ -63,6 +63,12 @@ export const CONFIG = {
   MIN_SOL_FOR_INIT: 0.02,        // SOL needed for Drift account initialization
   SUBACCOUNT_ID: 0,              // Default subaccount
   HIGH_RISK_LEVERAGE_THRESHOLD: 5, // Warn user above this leverage
+  // Jupiter auto-swap configuration
+  SWAP_BUFFER_PERCENT: 1.10,     // 10% extra for price movement
+  SWAP_SLIPPAGE_BPS: 50,         // 0.5% slippage tolerance (basis points)
+  ESTIMATED_SOL_PRICE_USD: 200,  // Approximate SOL price for estimation
+  SOL_ESTIMATE_BUFFER: 1.20,     // 20% buffer for SOL estimation
+  MAX_PRICE_IMPACT_PERCENT: 2.0, // Maximum acceptable price impact
 } as const;
 
 /**
@@ -96,6 +102,10 @@ export const ERRORS = {
     'Insufficient collateral. Need $' + required.toFixed(2) + ', have $' + available.toFixed(2),
   insufficientSol: (required: number, current: number) =>
     'Need at least ' + required + ' SOL to initialize Drift account. Current: ' + current.toFixed(4) + ' SOL',
+  insufficientSolForSwap: (required: number, current: number) =>
+    `Insufficient SOL for auto-swap. Need ~${required.toFixed(4)} SOL, have ${current.toFixed(4)} SOL`,
+  priceImpactTooHigh: (impact: string, max: number) =>
+    `Price impact too high: ${impact}% (max: ${max}%). Try a smaller position or wait for better liquidity.`,
   noPosition: (symbol: string) =>
     'No open position in ' + symbol,
   leverageTooHigh: (requested: number, max: number) =>

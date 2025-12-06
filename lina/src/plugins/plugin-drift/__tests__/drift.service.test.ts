@@ -176,11 +176,40 @@ mock.module("@/managers/solana-transaction-manager", () => ({
 
 
 
+// Mock Jupiter Service
+const mockJupiterGetQuote = mock(() => Promise.resolve({
+  inAmount: '500000000',      // 0.5 SOL in lamports
+  outAmount: '55000000',      // 55 USDC (6 decimals)
+  priceImpactPct: '0.1',
+  routePlan: [{ swapInfo: { label: 'Orca' } }],
+}));
+
+const mockJupiterExecuteSwap = mock(() => Promise.resolve({
+  transactionHash: 'mockJupiterSwapTx123',
+  inputToken: 'So11111111111111111111111111111111111111112',
+  outputToken: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+  inputAmount: '500000000',
+  outputAmount: '55000000',
+  priceImpact: '0.1',
+  explorerUrl: 'https://solscan.io/tx/mockJupiterSwapTx123',
+}));
+
+const mockJupiterService = {
+  getQuote: mockJupiterGetQuote,
+  executeSwap: mockJupiterExecuteSwap,
+};
+
 // Mock Runtime
-const createMockRuntime = (settings: Record<string, string | undefined> = {}) => ({
+const createMockRuntime = (settings: Record<string, string | undefined> = {}, options: { jupiterAvailable?: boolean } = {}) => ({
   getSetting: (key: string) => settings[key],
   agentId: 'test-agent-123',
   character: { name: 'Test Lina' },
+  getService: (type: string) => {
+    if (type === 'JUPITER_SERVICE' && options.jupiterAvailable !== false) {
+      return mockJupiterService;
+    }
+    return null;
+  },
 }) as any;
 
 // Helper to reset all mocks to default behavior
@@ -202,6 +231,22 @@ const resetMocksToDefault = () => {
   }));
   mockGetBalance.mockImplementation(() => Promise.resolve(50000000));
   mockInitializeUserAccount.mockImplementation(() => Promise.resolve('mockTxSig123'));
+  // Reset Jupiter mocks
+  mockJupiterGetQuote.mockImplementation(() => Promise.resolve({
+    inAmount: '500000000',
+    outAmount: '55000000',
+    priceImpactPct: '0.1',
+    routePlan: [{ swapInfo: { label: 'Orca' } }],
+  }));
+  mockJupiterExecuteSwap.mockImplementation(() => Promise.resolve({
+    transactionHash: 'mockJupiterSwapTx123',
+    inputToken: 'So11111111111111111111111111111111111111112',
+    outputToken: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    inputAmount: '500000000',
+    outputAmount: '55000000',
+    priceImpact: '0.1',
+    explorerUrl: 'https://solscan.io/tx/mockJupiterSwapTx123',
+  }));
 };
 
 // Global afterEach to reset mocks between tests
@@ -758,25 +803,56 @@ describe('DriftService - Position Operations', () => {
 
 describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
   let service: DriftService;
+  let mainnetService: DriftService;
 
   beforeEach(async () => {
-    const mockRuntime = createMockRuntime({ SOLANA_NETWORK: 'solana-devnet' });
-    service = await DriftService.start(mockRuntime);
+    // Devnet service (default)
+    const devnetRuntime = createMockRuntime({ SOLANA_NETWORK: 'solana-devnet' });
+    service = await DriftService.start(devnetRuntime);
+
+    // Mainnet service for Jupiter tests
+    const mainnetRuntime = createMockRuntime({ SOLANA_NETWORK: 'solana' });
+    mainnetService = await DriftService.start(mainnetRuntime);
+
+    // Clear Jupiter mock call history
+    mockJupiterGetQuote.mockClear();
+    mockJupiterExecuteSwap.mockClear();
   });
 
-  it.skip('should auto-swap SOL to USDC when insufficient collateral (Phase 3 - Jupiter integration)', async () => {
-    // TODO: This test will be enabled when Jupiter swap integration is implemented in Phase 3
-    // Currently, ensureCollateral() only logs a warning but doesn't swap
-    // The test infrastructure for this is complex due to mock state management
+  it('should auto-swap SOL to USDC when insufficient collateral on mainnet', async () => {
+    // Mock: user has only $10 USDC but needs $20 margin for position (size 100 at 5x)
+    mockGetUser.mockImplementation(() => ({
+      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getSpotPosition: () => ({ scaledBalance: BigInt(10000000), marketIndex: 0 }), // $10 USDC
+      getPerpPosition: () => ({
+        baseAssetAmount: new MockBN(0),
+        quoteAssetAmount: new MockBN(0),
+        lastCumulativeFundingRate: new MockBN(0),
+        marketIndex: 0,
+      }),
+      getFreeCollateral: () => new MockBN(10000000), // $10 - insufficient for $20 margin
+      getTotalCollateral: () => new MockBN(10000000),
+      getTotalPerpPositionValue: () => new MockBN(0),
+      getUnrealizedPNL: () => new MockBN(0),
+      getLeverage: () => 0,
+    }));
+
+    // Mock sufficient SOL balance for swap (1 SOL)
+    mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000000));
+
     const params: OpenPositionParams = {
       marketSymbol: 'SOL-PERP',
       side: 'long',
-      size: 50,
+      size: 100, // $100 position at 5x = $20 margin required, user has $10
       leverage: 5,
     };
 
-    const result = await service.openPosition('user-low-collateral', params);
-    expect(result.success).toBe(true); // Will pass once Jupiter integration is done
+    const result = await mainnetService.openPosition('user-low-collateral', params);
+
+    // Jupiter swap should have been called
+    expect(mockJupiterGetQuote).toHaveBeenCalled();
+    expect(mockJupiterExecuteSwap).toHaveBeenCalled();
+    expect(result.success).toBe(true);
   });
 
   it('should deposit USDC to Drift before opening position', async () => {
@@ -791,10 +867,22 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
     expect(mockDeposit).toHaveBeenCalled();
   });
 
-  it('should skip swap if user has sufficient USDC collateral', async () => {
-    // Mock: user already has $100 USDC
-    mockGetUser.mockImplementationOnce(() => ({
-      getFreeCollateral: () => new MockBN(100000000), // $100 USDC
+  it('should skip swap when user has sufficient USDC collateral', async () => {
+    // Mock: user already has $100 USDC - sufficient for $50 position
+    mockGetUser.mockImplementation(() => ({
+      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getSpotPosition: () => ({ scaledBalance: BigInt(100000000), marketIndex: 0 }),
+      getPerpPosition: () => ({
+        baseAssetAmount: new MockBN(0),
+        quoteAssetAmount: new MockBN(0),
+        lastCumulativeFundingRate: new MockBN(0),
+        marketIndex: 0,
+      }),
+      getFreeCollateral: () => new MockBN(100000000), // $100 USDC - sufficient
+      getTotalCollateral: () => new MockBN(100000000),
+      getTotalPerpPositionValue: () => new MockBN(0),
+      getUnrealizedPNL: () => new MockBN(0),
+      getLeverage: () => 0,
     }));
 
     const params: OpenPositionParams = {
@@ -803,10 +891,227 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       size: 50,
     };
 
-    const result = await service.openPosition('user-123', params);
+    const result = await mainnetService.openPosition('user-123', params);
 
     expect(result.success).toBe(true);
-    // Should NOT have triggered swap (implementation will verify)
+    // Jupiter swap should NOT have been called
+    expect(mockJupiterExecuteSwap).not.toHaveBeenCalled();
+  });
+
+  it('should fail gracefully when Jupiter service unavailable on mainnet', async () => {
+    // Create runtime without Jupiter
+    const noJupiterRuntime = createMockRuntime({ SOLANA_NETWORK: 'solana' }, { jupiterAvailable: false });
+    const noJupiterService = await DriftService.start(noJupiterRuntime);
+
+    // Mock: user needs swap
+    mockGetUser.mockImplementation(() => ({
+      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
+      getPerpPosition: () => ({
+        baseAssetAmount: new MockBN(0),
+        quoteAssetAmount: new MockBN(0),
+        lastCumulativeFundingRate: new MockBN(0),
+        marketIndex: 0,
+      }),
+      getFreeCollateral: () => new MockBN(0), // $0 - needs swap
+      getTotalCollateral: () => new MockBN(0),
+      getTotalPerpPositionValue: () => new MockBN(0),
+      getUnrealizedPNL: () => new MockBN(0),
+      getLeverage: () => 0,
+    }));
+
+    const params: OpenPositionParams = {
+      marketSymbol: 'SOL-PERP',
+      side: 'long',
+      size: 50,
+    };
+
+    const result = await noJupiterService.openPosition('user-no-jupiter', params);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Jupiter');
+  });
+
+  it('should fail when SOL to USDC swap transaction fails', async () => {
+    // Mock: user needs swap
+    mockGetUser.mockImplementation(() => ({
+      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
+      getPerpPosition: () => ({
+        baseAssetAmount: new MockBN(0),
+        quoteAssetAmount: new MockBN(0),
+        lastCumulativeFundingRate: new MockBN(0),
+        marketIndex: 0,
+      }),
+      getFreeCollateral: () => new MockBN(0), // $0 - needs swap
+      getTotalCollateral: () => new MockBN(0),
+      getTotalPerpPositionValue: () => new MockBN(0),
+      getUnrealizedPNL: () => new MockBN(0),
+      getLeverage: () => 0,
+    }));
+
+    // Mock Jupiter swap failure
+    mockJupiterExecuteSwap.mockImplementationOnce(() => Promise.reject(new Error('Swap failed: insufficient liquidity')));
+
+    const params: OpenPositionParams = {
+      marketSymbol: 'SOL-PERP',
+      side: 'long',
+      size: 50,
+    };
+
+    const result = await mainnetService.openPosition('user-swap-fail', params);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.toLowerCase()).toContain('swap');
+  });
+
+  it('should skip auto-swap on devnet with helpful error message', async () => {
+    // Mock: user needs swap but on devnet
+    mockGetUser.mockImplementation(() => ({
+      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
+      getPerpPosition: () => ({
+        baseAssetAmount: new MockBN(0),
+        quoteAssetAmount: new MockBN(0),
+        lastCumulativeFundingRate: new MockBN(0),
+        marketIndex: 0,
+      }),
+      getFreeCollateral: () => new MockBN(0), // $0 - needs swap
+      getTotalCollateral: () => new MockBN(0),
+      getTotalPerpPositionValue: () => new MockBN(0),
+      getUnrealizedPNL: () => new MockBN(0),
+      getLeverage: () => 0,
+    }));
+
+    const params: OpenPositionParams = {
+      marketSymbol: 'SOL-PERP',
+      side: 'long',
+      size: 50,
+    };
+
+    const result = await service.openPosition('user-devnet', params);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('devnet');
+    expect(result.error).toContain('manually swap');
+    // Jupiter should NOT have been called
+    expect(mockJupiterExecuteSwap).not.toHaveBeenCalled();
+  });
+
+  it('should calculate swap amount with 10% buffer', async () => {
+    // Mock: user has $0, needs $50 for margin → should swap ~$55 worth
+    mockGetUser.mockImplementation(() => ({
+      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
+      getPerpPosition: () => ({
+        baseAssetAmount: new MockBN(0),
+        quoteAssetAmount: new MockBN(0),
+        lastCumulativeFundingRate: new MockBN(0),
+        marketIndex: 0,
+      }),
+      getFreeCollateral: () => new MockBN(0), // $0
+      getTotalCollateral: () => new MockBN(0),
+      getTotalPerpPositionValue: () => new MockBN(0),
+      getUnrealizedPNL: () => new MockBN(0),
+      getLeverage: () => 0,
+    }));
+
+    // Mock sufficient SOL balance for swap (1 SOL)
+    mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000000));
+
+    const params: OpenPositionParams = {
+      marketSymbol: 'SOL-PERP',
+      side: 'long',
+      size: 250, // $250 position at 5x = $50 margin needed
+      leverage: 5,
+    };
+
+    await mainnetService.openPosition('user-buffer-test', params);
+
+    // Verify getQuote was called (buffer logic is internal)
+    expect(mockJupiterGetQuote).toHaveBeenCalled();
+    expect(mockJupiterExecuteSwap).toHaveBeenCalled();
+  });
+
+  it('should fail when user has insufficient SOL for auto-swap', async () => {
+    // Mock: user needs swap but has very low SOL balance
+    mockGetUser.mockImplementation(() => ({
+      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
+      getPerpPosition: () => ({
+        baseAssetAmount: new MockBN(0),
+        quoteAssetAmount: new MockBN(0),
+        lastCumulativeFundingRate: new MockBN(0),
+        marketIndex: 0,
+      }),
+      getFreeCollateral: () => new MockBN(0), // $0 - needs swap
+      getTotalCollateral: () => new MockBN(0),
+      getTotalPerpPositionValue: () => new MockBN(0),
+      getUnrealizedPNL: () => new MockBN(0),
+      getLeverage: () => 0,
+    }));
+
+    // Mock very low SOL balance (0.001 SOL - not enough for swap)
+    mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000)); // 0.001 SOL
+
+    const params: OpenPositionParams = {
+      marketSymbol: 'SOL-PERP',
+      side: 'long',
+      size: 100,
+      leverage: 5,
+    };
+
+    const result = await mainnetService.openPosition('user-low-sol', params);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Insufficient SOL');
+    // Jupiter should NOT have been called since SOL check happens first
+    expect(mockJupiterExecuteSwap).not.toHaveBeenCalled();
+  });
+
+  it('should fail when price impact exceeds maximum threshold', async () => {
+    // Mock: user needs swap
+    mockGetUser.mockImplementation(() => ({
+      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
+      getPerpPosition: () => ({
+        baseAssetAmount: new MockBN(0),
+        quoteAssetAmount: new MockBN(0),
+        lastCumulativeFundingRate: new MockBN(0),
+        marketIndex: 0,
+      }),
+      getFreeCollateral: () => new MockBN(0), // $0 - needs swap
+      getTotalCollateral: () => new MockBN(0),
+      getTotalPerpPositionValue: () => new MockBN(0),
+      getUnrealizedPNL: () => new MockBN(0),
+      getLeverage: () => 0,
+    }));
+
+    // Mock sufficient SOL balance for swap (1 SOL)
+    mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000000));
+
+    // Mock high price impact from Jupiter quote
+    mockJupiterGetQuote.mockImplementationOnce(() => Promise.resolve({
+      inAmount: '500000000',
+      outAmount: '55000000',
+      priceImpactPct: '5.5', // 5.5% - exceeds MAX_PRICE_IMPACT_PERCENT (2%)
+      routePlan: [{ swapInfo: { label: 'Orca' } }],
+    }));
+
+    const params: OpenPositionParams = {
+      marketSymbol: 'SOL-PERP',
+      side: 'long',
+      size: 100,
+      leverage: 5,
+    };
+
+    const result = await mainnetService.openPosition('user-high-impact', params);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Price impact too high');
+    // Quote was called but swap should NOT have been called
+    expect(mockJupiterGetQuote).toHaveBeenCalled();
+    expect(mockJupiterExecuteSwap).not.toHaveBeenCalled();
   });
 });
 

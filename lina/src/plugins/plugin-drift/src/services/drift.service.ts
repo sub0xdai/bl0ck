@@ -9,7 +9,8 @@ import { Service, logger, type IAgentRuntime } from '@elizaos/core';
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { DriftClient, Wallet, BN, PositionDirection, MarketType, getMarketOrderParams } from '@drift-labs/sdk';
 import { SolanaTransactionManager } from '@/managers/solana-transaction-manager';
-import { SERVICE_NAME, CONFIG, DEVNET_MARKETS, MAINNET_MARKETS } from '../constants';
+import { SERVICE_NAME, CONFIG, DEVNET_MARKETS, MAINNET_MARKETS, MINTS, ERRORS } from '../constants';
+import type { JupiterService } from '../../../plugin-jupiter/src/services/jupiter.service';
 import type {
   DriftPosition,
   DriftMarket,
@@ -466,6 +467,9 @@ export class DriftService extends Service {
 
   /**
    * Ensure sufficient USDC collateral (auto-swap via Jupiter if needed)
+   * @param userId User identifier
+   * @param marginRequired Required margin in USD
+   * @throws Error if insufficient SOL, Jupiter unavailable, or swap fails
    */
   private async ensureCollateral(userId: string, marginRequired: number): Promise<void> {
     const accountInfo = await this.getAccountInfo(userId);
@@ -477,11 +481,69 @@ export class DriftService extends Service {
     }
 
     const shortfall = marginRequired - freeCollateral;
-    logger.info(`[DRIFT_SERVICE] Insufficient collateral. Need $${marginRequired.toFixed(2)}, have $${freeCollateral.toFixed(2)}`);
+    logger.info(`[DRIFT_SERVICE] Collateral shortfall: $${shortfall.toFixed(2)} (need $${marginRequired.toFixed(2)}, have $${freeCollateral.toFixed(2)})`);
 
-    // TODO: Implement Jupiter swap (SOL → USDC) in Phase 3
-    // For now, just log the requirement
-    logger.warn(`[DRIFT_SERVICE] Auto-swap not yet implemented. User needs to manually swap ${shortfall.toFixed(2)} USDC`);
+    // Devnet: Jupiter only works on mainnet
+    if (this.isDevnet) {
+      throw new Error(
+        `Insufficient collateral on devnet. Need $${marginRequired.toFixed(2)}, have $${freeCollateral.toFixed(2)}. ` +
+        `Please manually swap ${shortfall.toFixed(2)} USDC (Jupiter auto-swap only available on mainnet).`
+      );
+    }
+
+    // Get Jupiter service from runtime
+    const jupiterService = this.runtime.getService('JUPITER_SERVICE') as JupiterService | null;
+    if (!jupiterService) {
+      throw new Error(ERRORS.JUPITER_NOT_FOUND + `. Shortfall: $${shortfall.toFixed(2)} USDC`);
+    }
+
+    // Calculate swap amount with buffer (10% extra for price movement)
+    const swapAmountUsdc = shortfall * CONFIG.SWAP_BUFFER_PERCENT;
+
+    // Estimate SOL needed using configurable constants
+    const estimatedSolLamports = Math.ceil(
+      (swapAmountUsdc / CONFIG.ESTIMATED_SOL_PRICE_USD) * CONFIG.SOL_ESTIMATE_BUFFER * LAMPORTS_PER_SOL
+    );
+
+    // Check if user has enough SOL for the swap
+    const walletInfo = await this.solanaManager.getOrCreateWallet(userId);
+    const solBalance = await this.connection!.getBalance(walletInfo.keypair.publicKey);
+    const requiredSolWithBuffer = estimatedSolLamports + (CONFIG.MIN_SOL_FOR_INIT * LAMPORTS_PER_SOL);
+
+    if (solBalance < requiredSolWithBuffer) {
+      throw new Error(
+        ERRORS.insufficientSolForSwap(requiredSolWithBuffer / LAMPORTS_PER_SOL, solBalance / LAMPORTS_PER_SOL)
+      );
+    }
+
+    logger.info(`[DRIFT_SERVICE] Requesting Jupiter quote for ~$${swapAmountUsdc.toFixed(2)} USDC`);
+
+    // Get quote from Jupiter
+    const quote = await jupiterService.getQuote(
+      MINTS.SOL,
+      MINTS.USDC,
+      estimatedSolLamports.toString(),
+      CONFIG.SWAP_SLIPPAGE_BPS
+    );
+
+    logger.info(`[DRIFT_SERVICE] Jupiter quote: ${quote.inAmount} lamports -> ${quote.outAmount} USDC (impact: ${quote.priceImpactPct}%)`);
+
+    // Validate price impact before executing swap
+    if (parseFloat(quote.priceImpactPct) > CONFIG.MAX_PRICE_IMPACT_PERCENT) {
+      throw new Error(ERRORS.priceImpactTooHigh(quote.priceImpactPct, CONFIG.MAX_PRICE_IMPACT_PERCENT));
+    }
+
+    // Execute swap
+    const swapResult = await jupiterService.executeSwap({
+      userId,
+      inputMint: MINTS.SOL,
+      outputMint: MINTS.USDC,
+      amount: quote.inAmount,
+      slippageBps: CONFIG.SWAP_SLIPPAGE_BPS,
+    });
+
+    logger.info(`[DRIFT_SERVICE] Auto-swap complete: ${swapResult.transactionHash}`);
+    logger.info(`[DRIFT_SERVICE] Swapped ${(parseInt(swapResult.inputAmount) / LAMPORTS_PER_SOL).toFixed(4)} SOL -> ${(parseInt(swapResult.outputAmount) / 1_000_000).toFixed(2)} USDC`);
   }
 
   // ============================================================
