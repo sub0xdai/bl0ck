@@ -9,6 +9,10 @@ const mockExecuteSwap = mock(() => Promise.resolve({}));
 const mockGetQuote = mock(() => Promise.resolve({}));
 const mockGetTokenBalances = mock(() => Promise.resolve({ tokens: [] }));
 const mockComposeState = mock(() => Promise.resolve({ data: { actionParams: {} } }));
+const mockGetSetting = mock((key: string) => {
+    if (key === "SOLANA_NETWORK") return "solana"; // Default mainnet
+    return null;
+});
 const mockGetService = mock((serviceType: string) => {
     if (serviceType === "JUPITER_SERVICE") return mockJupiterService;
     if (serviceType === "SOLANA_SERVICE") return mockSolanaService;
@@ -28,6 +32,7 @@ const mockSolanaService = {
 const mockRuntime = {
     getService: mockGetService,
     composeState: mockComposeState,
+    getSetting: mockGetSetting,
 } as unknown as IAgentRuntime;
 
 describe("jupiterSwap", () => {
@@ -38,6 +43,7 @@ describe("jupiterSwap", () => {
         mockGetTokenBalances.mockReset();
         mockComposeState.mockReset();
         mockGetService.mockReset();
+        mockGetSetting.mockReset();
 
         // Restore default implementations
         mockGetService.mockImplementation((serviceType: string) => {
@@ -45,10 +51,16 @@ describe("jupiterSwap", () => {
             if (serviceType === "SOLANA_SERVICE") return mockSolanaService;
             return null;
         });
+
+        // Default to mainnet
+        mockGetSetting.mockImplementation((key: string) => {
+            if (key === "SOLANA_NETWORK") return "solana";
+            return null;
+        });
     });
 
     describe("validation", () => {
-        it("should validate when JupiterService is available", async () => {
+        it("should validate when JupiterService is available on mainnet", async () => {
             const message = {} as Memory;
             const result = await jupiterSwap.validate(mockRuntime, message);
             expect(result).toBe(true);
@@ -58,11 +70,44 @@ describe("jupiterSwap", () => {
             const badGetService = mock(() => null);
             const badRuntime = {
                 getService: badGetService,
+                getSetting: mockGetSetting,
             } as unknown as IAgentRuntime;
 
             const message = {} as Memory;
             const result = await jupiterSwap.validate(badRuntime, message);
             expect(result).toBe(false);
+        });
+
+        it("should fail validation on devnet network", async () => {
+            const devnetGetSetting = mock((key: string) => {
+                if (key === "SOLANA_NETWORK") return "solana-devnet";
+                return null;
+            });
+
+            const devnetRuntime = {
+                getService: mockGetService,
+                getSetting: devnetGetSetting,
+            } as unknown as IAgentRuntime;
+
+            const message = {} as Memory;
+            const result = await jupiterSwap.validate(devnetRuntime, message);
+            expect(result).toBe(false);
+        });
+
+        it("should validate on mainnet network (using 'solana' identifier)", async () => {
+            const mainnetGetSetting = mock((key: string) => {
+                if (key === "SOLANA_NETWORK") return "solana";
+                return null;
+            });
+
+            const mainnetRuntime = {
+                getService: mockGetService,
+                getSetting: mainnetGetSetting,
+            } as unknown as IAgentRuntime;
+
+            const message = {} as Memory;
+            const result = await jupiterSwap.validate(mainnetRuntime, message);
+            expect(result).toBe(true);
         });
     });
 
@@ -215,6 +260,41 @@ describe("jupiterSwap", () => {
 
             expect(result.success).toBe(false);
             expect(result.error).toContain("Required parameters");
+        });
+    });
+
+    describe("network validation", () => {
+        it("should reject swap on devnet network in handler", async () => {
+            const devnetGetSetting = mock((key: string) => {
+                if (key === "SOLANA_NETWORK") return "solana-devnet";
+                return null;
+            });
+
+            const devnetRuntime = {
+                getService: mockGetService,
+                getSetting: devnetGetSetting,
+                composeState: mockComposeState,
+            } as unknown as IAgentRuntime;
+
+            const message = {
+                entityId: "user-123",
+            } as Memory;
+
+            mockComposeState.mockResolvedValue({
+                data: {
+                    actionParams: {
+                        inputToken: "SOL",
+                        outputToken: "USDC",
+                        amount: "1",
+                        slippage: 50,
+                    },
+                },
+            });
+
+            const result = await jupiterSwap.handler(devnetRuntime, message);
+
+            expect(result.success).toBe(false);
+            expect(result.error).toContain("Jupiter swaps are only available on Solana Mainnet");
         });
     });
 });

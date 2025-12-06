@@ -82,7 +82,7 @@ export class SolanaTransactionManager {
 
   private walletsCache = new Map<string, CacheEntry<SolanaWallet>>();
   private balancesCache = new Map<string, CacheEntry<any>>();
-  private readonly CACHE_TTL = 60 * 1000; // 5 minutes
+  private readonly CACHE_TTL = 60 * 1000; // 60 seconds (reduced from 5 min for faster balance updates)
 
   // Wallet storage configuration
   private readonly WALLET_STORAGE_PATH: string; // Legacy file path (fallback)
@@ -145,6 +145,13 @@ export class SolanaTransactionManager {
    * Initialize Solana RPC connection
    * Uses Helius if API key available, falls back to public RPC
    * Matches CDP's graceful degradation pattern
+   *
+   * COMMITMENT STRATEGY:
+   * - Connection uses 'confirmed' commitment (faster, ~400ms avg)
+   *   for balance queries and action feedback
+   * - Value transfer methods (sendToken, sendAndConfirmTransactionWithRetry)
+   *   explicitly override to 'finalized' commitment (~32s avg) for security
+   * - This dual approach balances UX responsiveness with transaction safety
    */
   private initializeConnection(): void {
     if (this.connection) {
@@ -171,7 +178,7 @@ export class SolanaTransactionManager {
           : 'https://api.devnet.solana.com';
 
         this.connection = new Connection(fallbackUrl, {
-          commitment: 'finalized', // Safety: wait for finality
+          commitment: 'confirmed', // Faster than finalized, sufficient for most actions
           confirmTransactionInitialTimeout: 60000, // 60s timeout
         });
 
@@ -181,7 +188,7 @@ export class SolanaTransactionManager {
 
       // Initialize with Helius or config RPC
       this.connection = new Connection(rpcUrl, {
-        commitment: 'finalized', // Matches CDP's safety-first mindset
+        commitment: 'confirmed', // Faster than finalized, sufficient for most actions
         confirmTransactionInitialTimeout: 60000,
       });
 

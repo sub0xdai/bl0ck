@@ -11,6 +11,7 @@ import { getMint } from "@solana/spl-token";
 import { JupiterService } from "../services/jupiter.service";
 import { SolanaService } from "../../../plugin-solana-core/src/services/solana.service";
 import type { JupiterSwapResult } from "../types";
+import { isJupiterSwapSupported } from "@/constants/chains";
 
 // Common token mints (mainnet addresses)
 const TOKEN_MINTS: Record<string, string> = {
@@ -108,10 +109,24 @@ export const jupiterSwap: Action = {
 
     validate: async (runtime: IAgentRuntime, _message: Memory) => {
         try {
+            // Check if JupiterService is available
             const service = runtime.getService(
                 JupiterService.serviceType
             ) as JupiterService;
-            return !!service;
+            if (!service) {
+                return false;
+            }
+
+            // Check if Jupiter is supported on the current network
+            const network = runtime.getSetting("SOLANA_NETWORK");
+            if (!isJupiterSwapSupported(network)) {
+                logger.debug(
+                    `[SOLANA_SWAP] Jupiter not supported on network: ${network}`
+                );
+                return false;
+            }
+
+            return true;
         } catch (error) {
             logger.warn(
                 "[SOLANA_SWAP] Validation failed:",
@@ -143,6 +158,12 @@ export const jupiterSwap: Action = {
             }
             if (!solanaService) {
                 throw new Error("SolanaService not initialized");
+            }
+
+            // Network validation already done in validate(), but double-check for safety
+            const network = runtime.getSetting("SOLANA_NETWORK");
+            if (!isJupiterSwapSupported(network)) {
+                throw new Error("Jupiter swaps are only available on Solana Mainnet. Please switch networks to use this feature.");
             }
 
             const userId = message.entityId as string;
@@ -188,8 +209,8 @@ export const jupiterSwap: Action = {
             // Convert amount to raw units using actual decimals
             const amount = Math.floor(amountNum * Math.pow(10, decimals)).toString();
 
-            // Pre-flight: Check balance
-            const balances = await solanaService.getTokenBalances(userId);
+            // Pre-flight: Check balance (force sync to get fresh data before swap)
+            const balances = await solanaService.getTokenBalances(userId, true);
 
             // Find balance for input token
             let inputBalance: { symbol: string; balance: string; mintAddress?: string | null } | undefined;
