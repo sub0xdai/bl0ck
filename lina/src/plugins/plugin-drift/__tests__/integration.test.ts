@@ -57,6 +57,7 @@ const mockGetUser = mock(() => ({
   getTotalPerpPositionValue: () => new MockBN(200000000),
   getUnrealizedPNL: () => new MockBN(5000000),
   getLeverage: () => 50000,
+  subscribe: mock(() => Promise.resolve()),
 }));
 
 const mockInitializeUserAccount = mock(() => Promise.resolve('mockTxSig123'));
@@ -155,6 +156,7 @@ const resetMocks = () => {
     getTotalPerpPositionValue: () => new MockBN(200000000),
     getUnrealizedPNL: () => new MockBN(5000000),
     getLeverage: () => 50000,
+    subscribe: mock(() => Promise.resolve()),
   }));
   mockGetBalance.mockImplementation(() => Promise.resolve(50000000));
 };
@@ -316,6 +318,7 @@ describe('Integration - Position Query Flow', () => {
       getTotalPerpPositionValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
+      subscribe: mock(() => Promise.resolve()),
     });
     mockGetUser.mockImplementationOnce(noPositionMock);
     mockGetUser.mockImplementationOnce(noPositionMock);

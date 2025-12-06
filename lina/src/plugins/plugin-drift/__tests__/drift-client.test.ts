@@ -62,6 +62,7 @@ const mockGetUser = mock(() => ({
   getTotalPerpPositionValue: () => new MockBN(200000000),
   getUnrealizedPNL: () => new MockBN(5000000),
   getLeverage: () => 50000,
+  subscribe: mock(() => Promise.resolve()),
 }));
 
 const mockSubscribe = mock(() => Promise.resolve());

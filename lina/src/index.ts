@@ -19,6 +19,7 @@ import analyticsPlugin from '@elizaos/plugin-analytics';
 import openrouterPlugin from '@elizaos/plugin-openrouter';
 import mcpPlugin from '@elizaos/plugin-mcp';
 import morphoPlugin from './plugins/plugin-morpho/src/index.ts';
+import strategyCorePlugin from './plugins/plugin-strategy-core/src/index.ts';
 
 const initCharacter = ({ runtime }: { runtime: IAgentRuntime }) => {
   logger.info('Initializing character');
@@ -47,7 +48,8 @@ export const projectAgent: ProjectAgent = {
     mcpPlugin,
     analyticsPlugin,
     clankerPlugin,
-    morphoPlugin
+    morphoPlugin,
+    strategyCorePlugin,
     // x402DiscoveryPlugin,
   ],
 };

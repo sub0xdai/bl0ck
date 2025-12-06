@@ -169,6 +169,9 @@ export class DriftService extends Service {
         logger.info(`[DRIFT_SERVICE] Drift account initialized for user ${userId}`);
       }
 
+      // Subscribe to user account updates
+      await user.subscribe();
+
       // Cache client for reuse
       this.clients.set(userId, client);
       logger.info(`[DRIFT_SERVICE] Created DriftClient for user ${userId}`);
@@ -216,8 +219,11 @@ export class DriftService extends Service {
       await this.deposit(userId, marginRequired);
 
       // Convert USD size to base asset amount
+      // Formula: (USD_Size * BASE_PRECISION * PRICE_PRECISION) / Oracle_Price_Raw
+      const PRICE_PRECISION = new BN(1_000_000);
       const baseAssetAmount = new BN(params.size)
         .mul(new BN(1_000_000_000)) // BASE_PRECISION (9 decimals)
+        .mul(PRICE_PRECISION)       // PRICE_PRECISION (6 decimals)
         .div(new BN(oraclePrice.toString()))
         .mul(new BN(leverage));
 

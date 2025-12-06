@@ -57,6 +57,7 @@ const mockGetUser = mock(() => ({
   getTotalPerpPositionValue: () => new MockBN(200000000),
   getUnrealizedPNL: () => new MockBN(5000000),
   getLeverage: () => 50000,
+  subscribe: mock(() => Promise.resolve()),
 }));
 
 const mockInitializeUserAccount = mock(() => Promise.resolve('mockTxSig123'));
@@ -180,6 +181,7 @@ const resetMocks = () => {
     getTotalPerpPositionValue: () => new MockBN(200000000),
     getUnrealizedPNL: () => new MockBN(5000000),
     getLeverage: () => 50000,
+    subscribe: mock(() => Promise.resolve()),
   }));
   mockGetBalance.mockImplementation(() => Promise.resolve(50000000));
   mockJupiterGetQuote.mockImplementation(() => Promise.resolve({
@@ -237,6 +239,7 @@ describe('Collateral - Sufficient Collateral Check', () => {
       getTotalPerpPositionValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
+      subscribe: mock(() => Promise.resolve()),
     }));
 
     const params: OpenPositionParams = {
@@ -268,6 +271,7 @@ describe('Collateral - Sufficient Collateral Check', () => {
       getTotalPerpPositionValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
+      subscribe: mock(() => Promise.resolve()),
     }));
 
     mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000000)); // 1 SOL
@@ -301,6 +305,7 @@ describe('Collateral - Sufficient Collateral Check', () => {
       getTotalPerpPositionValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
+      subscribe: mock(() => Promise.resolve()),
     }));
 
     const params: OpenPositionParams = {
@@ -348,6 +353,7 @@ describe('Collateral - Auto-Swap Trigger Conditions', () => {
       getTotalPerpPositionValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
+      subscribe: mock(() => Promise.resolve()),
     }));
 
     mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000000)); // 1 SOL
@@ -382,6 +388,7 @@ describe('Collateral - Auto-Swap Trigger Conditions', () => {
       getTotalPerpPositionValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
+      subscribe: mock(() => Promise.resolve()),
     }));
 
     mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000)); // 0.001 SOL - insufficient
@@ -421,6 +428,7 @@ describe('Collateral - Devnet vs Mainnet Behavior', () => {
       getTotalPerpPositionValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
+      subscribe: mock(() => Promise.resolve()),
     }));
 
     const params: OpenPositionParams = {
@@ -458,6 +466,7 @@ describe('Collateral - Devnet vs Mainnet Behavior', () => {
       getTotalPerpPositionValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
+      subscribe: mock(() => Promise.resolve()),
     }));
 
     mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000000)); // 1 SOL
@@ -498,6 +507,7 @@ describe('Collateral - Jupiter Service Availability', () => {
       getTotalPerpPositionValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
+      subscribe: mock(() => Promise.resolve()),
     }));
 
     const params: OpenPositionParams = {
@@ -533,6 +543,7 @@ describe('Collateral - Jupiter Service Availability', () => {
       getTotalPerpPositionValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
+      subscribe: mock(() => Promise.resolve()),
     }));
 
     mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000000)); // 1 SOL
@@ -583,6 +594,7 @@ describe('Collateral - SOL Balance Validation', () => {
       getTotalPerpPositionValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
+      subscribe: mock(() => Promise.resolve()),
     }));
 
     mockGetBalance.mockImplementationOnce(() => Promise.resolve(500000)); // 0.0005 SOL
@@ -615,6 +627,7 @@ describe('Collateral - SOL Balance Validation', () => {
       getTotalPerpPositionValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
+      subscribe: mock(() => Promise.resolve()),
     }));
 
     mockGetBalance.mockImplementationOnce(() => Promise.resolve(2000000000)); // 2 SOL - sufficient
