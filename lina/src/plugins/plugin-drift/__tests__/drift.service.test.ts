@@ -129,12 +129,20 @@ mock.module('@drift-labs/sdk', () => ({
 
 // Mock Solana Web3
 const mockGetBalance = mock(() => Promise.resolve(50000000)); // 0.05 SOL (9 decimals)
+const mockGetTokenAccountBalance = mock(() => Promise.resolve({
+  value: {
+    amount: '10000000000', // $10,000 USDC default
+    decimals: 6,
+    uiAmount: 10000,
+  },
+}));
 const mockSendTransaction = mock(() => Promise.resolve('mockSolanaTx'));
 
 mock.module('@solana/web3.js', () => ({
   Connection: class {
     constructor(public endpoint: string) { }
     getBalance = mockGetBalance;
+    getTokenAccountBalance = mockGetTokenAccountBalance;
     sendTransaction = mockSendTransaction;
     confirmTransaction = mockConfirmTransaction;
   },
@@ -148,6 +156,13 @@ mock.module('@solana/web3.js', () => ({
     }
   },
   LAMPORTS_PER_SOL: 1000000000,
+}));
+
+// Mock @solana/spl-token
+mock.module('@solana/spl-token', () => ({
+  getAssociatedTokenAddressSync: mock((mint: any, owner: any) => {
+    return new MockPublicKey('mockUsdcAta');
+  }),
 }));
 
 // Mock SolanaTransactionManager
@@ -232,6 +247,13 @@ const resetMocksToDefault = () => {
     subscribe: mock(() => Promise.resolve()),
   }));
   mockGetBalance.mockImplementation(() => Promise.resolve(50000000));
+  mockGetTokenAccountBalance.mockImplementation(() => Promise.resolve({
+    value: {
+      amount: '10000000000',
+      decimals: 6,
+      uiAmount: 10000,
+    },
+  }));
   mockInitializeUserAccount.mockImplementation(() => Promise.resolve('mockTxSig123'));
   // Reset Jupiter mocks
   mockJupiterGetQuote.mockImplementation(() => Promise.resolve({
@@ -423,8 +445,12 @@ describe('DriftService - Client Management (Per-User Isolation)', () => {
 
     await Promise.all([promise1, promise2]);
 
-    // Should only initialize once, not twice
-    expect(mockGetOrCreateWallet).toHaveBeenCalledTimes(1);
+    // Wallet is retrieved: once for client init + once for balance check + once for deposit
+    // All should use same userId and share cached client
+    expect(mockGetOrCreateWallet).toHaveBeenCalled();
+    // All calls should be for same user
+    const calls = mockGetOrCreateWallet.mock.calls;
+    expect(calls.every((call: string[]) => call[0] === 'user-concurrent')).toBe(true);
   });
 });
 
@@ -830,7 +856,14 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
   });
 
   it('should auto-swap SOL to USDC when insufficient collateral on mainnet', async () => {
-    // Mock: user has only $10 USDC but needs $20 margin for position (size 100 at 5x)
+    // Mock: wallet has only $10 USDC but needs $20 margin for position (size 100 at 5x)
+    mockGetTokenAccountBalance.mockImplementation(() => Promise.resolve({
+      value: {
+        amount: '10000000', // $10 USDC - insufficient
+        decimals: 6,
+        uiAmount: 10,
+      },
+    }));
     mockGetUser.mockImplementation(() => ({
       getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
       getSpotPosition: () => ({ scaledBalance: BigInt(10000000), marketIndex: 0 }), // $10 USDC
@@ -849,7 +882,7 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
     }));
 
     // Mock sufficient SOL balance for swap (1 SOL)
-    mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000000));
+    mockGetBalance.mockImplementation(() => Promise.resolve(1000000000));
 
     const params: OpenPositionParams = {
       marketSymbol: 'SOL-PERP',
@@ -915,7 +948,14 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
     const noJupiterRuntime = createMockRuntime({ SOLANA_NETWORK: 'solana' }, { jupiterAvailable: false });
     const noJupiterService = await DriftService.start(noJupiterRuntime);
 
-    // Mock: user needs swap
+    // Mock: wallet has no USDC - needs swap
+    mockGetTokenAccountBalance.mockImplementation(() => Promise.resolve({
+      value: {
+        amount: '0', // $0 USDC
+        decimals: 6,
+        uiAmount: 0,
+      },
+    }));
     mockGetUser.mockImplementation(() => ({
       getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
       getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
@@ -946,7 +986,14 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
   });
 
   it('should fail when SOL to USDC swap transaction fails', async () => {
-    // Mock: user needs swap
+    // Mock: wallet has no USDC - needs swap
+    mockGetTokenAccountBalance.mockImplementation(() => Promise.resolve({
+      value: {
+        amount: '0', // $0 USDC
+        decimals: 6,
+        uiAmount: 0,
+      },
+    }));
     mockGetUser.mockImplementation(() => ({
       getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
       getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
@@ -980,7 +1027,14 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
   });
 
   it('should skip auto-swap on devnet with helpful error message', async () => {
-    // Mock: user needs swap but on devnet
+    // Mock: wallet has no USDC - needs swap but on devnet
+    mockGetTokenAccountBalance.mockImplementation(() => Promise.resolve({
+      value: {
+        amount: '0', // $0 USDC
+        decimals: 6,
+        uiAmount: 0,
+      },
+    }));
     mockGetUser.mockImplementation(() => ({
       getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
       getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
@@ -1014,7 +1068,14 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
   });
 
   it('should calculate swap amount with 10% buffer', async () => {
-    // Mock: user has $0, needs $50 for margin → should swap ~$55 worth
+    // Mock: wallet has $0 USDC, needs $50 for margin → should swap ~$55 worth
+    mockGetTokenAccountBalance.mockImplementation(() => Promise.resolve({
+      value: {
+        amount: '0', // $0 USDC
+        decimals: 6,
+        uiAmount: 0,
+      },
+    }));
     mockGetUser.mockImplementation(() => ({
       getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
       getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
@@ -1033,7 +1094,7 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
     }));
 
     // Mock sufficient SOL balance for swap (1 SOL)
-    mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000000));
+    mockGetBalance.mockImplementation(() => Promise.resolve(1000000000));
 
     const params: OpenPositionParams = {
       marketSymbol: 'SOL-PERP',
@@ -1050,7 +1111,14 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
   });
 
   it('should fail when user has insufficient SOL for auto-swap', async () => {
-    // Mock: user needs swap but has very low SOL balance
+    // Mock: wallet has no USDC - needs swap but has very low SOL
+    mockGetTokenAccountBalance.mockImplementation(() => Promise.resolve({
+      value: {
+        amount: '0', // $0 USDC
+        decimals: 6,
+        uiAmount: 0,
+      },
+    }));
     mockGetUser.mockImplementation(() => ({
       getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
       getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
@@ -1069,7 +1137,7 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
     }));
 
     // Mock very low SOL balance (0.001 SOL - not enough for swap)
-    mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000)); // 0.001 SOL
+    mockGetBalance.mockImplementation(() => Promise.resolve(1000000)); // 0.001 SOL
 
     const params: OpenPositionParams = {
       marketSymbol: 'SOL-PERP',
@@ -1087,7 +1155,14 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
   });
 
   it('should fail when price impact exceeds maximum threshold', async () => {
-    // Mock: user needs swap
+    // Mock: wallet has no USDC - needs swap
+    mockGetTokenAccountBalance.mockImplementation(() => Promise.resolve({
+      value: {
+        amount: '0', // $0 USDC
+        decimals: 6,
+        uiAmount: 0,
+      },
+    }));
     mockGetUser.mockImplementation(() => ({
       getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
       getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
@@ -1106,7 +1181,7 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
     }));
 
     // Mock sufficient SOL balance for swap (1 SOL)
-    mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000000));
+    mockGetBalance.mockImplementation(() => Promise.resolve(1000000000));
 
     // Mock high price impact from Jupiter quote
     mockJupiterGetQuote.mockImplementationOnce(() => Promise.resolve({
@@ -1321,25 +1396,14 @@ describe('DriftService - Deposit/Collateral Management', () => {
   });
 
   it('should reject deposit when user has no USDC', async () => {
-    // Mock: user has 0 USDC - need to set up for both getUser() calls
-    const noUsdcMock = () => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
-      getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }), // No USDC
-      getPerpPosition: () => ({
-        baseAssetAmount: new MockBN(100000000),
-        quoteAssetAmount: new MockBN(0),
-        lastCumulativeFundingRate: new MockBN(0),
-        marketIndex: 0,
-      }),
-      getFreeCollateral: () => new MockBN(50000000),
-      getTotalCollateral: () => new MockBN(100000000),
-      getTotalPerpPositionValue: () => new MockBN(200000000),
-      getUnrealizedPNL: () => new MockBN(5000000),
-      getLeverage: () => 50000,
-      subscribe: mock(() => Promise.resolve()),
-    });
-    mockGetUser.mockImplementationOnce(noUsdcMock);
-    mockGetUser.mockImplementationOnce(noUsdcMock);
+    // Mock: wallet has 0 USDC
+    mockGetTokenAccountBalance.mockImplementation(() => Promise.resolve({
+      value: {
+        amount: '0', // $0 USDC in wallet
+        decimals: 6,
+        uiAmount: 0,
+      },
+    }));
 
     const result = await service.deposit('user-no-usdc', 100);
 

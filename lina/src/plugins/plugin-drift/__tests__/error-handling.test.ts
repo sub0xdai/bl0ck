@@ -96,12 +96,20 @@ mock.module('@drift-labs/sdk', () => ({
 }));
 
 const mockGetBalance = mock(() => Promise.resolve(50000000));
+const mockGetTokenAccountBalance = mock(() => Promise.resolve({
+  value: {
+    amount: '10000000000', // $10,000 USDC default
+    decimals: 6,
+    uiAmount: 10000,
+  },
+}));
 const mockConfirmTransaction = mock(() => Promise.resolve({ value: { err: null } }));
 
 mock.module('@solana/web3.js', () => ({
   Connection: class {
     constructor(public endpoint: string) {}
     getBalance = mockGetBalance;
+    getTokenAccountBalance = mockGetTokenAccountBalance;
     confirmTransaction = mockConfirmTransaction;
   },
   PublicKey: MockPublicKey,
@@ -114,6 +122,13 @@ mock.module('@solana/web3.js', () => ({
     }
   },
   LAMPORTS_PER_SOL: 1000000000,
+}));
+
+// Mock @solana/spl-token
+mock.module('@solana/spl-token', () => ({
+  getAssociatedTokenAddressSync: mock((mint: any, owner: any) => {
+    return new MockPublicKey('mockUsdcAta');
+  }),
 }));
 
 const mockGetOrCreateWallet = mock(() =>
@@ -159,6 +174,13 @@ const resetMocks = () => {
     subscribe: mock(() => Promise.resolve()),
   }));
   mockGetBalance.mockImplementation(() => Promise.resolve(50000000));
+  mockGetTokenAccountBalance.mockImplementation(() => Promise.resolve({
+    value: {
+      amount: '10000000000',
+      decimals: 6,
+      uiAmount: 10000,
+    },
+  }));
   mockOpenPosition.mockImplementation(() => Promise.resolve('mockPositionTx'));
   mockClosePosition.mockImplementation(() => Promise.resolve('mockCloseTx'));
   mockDeposit.mockImplementation(() => Promise.resolve('mockDepositTx'));
@@ -357,20 +379,15 @@ describe('Error Handling - Insufficient Funds', () => {
     await service.stop();
   });
 
-  it('should reject deposit when user has no USDC', async () => {
-    const noUsdcMock = () => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
-      getSpotPosition: () => ({ scaledBalance: BigInt(0) }), // No USDC
-      getPerpPosition: () => ({ baseAssetAmount: new MockBN(0) }),
-      getFreeCollateral: () => new MockBN(0),
-      getTotalCollateral: () => new MockBN(0),
-      getTotalPerpPositionValue: () => new MockBN(0),
-      getUnrealizedPNL: () => new MockBN(0),
-      getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
-    });
-    mockGetUser.mockImplementationOnce(noUsdcMock);
-    mockGetUser.mockImplementationOnce(noUsdcMock);
+  it('should reject deposit when user has no USDC in wallet', async () => {
+    // Mock wallet having no USDC
+    mockGetTokenAccountBalance.mockImplementationOnce(() => Promise.resolve({
+      value: {
+        amount: '0', // $0 USDC in wallet
+        decimals: 6,
+        uiAmount: 0,
+      },
+    }));
 
     const result = await service.deposit('user-no-usdc', 100);
 
@@ -379,23 +396,14 @@ describe('Error Handling - Insufficient Funds', () => {
   });
 
   it('should reject position when insufficient collateral on devnet', async () => {
-    const lowCollateralMock = () => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
-      getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
-      getPerpPosition: () => ({
-        baseAssetAmount: new MockBN(0),
-        quoteAssetAmount: new MockBN(0),
-        lastCumulativeFundingRate: new MockBN(0),
-        marketIndex: 0,
-      }),
-      getFreeCollateral: () => new MockBN(0), // $0 - insufficient
-      getTotalCollateral: () => new MockBN(0),
-      getTotalPerpPositionValue: () => new MockBN(0),
-      getUnrealizedPNL: () => new MockBN(0),
-      getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
-    });
-    mockGetUser.mockImplementation(lowCollateralMock);
+    // Mock wallet having no USDC - this triggers devnet error
+    mockGetTokenAccountBalance.mockImplementation(() => Promise.resolve({
+      value: {
+        amount: '0', // $0 USDC in wallet
+        decimals: 6,
+        uiAmount: 0,
+      },
+    }));
 
     const params: OpenPositionParams = {
       marketSymbol: 'SOL-PERP',

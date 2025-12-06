@@ -94,12 +94,20 @@ mock.module('@drift-labs/sdk', () => ({
 }));
 
 const mockGetBalance = mock(() => Promise.resolve(50000000));
+const mockGetTokenAccountBalance = mock(() => Promise.resolve({
+  value: {
+    amount: '100000000', // 100 USDC default
+    decimals: 6,
+    uiAmount: 100,
+  },
+}));
 const mockConfirmTransaction = mock(() => Promise.resolve({ value: { err: null } }));
 
 mock.module('@solana/web3.js', () => ({
   Connection: class {
     constructor(public endpoint: string) {}
     getBalance = mockGetBalance;
+    getTokenAccountBalance = mockGetTokenAccountBalance;
     confirmTransaction = mockConfirmTransaction;
   },
   PublicKey: MockPublicKey,
@@ -112,6 +120,13 @@ mock.module('@solana/web3.js', () => ({
     }
   },
   LAMPORTS_PER_SOL: 1000000000,
+}));
+
+// Mock @solana/spl-token
+mock.module('@solana/spl-token', () => ({
+  getAssociatedTokenAddressSync: mock((mint: any, owner: any) => {
+    return new MockPublicKey('mockUsdcAta');
+  }),
 }));
 
 const mockGetOrCreateWallet = mock(() =>
@@ -184,6 +199,13 @@ const resetMocks = () => {
     subscribe: mock(() => Promise.resolve()),
   }));
   mockGetBalance.mockImplementation(() => Promise.resolve(50000000));
+  mockGetTokenAccountBalance.mockImplementation(() => Promise.resolve({
+    value: {
+      amount: '100000000', // 100 USDC default
+      decimals: 6,
+      uiAmount: 100,
+    },
+  }));
   mockJupiterGetQuote.mockImplementation(() => Promise.resolve({
     inAmount: '500000000',
     outAmount: '55000000',
@@ -224,22 +246,13 @@ describe('Collateral - Sufficient Collateral Check', () => {
   });
 
   it('should skip auto-swap when user has sufficient USDC collateral', async () => {
-    // Mock: user has $100 USDC - sufficient for $50 position
-    mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
-      getSpotPosition: () => ({ scaledBalance: BigInt(100000000), marketIndex: 0 }), // $100 USDC
-      getPerpPosition: () => ({
-        baseAssetAmount: new MockBN(0),
-        quoteAssetAmount: new MockBN(0),
-        lastCumulativeFundingRate: new MockBN(0),
-        marketIndex: 0,
-      }),
-      getFreeCollateral: () => new MockBN(100000000), // $100 - sufficient
-      getTotalCollateral: () => new MockBN(100000000),
-      getTotalPerpPositionValue: () => new MockBN(0),
-      getUnrealizedPNL: () => new MockBN(0),
-      getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+    // Mock: user has $100 USDC in wallet - sufficient for $10 margin ($50 position at 5x)
+    mockGetTokenAccountBalance.mockImplementationOnce(() => Promise.resolve({
+      value: {
+        amount: '100000000', // $100 USDC
+        decimals: 6,
+        uiAmount: 100,
+      },
     }));
 
     const params: OpenPositionParams = {
@@ -256,22 +269,13 @@ describe('Collateral - Sufficient Collateral Check', () => {
   });
 
   it('should trigger auto-swap when collateral is below margin requirement', async () => {
-    // Mock: user has $10 USDC but needs $20 margin for position
-    mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
-      getSpotPosition: () => ({ scaledBalance: BigInt(10000000), marketIndex: 0 }), // $10 USDC
-      getPerpPosition: () => ({
-        baseAssetAmount: new MockBN(0),
-        quoteAssetAmount: new MockBN(0),
-        lastCumulativeFundingRate: new MockBN(0),
-        marketIndex: 0,
-      }),
-      getFreeCollateral: () => new MockBN(10000000), // $10 - insufficient
-      getTotalCollateral: () => new MockBN(10000000),
-      getTotalPerpPositionValue: () => new MockBN(0),
-      getUnrealizedPNL: () => new MockBN(0),
-      getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+    // Mock: user has $10 USDC in wallet but needs $20 margin for position
+    mockGetTokenAccountBalance.mockImplementationOnce(() => Promise.resolve({
+      value: {
+        amount: '10000000', // $10 USDC
+        decimals: 6,
+        uiAmount: 10,
+      },
     }));
 
     mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000000)); // 1 SOL
@@ -291,21 +295,12 @@ describe('Collateral - Sufficient Collateral Check', () => {
 
   it('should not swap when collateral exactly equals margin requirement', async () => {
     // Mock: user has exactly $20 USDC for $20 margin requirement
-    mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
-      getSpotPosition: () => ({ scaledBalance: BigInt(20000000), marketIndex: 0 }), // $20 USDC
-      getPerpPosition: () => ({
-        baseAssetAmount: new MockBN(0),
-        quoteAssetAmount: new MockBN(0),
-        lastCumulativeFundingRate: new MockBN(0),
-        marketIndex: 0,
-      }),
-      getFreeCollateral: () => new MockBN(20000000), // $20 - exactly sufficient
-      getTotalCollateral: () => new MockBN(20000000),
-      getTotalPerpPositionValue: () => new MockBN(0),
-      getUnrealizedPNL: () => new MockBN(0),
-      getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+    mockGetTokenAccountBalance.mockImplementationOnce(() => Promise.resolve({
+      value: {
+        amount: '20000000', // $20 USDC
+        decimals: 6,
+        uiAmount: 20,
+      },
     }));
 
     const params: OpenPositionParams = {
@@ -339,21 +334,12 @@ describe('Collateral - Auto-Swap Trigger Conditions', () => {
 
   it('should calculate swap amount with 10% buffer', async () => {
     // Mock: user has $0, needs $50 for margin → should swap ~$55 worth
-    mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
-      getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }), // $0 USDC
-      getPerpPosition: () => ({
-        baseAssetAmount: new MockBN(0),
-        quoteAssetAmount: new MockBN(0),
-        lastCumulativeFundingRate: new MockBN(0),
-        marketIndex: 0,
-      }),
-      getFreeCollateral: () => new MockBN(0), // $0
-      getTotalCollateral: () => new MockBN(0),
-      getTotalPerpPositionValue: () => new MockBN(0),
-      getUnrealizedPNL: () => new MockBN(0),
-      getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+    mockGetTokenAccountBalance.mockImplementationOnce(() => Promise.resolve({
+      value: {
+        amount: '0', // $0 USDC
+        decimals: 6,
+        uiAmount: 0,
+      },
     }));
 
     mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000000)); // 1 SOL
@@ -374,21 +360,12 @@ describe('Collateral - Auto-Swap Trigger Conditions', () => {
 
   it('should fail when user has insufficient SOL for swap', async () => {
     // Mock: user needs swap but has very low SOL balance
-    mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
-      getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
-      getPerpPosition: () => ({
-        baseAssetAmount: new MockBN(0),
-        quoteAssetAmount: new MockBN(0),
-        lastCumulativeFundingRate: new MockBN(0),
-        marketIndex: 0,
-      }),
-      getFreeCollateral: () => new MockBN(0), // $0 - needs swap
-      getTotalCollateral: () => new MockBN(0),
-      getTotalPerpPositionValue: () => new MockBN(0),
-      getUnrealizedPNL: () => new MockBN(0),
-      getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+    mockGetTokenAccountBalance.mockImplementationOnce(() => Promise.resolve({
+      value: {
+        amount: '0', // $0 USDC
+        decimals: 6,
+        uiAmount: 0,
+      },
     }));
 
     mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000)); // 0.001 SOL - insufficient
@@ -414,21 +391,12 @@ describe('Collateral - Devnet vs Mainnet Behavior', () => {
     const devnetService = await DriftService.start(devnetRuntime);
 
     // Mock: user needs swap
-    mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
-      getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
-      getPerpPosition: () => ({
-        baseAssetAmount: new MockBN(0),
-        quoteAssetAmount: new MockBN(0),
-        lastCumulativeFundingRate: new MockBN(0),
-        marketIndex: 0,
-      }),
-      getFreeCollateral: () => new MockBN(0), // $0 - needs swap
-      getTotalCollateral: () => new MockBN(0),
-      getTotalPerpPositionValue: () => new MockBN(0),
-      getUnrealizedPNL: () => new MockBN(0),
-      getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+    mockGetTokenAccountBalance.mockImplementationOnce(() => Promise.resolve({
+      value: {
+        amount: '0', // $0 USDC
+        decimals: 6,
+        uiAmount: 0,
+      },
     }));
 
     const params: OpenPositionParams = {
@@ -452,21 +420,12 @@ describe('Collateral - Devnet vs Mainnet Behavior', () => {
     const mainnetService = await DriftService.start(mainnetRuntime);
 
     // Mock: user needs swap
-    mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
-      getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
-      getPerpPosition: () => ({
-        baseAssetAmount: new MockBN(0),
-        quoteAssetAmount: new MockBN(0),
-        lastCumulativeFundingRate: new MockBN(0),
-        marketIndex: 0,
-      }),
-      getFreeCollateral: () => new MockBN(0), // $0 - needs swap
-      getTotalCollateral: () => new MockBN(0),
-      getTotalPerpPositionValue: () => new MockBN(0),
-      getUnrealizedPNL: () => new MockBN(0),
-      getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+    mockGetTokenAccountBalance.mockImplementationOnce(() => Promise.resolve({
+      value: {
+        amount: '0', // $0 USDC
+        decimals: 6,
+        uiAmount: 0,
+      },
     }));
 
     mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000000)); // 1 SOL
@@ -493,21 +452,12 @@ describe('Collateral - Jupiter Service Availability', () => {
     const noJupiterService = await DriftService.start(noJupiterRuntime);
 
     // Mock: user needs swap
-    mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
-      getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
-      getPerpPosition: () => ({
-        baseAssetAmount: new MockBN(0),
-        quoteAssetAmount: new MockBN(0),
-        lastCumulativeFundingRate: new MockBN(0),
-        marketIndex: 0,
-      }),
-      getFreeCollateral: () => new MockBN(0), // $0 - needs swap
-      getTotalCollateral: () => new MockBN(0),
-      getTotalPerpPositionValue: () => new MockBN(0),
-      getUnrealizedPNL: () => new MockBN(0),
-      getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+    mockGetTokenAccountBalance.mockImplementationOnce(() => Promise.resolve({
+      value: {
+        amount: '0', // $0 USDC
+        decimals: 6,
+        uiAmount: 0,
+      },
     }));
 
     const params: OpenPositionParams = {
@@ -529,21 +479,12 @@ describe('Collateral - Jupiter Service Availability', () => {
     const mainnetService = await DriftService.start(mainnetRuntime);
 
     // Mock: user needs swap
-    mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
-      getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
-      getPerpPosition: () => ({
-        baseAssetAmount: new MockBN(0),
-        quoteAssetAmount: new MockBN(0),
-        lastCumulativeFundingRate: new MockBN(0),
-        marketIndex: 0,
-      }),
-      getFreeCollateral: () => new MockBN(0), // $0 - needs swap
-      getTotalCollateral: () => new MockBN(0),
-      getTotalPerpPositionValue: () => new MockBN(0),
-      getUnrealizedPNL: () => new MockBN(0),
-      getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+    mockGetTokenAccountBalance.mockImplementationOnce(() => Promise.resolve({
+      value: {
+        amount: '0', // $0 USDC
+        decimals: 6,
+        uiAmount: 0,
+      },
     }));
 
     mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000000)); // 1 SOL
@@ -580,21 +521,12 @@ describe('Collateral - SOL Balance Validation', () => {
 
   it('should validate SOL balance before swap', async () => {
     // Mock: user needs swap but has very low SOL
-    mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
-      getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
-      getPerpPosition: () => ({
-        baseAssetAmount: new MockBN(0),
-        quoteAssetAmount: new MockBN(0),
-        lastCumulativeFundingRate: new MockBN(0),
-        marketIndex: 0,
-      }),
-      getFreeCollateral: () => new MockBN(0),
-      getTotalCollateral: () => new MockBN(0),
-      getTotalPerpPositionValue: () => new MockBN(0),
-      getUnrealizedPNL: () => new MockBN(0),
-      getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+    mockGetTokenAccountBalance.mockImplementationOnce(() => Promise.resolve({
+      value: {
+        amount: '0', // $0 USDC
+        decimals: 6,
+        uiAmount: 0,
+      },
     }));
 
     mockGetBalance.mockImplementationOnce(() => Promise.resolve(500000)); // 0.0005 SOL
@@ -613,21 +545,12 @@ describe('Collateral - SOL Balance Validation', () => {
 
   it('should proceed with swap when SOL balance is sufficient', async () => {
     // Mock: user needs swap and has sufficient SOL
-    mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
-      getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
-      getPerpPosition: () => ({
-        baseAssetAmount: new MockBN(0),
-        quoteAssetAmount: new MockBN(0),
-        lastCumulativeFundingRate: new MockBN(0),
-        marketIndex: 0,
-      }),
-      getFreeCollateral: () => new MockBN(0),
-      getTotalCollateral: () => new MockBN(0),
-      getTotalPerpPositionValue: () => new MockBN(0),
-      getUnrealizedPNL: () => new MockBN(0),
-      getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+    mockGetTokenAccountBalance.mockImplementationOnce(() => Promise.resolve({
+      value: {
+        amount: '0', // $0 USDC
+        decimals: 6,
+        uiAmount: 0,
+      },
     }));
 
     mockGetBalance.mockImplementationOnce(() => Promise.resolve(2000000000)); // 2 SOL - sufficient

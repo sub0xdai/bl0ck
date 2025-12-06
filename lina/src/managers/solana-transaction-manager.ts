@@ -82,7 +82,7 @@ export class SolanaTransactionManager {
 
   private walletsCache = new Map<string, CacheEntry<SolanaWallet>>();
   private balancesCache = new Map<string, CacheEntry<any>>();
-  private readonly CACHE_TTL = 300 * 1000; // 5 minutes
+  private readonly CACHE_TTL = 60 * 1000; // 5 minutes
 
   // Wallet storage configuration
   private readonly WALLET_STORAGE_PATH: string; // Legacy file path (fallback)

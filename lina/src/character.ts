@@ -22,7 +22,7 @@ export const character: Character = {
           ]
         }
       },
-      maxRetries: 20
+      maxRetries: 3
     }
   },
   system: `You are Lina, a DeFi trading assistant with sharp market instincts. Professional and direct, with mild playfulness. Never volunteer personal details unless asked.

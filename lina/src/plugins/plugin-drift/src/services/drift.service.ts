@@ -8,6 +8,7 @@
 import { Service, logger, type IAgentRuntime } from '@elizaos/core';
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { DriftClient, Wallet, BN, PositionDirection, MarketType, getMarketOrderParams } from '@drift-labs/sdk';
+import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { SolanaTransactionManager } from '@/managers/solana-transaction-manager';
 import { SERVICE_NAME, CONFIG, DEVNET_MARKETS, MAINNET_MARKETS, MINTS, ERRORS } from '../constants';
 import type { JupiterService } from '../../../plugin-jupiter/src/services/jupiter.service';
@@ -212,10 +213,8 @@ export class DriftService extends Service {
       const leverage = params.leverage || CONFIG.DEFAULT_LEVERAGE;
       const marginRequired = params.size / leverage;
 
-      // Ensure sufficient collateral (auto-provision if needed)
+      // FIX: Ensure wallet has USDC (swap if needed), then deposit to Drift
       await this.ensureCollateral(userId, marginRequired);
-
-      // Deposit USDC before opening position
       await this.deposit(userId, marginRequired);
 
       // Convert USD size to base asset amount
@@ -436,25 +435,23 @@ export class DriftService extends Service {
     try {
       const client = await this.getClientForUser(userId);
 
-      // Check if user has enough USDC
-      const user = client.getUser();
-      const usdcPosition = user.getSpotPosition(0); // USDC is index 0
-      const usdcBalance = usdcPosition ? usdcPosition.scaledBalance : BigInt(0);
+      // FIX: Check WALLET USDC balance, not Drift account balance
+      const walletUsdcBalance = await this.getWalletUsdcBalance(userId);
 
-      if (Number(usdcBalance) < amount * 1_000_000) { // 6 decimals
+      if (walletUsdcBalance < amount) {
         return {
           success: false,
-          error: `Insufficient USDC balance. Required: $${amount}, Available: $${(Number(usdcBalance) / 1_000_000).toFixed(2)}`,
+          error: `Insufficient USDC in wallet. Required: $${amount}, Available: $${walletUsdcBalance.toFixed(2)}`,
         };
       }
 
-      // Deposit USDC to Drift (amount in base units - 6 decimals)
+      // Deposit USDC from wallet to Drift (amount in base units - 6 decimals)
       const depositAmount = new BN(amount * 1_000_000);
       const txSig = await client.deposit(depositAmount);
 
       await this.connection!.confirmTransaction(txSig, 'confirmed');
 
-      logger.info(`[DRIFT_SERVICE] Deposited $${amount} USDC for user ${userId}`);
+      logger.info(`[DRIFT_SERVICE] Deposited $${amount} USDC from wallet to Drift for user ${userId}`);
 
       return {
         success: true,
@@ -472,27 +469,27 @@ export class DriftService extends Service {
   }
 
   /**
-   * Ensure sufficient USDC collateral (auto-swap via Jupiter if needed)
+   * Ensure sufficient USDC in wallet (auto-swap via Jupiter if needed)
    * @param userId User identifier
    * @param marginRequired Required margin in USD
    * @throws Error if insufficient SOL, Jupiter unavailable, or swap fails
    */
   private async ensureCollateral(userId: string, marginRequired: number): Promise<void> {
-    const accountInfo = await this.getAccountInfo(userId);
-    const freeCollateral = parseFloat(accountInfo.freeCollateral) / 1_000_000; // Convert from base units
+    // FIX: Check WALLET USDC balance first, not Drift account
+    const walletUsdcBalance = await this.getWalletUsdcBalance(userId);
 
-    if (freeCollateral >= marginRequired) {
-      logger.info(`[DRIFT_SERVICE] Sufficient collateral: $${freeCollateral.toFixed(2)} >= $${marginRequired.toFixed(2)}`);
+    if (walletUsdcBalance >= marginRequired) {
+      logger.info(`[DRIFT_SERVICE] Sufficient wallet USDC: $${walletUsdcBalance.toFixed(2)} >= $${marginRequired.toFixed(2)}`);
       return;
     }
 
-    const shortfall = marginRequired - freeCollateral;
-    logger.info(`[DRIFT_SERVICE] Collateral shortfall: $${shortfall.toFixed(2)} (need $${marginRequired.toFixed(2)}, have $${freeCollateral.toFixed(2)})`);
+    const shortfall = marginRequired - walletUsdcBalance;
+    logger.info(`[DRIFT_SERVICE] Wallet USDC shortfall: $${shortfall.toFixed(2)} (need $${marginRequired.toFixed(2)}, have $${walletUsdcBalance.toFixed(2)})`);
 
     // Devnet: Jupiter only works on mainnet
     if (this.isDevnet) {
       throw new Error(
-        `Insufficient collateral on devnet. Need $${marginRequired.toFixed(2)}, have $${freeCollateral.toFixed(2)}. ` +
+        `Insufficient USDC in wallet on devnet. Need $${marginRequired.toFixed(2)}, have $${walletUsdcBalance.toFixed(2)}. ` +
         `Please manually swap ${shortfall.toFixed(2)} USDC (Jupiter auto-swap only available on mainnet).`
       );
     }
@@ -550,6 +547,27 @@ export class DriftService extends Service {
 
     logger.info(`[DRIFT_SERVICE] Auto-swap complete: ${swapResult.transactionHash}`);
     logger.info(`[DRIFT_SERVICE] Swapped ${(parseInt(swapResult.inputAmount) / LAMPORTS_PER_SOL).toFixed(4)} SOL -> ${(parseInt(swapResult.outputAmount) / 1_000_000).toFixed(2)} USDC`);
+  }
+
+  /**
+   * Get USDC balance in wallet (NOT Drift account)
+   * @param userId User identifier
+   * @returns USDC balance in USD (6 decimals normalized)
+   */
+  private async getWalletUsdcBalance(userId: string): Promise<number> {
+    const walletInfo = await this.solanaManager.getOrCreateWallet(userId);
+    const usdcAta = getAssociatedTokenAddressSync(
+      new PublicKey(MINTS.USDC),
+      walletInfo.keypair.publicKey
+    );
+
+    try {
+      const balance = await this.connection!.getTokenAccountBalance(usdcAta);
+      return Number(balance.value.amount) / 1_000_000; // 6 decimals -> USD
+    } catch (error) {
+      // Account doesn't exist yet (no USDC tokens)
+      return 0;
+    }
   }
 
   // ============================================================

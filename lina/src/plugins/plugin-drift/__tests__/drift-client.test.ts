@@ -96,12 +96,20 @@ mock.module('@drift-labs/sdk', () => ({
 }));
 
 const mockGetBalance = mock(() => Promise.resolve(50000000));
+const mockGetTokenAccountBalance = mock(() => Promise.resolve({
+  value: {
+    amount: '10000000000', // $10,000 USDC default
+    decimals: 6,
+    uiAmount: 10000,
+  },
+}));
 const mockConfirmTransaction = mock(() => Promise.resolve({ value: { err: null } }));
 
 mock.module('@solana/web3.js', () => ({
   Connection: class {
     constructor(public endpoint: string) {}
     getBalance = mockGetBalance;
+    getTokenAccountBalance = mockGetTokenAccountBalance;
     confirmTransaction = mockConfirmTransaction;
   },
   PublicKey: MockPublicKey,
@@ -114,6 +122,13 @@ mock.module('@solana/web3.js', () => ({
     }
   },
   LAMPORTS_PER_SOL: 1000000000,
+}));
+
+// Mock @solana/spl-token
+mock.module('@solana/spl-token', () => ({
+  getAssociatedTokenAddressSync: mock((mint: any, owner: any) => {
+    return new MockPublicKey('mockUsdcAta');
+  }),
 }));
 
 const mockGetOrCreateWallet = mock(() =>
