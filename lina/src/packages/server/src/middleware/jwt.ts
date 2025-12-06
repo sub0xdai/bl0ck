@@ -262,7 +262,98 @@ export function requireAdmin(req: AuthenticatedRequest, res: Response, next: Nex
       }
     });
   }
-  
+
   next();
+}
+
+/**
+ * Socket.IO authentication result
+ */
+export interface SocketAuthResult {
+  success: boolean;
+  userId?: string;
+  error?: string;
+}
+
+/**
+ * Verify JWT token from Socket.IO handshake
+ * Extracts token from socket.handshake.auth.token or Authorization header
+ * Sets socket.data.userId if valid
+ */
+export function verifySocketToken(socket: any): SocketAuthResult {
+  if (!JWT_SECRET) {
+    return { success: false, error: 'JWT_SECRET not configured' };
+  }
+
+  // Try to get token from handshake auth object (preferred)
+  let token = socket.handshake?.auth?.token;
+
+  // Fallback to Authorization header
+  if (!token) {
+    const authHeader = socket.handshake?.headers?.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    }
+  }
+
+  if (!token) {
+    return { success: false, error: 'No authentication token provided' };
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as AuthTokenPayload;
+
+    // Store userId on socket.data for later validation
+    socket.data = socket.data || {};
+    socket.data.userId = decoded.userId;
+    socket.data.walletAddress = decoded.walletAddress;
+    socket.data.chain = decoded.chain;
+    socket.data.isAdmin = decoded.isAdmin || false;
+
+    logger.debug(
+      `[SocketIO Auth] Authenticated socket ${socket.id}: userId=${decoded.userId.substring(0, 8)}...`
+    );
+
+    return { success: true, userId: decoded.userId };
+  } catch (error: any) {
+    logger.warn(
+      `[SocketIO Auth] Invalid token for socket ${socket.id}: ${error.message}`
+    );
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Validate that the senderId in a message matches the authenticated socket user
+ * Returns the validated userId or null if validation fails
+ */
+export function validateSocketSenderId(socket: any, senderId: string): { valid: boolean; userId: string | null; error?: string } {
+  const authenticatedUserId = socket.data?.userId;
+
+  // If socket is not authenticated, log warning but allow (for dev/testing)
+  // In production, you may want to reject unauthenticated messages
+  if (!authenticatedUserId) {
+    logger.warn(
+      `[SocketIO Auth] Message from unauthenticated socket ${socket.id}. ` +
+      `senderId="${senderId.substring(0, 8)}..." - SECURITY: Enable auth in production!`
+    );
+    // Allow but return the provided senderId (legacy behavior)
+    return { valid: true, userId: senderId };
+  }
+
+  // Validate senderId matches authenticated user
+  if (senderId !== authenticatedUserId) {
+    logger.error(
+      `[SocketIO Auth] SECURITY VIOLATION: Socket ${socket.id} authenticated as ` +
+      `"${authenticatedUserId.substring(0, 8)}..." but claimed senderId="${senderId.substring(0, 8)}..."`
+    );
+    return {
+      valid: false,
+      userId: null,
+      error: 'senderId does not match authenticated user'
+    };
+  }
+
+  return { valid: true, userId: authenticatedUserId };
 }
 

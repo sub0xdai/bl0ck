@@ -14,8 +14,11 @@ export {
   optionalAuth,
   requireAuthOrApiKey,
   requireAdmin,
+  verifySocketToken,
+  validateSocketSenderId,
   type AuthTokenPayload,
   type AuthenticatedRequest,
+  type SocketAuthResult,
 } from './jwt';
 
 // Security middleware

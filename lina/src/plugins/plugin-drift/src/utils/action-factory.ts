@@ -17,25 +17,16 @@ import { DriftService } from '../services/drift.service';
 import { ACTION_NAMES, SERVICE_NAME, CONFIG } from '../constants';
 import type { OrderType, PositionSide } from '../types';
 import { formatPositionResult } from './formatters';
+// Import shared utility for consistent user ID extraction
+import { getEntityUserId } from '../../../plugin-solana-core/src/utils';
 
 /**
  * Extract user ID from message with proper metadata lookup
  * Uses entity.metadata.author_id for JWT-authenticated users
+ * @deprecated Use getEntityUserId directly - this is a compatibility wrapper
  */
 export async function extractUserId(runtime: IAgentRuntime, message: Memory): Promise<string> {
-  const entity = await runtime.getEntityById(message.entityId);
-  const userId = entity?.metadata?.author_id;
-
-  if (userId) {
-    return userId as string;
-  }
-
-  // Fallback to entityId if metadata is missing (e.g. non-authenticated local testing)
-  if (message.entityId) {
-    return message.entityId;
-  }
-
-  throw new Error('User ID is required');
+  return getEntityUserId(runtime, message);
 }
 
 /**

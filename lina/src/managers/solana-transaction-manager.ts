@@ -208,15 +208,17 @@ export class SolanaTransactionManager {
    * Initialize encryption key from environment variable
    * Uses SOLANA_WALLET_SECRET for AES-256-GCM encryption
    * Matches CDP's wallet encryption pattern
+   * @throws Error if SOLANA_WALLET_SECRET is missing or invalid
    */
   private initializeEncryption(): void {
     const secret = process.env.SOLANA_WALLET_SECRET;
 
     if (!secret) {
-      logger.warn(
-        '[SolanaTransactionManager] SOLANA_WALLET_SECRET not set. Wallet creation will fail. Generate with: openssl rand -hex 32'
-      );
-      return;
+      const errorMsg =
+        '[SolanaTransactionManager] FATAL: SOLANA_WALLET_SECRET is required but not set. ' +
+        'Generate with: openssl rand -hex 32';
+      logger.error(errorMsg);
+      throw new Error(errorMsg);
     }
 
     try {
@@ -224,20 +226,23 @@ export class SolanaTransactionManager {
       this.encryptionKey = Buffer.from(secret, 'hex');
 
       if (this.encryptionKey.length !== 32) {
-        logger.error(
-          `[SolanaTransactionManager] Invalid SOLANA_WALLET_SECRET length: ${this.encryptionKey.length} bytes (expected 32)`
-        );
-        this.encryptionKey = null;
-        return;
+        const errorMsg =
+          `[SolanaTransactionManager] FATAL: Invalid SOLANA_WALLET_SECRET length: ${this.encryptionKey.length} bytes (expected 32). ` +
+          'Generate a valid 64-character hex string with: openssl rand -hex 32';
+        logger.error(errorMsg);
+        throw new Error(errorMsg);
       }
 
       logger.info('[SolanaTransactionManager] Encryption initialized successfully');
     } catch (error) {
-      logger.error(
-        '[SolanaTransactionManager] Failed to initialize encryption:',
-        error instanceof Error ? error.message : String(error)
-      );
-      this.encryptionKey = null;
+      // Re-throw if it's our own error
+      if (error instanceof Error && error.message.includes('FATAL')) {
+        throw error;
+      }
+      const errorMsg =
+        `[SolanaTransactionManager] FATAL: Failed to initialize encryption: ${error instanceof Error ? error.message : String(error)}`;
+      logger.error(errorMsg);
+      throw new Error(errorMsg);
     }
   }
 
@@ -715,16 +720,13 @@ export class SolanaTransactionManager {
 
       return { ...result, fromCache: false };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(
         '[SolanaTransactionManager] Failed to fetch token balances:',
-        error instanceof Error ? error.message : String(error)
+        errorMessage
       );
-      return {
-        tokens: [],
-        totalUsdValue: 0,
-        address: publicKey,
-        fromCache: false,
-      };
+      // Re-throw with context instead of returning empty data that masks the real error
+      throw new Error(`Failed to fetch token balances for wallet ${publicKey}: ${errorMessage}`);
     }
   }
 
@@ -773,11 +775,13 @@ export class SolanaTransactionManager {
         usdPrice: isNaN(usdPrice) ? 0 : usdPrice,
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(
         '[SolanaTransactionManager] Failed to get SOL balance:',
-        error instanceof Error ? error.message : String(error)
+        errorMessage
       );
-      return { balance: 0n, usdValue: 0, usdPrice: 0 };
+      // Re-throw with clear RPC error context instead of returning zero balance
+      throw new Error(`RPC connection failed while fetching SOL balance: ${errorMessage}. Check your SOLANA_RPC_URL or network connectivity.`);
     }
   }
 
@@ -826,11 +830,13 @@ export class SolanaTransactionManager {
       logger.info(`[SolanaTransactionManager] Found ${accounts.length} SPL tokens`);
       return accounts;
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(
         '[SolanaTransactionManager] Failed to get SPL token accounts:',
-        error instanceof Error ? error.message : String(error)
+        errorMessage
       );
-      return [];
+      // Re-throw with clear RPC error context instead of returning empty array
+      throw new Error(`RPC connection failed while fetching SPL token accounts: ${errorMessage}. Check your SOLANA_RPC_URL or network connectivity.`);
     }
   }
 

@@ -27,6 +27,7 @@ import {
   securityMiddleware,
   validateContentTypeMiddleware,
   createApiRateLimit,
+  verifySocketToken,
 } from '../middleware';
 
 /**
@@ -47,6 +48,17 @@ export function setupSocketIO(
       origin: '*',
       methods: ['GET', 'POST'],
     },
+  });
+
+  // Add Socket.IO authentication middleware
+  // Validates JWT from handshake auth and stores userId on socket.data
+  io.use((socket, next) => {
+    const result = verifySocketToken(socket);
+    if (!result.success) {
+      // Allow connection but log warning - userId will be validated per-message
+      logger.warn(`[SocketIO] Connection without valid auth: ${result.error}`);
+    }
+    next();
   });
 
   const centralSocketRouter = new SocketIORouter(elizaOS, serverInstance);

@@ -11,6 +11,7 @@ import {
 import type { Socket, Server as SocketIOServer } from 'socket.io';
 import type { AgentServer } from '../index';
 import { attachmentsToApiUrls } from '../utils/media-transformer';
+import { validateSocketSenderId } from '../middleware';
 
 const DEFAULT_SERVER_ID = '00000000-0000-0000-0000-000000000000' as UUID; // Single default server
 export class SocketIORouter {
@@ -220,10 +221,22 @@ export class SocketIORouter {
       return;
     }
 
+    // SECURITY: Validate senderId matches authenticated socket user
+    const senderValidation = validateSocketSenderId(socket, senderId);
+    if (!senderValidation.valid) {
+      this.sendErrorResponse(
+        socket,
+        `Authentication error: ${senderValidation.error}. Your senderId must match your authenticated user ID.`
+      );
+      return;
+    }
+    // Use the validated userId (either from auth or from senderId for legacy support)
+    const validatedSenderId = senderValidation.userId as string;
+
     try {
       // Check if this is a DM channel and emit ENTITY_JOINED for proper world setup
       const isDmForWorldSetup = metadata?.isDm || metadata?.channelType === ChannelType.DM;
-      if (isDmForWorldSetup && senderId) {
+      if (isDmForWorldSetup && validatedSenderId) {
         logger.info(
           `[SocketIO] Detected DM channel during message submission, emitting ENTITY_JOINED for proper world setup`
         );
@@ -231,7 +244,7 @@ export class SocketIORouter {
         const runtime = this.elizaOS.getAgents()[0];
         if (runtime) {
           runtime.emitEvent(EventType.ENTITY_JOINED as any, {
-            entityId: senderId as UUID,
+            entityId: validatedSenderId as UUID,
             runtime,
             worldId: serverId, // Use serverId as worldId identifier
             roomId: channelId as UUID,
@@ -243,7 +256,7 @@ export class SocketIORouter {
             source: 'socketio_message',
           });
 
-          logger.info(`[SocketIO] ENTITY_JOINED event emitted for DM channel setup: ${senderId}`);
+          logger.info(`[SocketIO] ENTITY_JOINED event emitted for DM channel setup: ${validatedSenderId}`);
         }
       }
 
@@ -296,7 +309,7 @@ export class SocketIORouter {
             sourceType: 'auto_created',
             metadata: {
               created_by: 'socketio_auto_creation',
-              created_for_user: senderId,
+              created_for_user: validatedSenderId,
               created_at: new Date().toISOString(),
               channel_type: isDmChannel ? ChannelType.DM : ChannelType.GROUP,
               ...metadata,
@@ -309,7 +322,7 @@ export class SocketIORouter {
           );
 
           // For DM channels, we need to determine the participants
-          let participants = [senderId as UUID];
+          let participants = [validatedSenderId as UUID];
           if (isDmChannel) {
             // Try to extract the other participant from metadata or payload
             const otherParticipant =
@@ -321,7 +334,7 @@ export class SocketIORouter {
               );
             } else {
               logger.warn(
-                `[SocketIO ${socket.id}] DM channel missing second participant, only adding sender: ${senderId}`
+                `[SocketIO ${socket.id}] DM channel missing second participant, only adding sender: ${validatedSenderId}`
               );
             }
           }
@@ -346,7 +359,7 @@ export class SocketIORouter {
 
       const newRootMessageData = {
         channelId: channelId as UUID,
-        authorId: senderId as UUID,
+        authorId: validatedSenderId as UUID,
         content: message as string,
         rawMessage: payload,
         metadata: {
