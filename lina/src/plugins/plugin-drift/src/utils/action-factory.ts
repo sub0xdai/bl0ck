@@ -19,14 +19,23 @@ import type { OrderType, PositionSide } from '../types';
 import { formatPositionResult } from './formatters';
 
 /**
- * Extract user ID from message with proper null checking
+ * Extract user ID from message with proper metadata lookup
+ * Uses entity.metadata.author_id for JWT-authenticated users
  */
-export function extractUserId(message: Memory): string {
-  const userId = message.entityId;
-  if (!userId) {
-    throw new Error('User ID is required');
+export async function extractUserId(runtime: IAgentRuntime, message: Memory): Promise<string> {
+  const entity = await runtime.getEntityById(message.entityId);
+  const userId = entity?.metadata?.author_id;
+
+  if (userId) {
+    return userId as string;
   }
-  return userId as string;
+
+  // Fallback to entityId if metadata is missing (e.g. non-authenticated local testing)
+  if (message.entityId) {
+    return message.entityId;
+  }
+
+  throw new Error('User ID is required');
 }
 
 /**
@@ -118,7 +127,7 @@ export function createOpenPositionAction(config: OpenPositionConfig): Action {
           throw new Error('Drift service not initialized');
         }
 
-        const userId = extractUserId(message);
+        const userId = await extractUserId(runtime, message);
         const params = await extractActionParams(runtime, message);
 
         const marketSymbol = (params?.marketSymbol as string)?.trim()?.toUpperCase();
@@ -203,32 +212,32 @@ export function createOpenPositionAction(config: OpenPositionConfig): Action {
 
     examples: side === 'long'
       ? [
-          [
-            { name: '{{user}}', content: { text: 'open a $1000 long on SOL-PERP with 5x leverage' } },
-            { name: '{{agent}}', content: { text: 'Opening SOL-PERP long position with 5x leverage...', action: actionName } },
-          ],
-          [
-            { name: '{{user}}', content: { text: 'long BTC-PERP $500' } },
-            { name: '{{agent}}', content: { text: 'Opening BTC-PERP long position...', action: actionName } },
-          ],
-          [
-            { name: '{{user}}', content: { text: 'go long ETH-PERP at 3500 with limit order, $2000, 3x' } },
-            { name: '{{agent}}', content: { text: 'Placing limit long order for ETH-PERP at $3500...', action: actionName } },
-          ],
-        ]
-      : [
-          [
-            { name: '{{user}}', content: { text: 'open a $1000 short on SOL-PERP with 5x leverage' } },
-            { name: '{{agent}}', content: { text: 'Opening SOL-PERP short position with 5x leverage...', action: actionName } },
-          ],
-          [
-            { name: '{{user}}', content: { text: 'short BTC-PERP $500' } },
-            { name: '{{agent}}', content: { text: 'Opening BTC-PERP short position...', action: actionName } },
-          ],
-          [
-            { name: '{{user}}', content: { text: 'short ETH-PERP at 3200 with limit order, $2000, 3x' } },
-            { name: '{{agent}}', content: { text: 'Placing limit short order for ETH-PERP at $3200...', action: actionName } },
-          ],
+        [
+          { name: '{{user}}', content: { text: 'open a $1000 long on SOL-PERP with 5x leverage' } },
+          { name: '{{agent}}', content: { text: 'Opening SOL-PERP long position with 5x leverage...', action: actionName } },
         ],
+        [
+          { name: '{{user}}', content: { text: 'long BTC-PERP $500' } },
+          { name: '{{agent}}', content: { text: 'Opening BTC-PERP long position...', action: actionName } },
+        ],
+        [
+          { name: '{{user}}', content: { text: 'go long ETH-PERP at 3500 with limit order, $2000, 3x' } },
+          { name: '{{agent}}', content: { text: 'Placing limit long order for ETH-PERP at $3500...', action: actionName } },
+        ],
+      ]
+      : [
+        [
+          { name: '{{user}}', content: { text: 'open a $1000 short on SOL-PERP with 5x leverage' } },
+          { name: '{{agent}}', content: { text: 'Opening SOL-PERP short position with 5x leverage...', action: actionName } },
+        ],
+        [
+          { name: '{{user}}', content: { text: 'short BTC-PERP $500' } },
+          { name: '{{agent}}', content: { text: 'Opening BTC-PERP short position...', action: actionName } },
+        ],
+        [
+          { name: '{{user}}', content: { text: 'short ETH-PERP at 3200 with limit order, $2000, 3x' } },
+          { name: '{{agent}}', content: { text: 'Placing limit short order for ETH-PERP at $3200...', action: actionName } },
+        ],
+      ],
   };
 }

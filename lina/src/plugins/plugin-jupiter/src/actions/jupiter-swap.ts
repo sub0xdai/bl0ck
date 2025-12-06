@@ -10,7 +10,7 @@ import { PublicKey } from "@solana/web3.js";
 import { getMint } from "@solana/spl-token";
 import { JupiterService } from "../services/jupiter.service";
 import { SolanaService } from "../../../plugin-solana-core/src/services/solana.service";
-import { getEntityUserId } from "../../../plugin-solana-core/src/utils";
+import { getEntityUserId } from "../utils";
 import type { JupiterSwapResult } from "../types";
 import { isJupiterSwapSupported } from "@/constants/chains";
 
@@ -161,13 +161,12 @@ export const jupiterSwap: Action = {
                 throw new Error("SolanaService not initialized");
             }
 
-            // Network validation already done in validate(), but double-check for safety
+            // Jupiter only works on Mainnet
             const network = runtime.getSetting("SOLANA_NETWORK");
-            if (!isJupiterSwapSupported(network)) {
+            if (network !== "solana" && network !== "mainnet-beta") {
                 throw new Error("Jupiter swaps are only available on Solana Mainnet. Please switch networks to use this feature.");
             }
 
-            // Get correct JWT user ID (not ElizaOS internal entityId)
             const userId = await getEntityUserId(runtime, message);
 
             // Extract parameters from composed state
@@ -241,7 +240,7 @@ export const jupiterSwap: Action = {
                             logger.info(`[SOLANA_SWAP] Direct RPC balance: ${lamports / LAMPORTS_PER_SOL} SOL`);
                         }
                     } catch (rpcError) {
-                        logger.error(`[SOLANA_SWAP] Direct RPC fetch failed:`, rpcError);
+                        logger.error(`[SOLANA_SWAP] Direct RPC fetch failed: ${rpcError}`);
                     }
                 }
             } else {
