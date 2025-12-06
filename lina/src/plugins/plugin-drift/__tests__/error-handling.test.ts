@@ -296,7 +296,9 @@ describe('Error Handling - Network Failures', () => {
       size: 100,
     };
 
-    await expect(service.openPosition('user-wallet-fail', params)).rejects.toThrow();
+    const result = await service.openPosition('user-wallet-fail', params);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('wallet');
   });
 
   it('should handle position open failure', async () => {

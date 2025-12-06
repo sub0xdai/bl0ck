@@ -4,9 +4,8 @@
 
 **Phantom Wrapper** is a planned privacy feature for the bl0ck ecosystem that enables anonymous token deposits and withdrawals on Solana. Users can wrap SOL/SPL tokens into private commitments and later unwrap them without revealing the connection between deposit and withdrawal.
 
-**Status:** Future feature (Month 6-8 of roadmap)
+**Status:** Future feature 
 **Prerequisites:** lina Phase 1 + bl0ck privacy-core foundation
-**Timeline:** 8-12 weeks implementation after prerequisites complete
 
 ## Use Cases
 

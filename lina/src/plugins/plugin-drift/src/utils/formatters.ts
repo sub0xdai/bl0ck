@@ -28,7 +28,9 @@ export function formatVolume(value: string): string {
  */
 export function formatUsd(value: string | number, decimals = 2): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
-  return `$${num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+  const absNum = Math.abs(num);
+  const formatted = absNum.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  return num < 0 ? `-$${formatted}` : `$${formatted}`;
 }
 
 /**
