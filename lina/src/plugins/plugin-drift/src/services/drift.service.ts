@@ -15,11 +15,18 @@ import type {
   ClosePositionParams,
   PositionResult,
   DepositResult,
+  ValidationResult,
+  PositionSide,
 } from '../types';
 
 export class DriftService extends Service {
   static serviceType = SERVICE_NAME;
   capabilityDescription = 'Solana perpetual futures trading via Drift Protocol with up to 20x leverage';
+
+  // Instance getter for serviceType (tests access via instance)
+  get serviceType(): string {
+    return SERVICE_NAME;
+  }
 
   private isDevnet: boolean = true;
   private markets: Record<string, number>;
@@ -41,14 +48,14 @@ export class DriftService extends Service {
   }
 
   private async initialize(): Promise<void> {
-    // Network detection will be implemented in Phase 2
-    // For now, default to devnet
-    this.isDevnet = true;
+    // Detect network from runtime settings
+    const network = this.runtime.getSetting('SOLANA_NETWORK');
+    this.isDevnet = network !== 'solana'; // 'solana' = mainnet, anything else = devnet
     this.markets = this.isDevnet ? DEVNET_MARKETS : MAINNET_MARKETS;
 
     logger.info(
-      '[DRIFT_SERVICE] Initialized on ' + 
-      (this.isDevnet ? 'devnet' : 'mainnet') + 
+      '[DRIFT_SERVICE] Initialized on ' +
+      (this.isDevnet ? 'devnet' : 'mainnet') +
       ' with ' + Object.keys(this.markets).length + ' markets'
     );
   }
@@ -58,18 +65,38 @@ export class DriftService extends Service {
   // ============================================================
 
   async openPosition(userId: string, params: OpenPositionParams): Promise<PositionResult> {
-    logger.info('[DRIFT_SERVICE] openPosition called - not yet implemented');
+    // Validate parameters first
+    const validation = this.validatePositionParams(params);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: validation.errors.join('; '),
+      };
+    }
+
+    // SDK integration will be implemented in Phase 2
+    logger.info('[DRIFT_SERVICE] openPosition called - SDK integration not yet implemented');
     return {
       success: false,
-      error: 'DriftService.openPosition not yet implemented. Coming in Phase 2.',
+      error: 'DriftService.openPosition SDK integration not yet implemented. Coming in Phase 2.',
     };
   }
 
   async closePosition(userId: string, params: ClosePositionParams): Promise<PositionResult> {
-    logger.info('[DRIFT_SERVICE] closePosition called - not yet implemented');
+    // Validate parameters first
+    const validation = this.validateCloseParams(params);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: validation.errors.join('; '),
+      };
+    }
+
+    // SDK integration will be implemented in Phase 2
+    logger.info('[DRIFT_SERVICE] closePosition called - SDK integration not yet implemented');
     return {
       success: false,
-      error: 'DriftService.closePosition not yet implemented. Coming in Phase 2.',
+      error: 'DriftService.closePosition SDK integration not yet implemented. Coming in Phase 2.',
     };
   }
 
@@ -131,6 +158,101 @@ export class DriftService extends Service {
       success: false,
       error: 'DriftService.deposit not yet implemented. Coming in Phase 2.',
     };
+  }
+
+  // ============================================================
+  // VALIDATION (Stubs - to be implemented in Phase 2)
+  // ============================================================
+
+  validatePositionParams(params: OpenPositionParams): ValidationResult {
+    const errors: string[] = [];
+
+    // Symbol validation
+    if (!params.marketSymbol) {
+      errors.push('Market symbol is required');
+    } else if (this.markets[params.marketSymbol] === undefined) {
+      errors.push(`Unknown market: ${params.marketSymbol}`);
+    }
+
+    // Size validation
+    if (params.size === undefined || params.size === null) {
+      errors.push('Size is required');
+    } else if (params.size < CONFIG.MIN_COLLATERAL) {
+      errors.push(`Size $${params.size} is below minimum $${CONFIG.MIN_COLLATERAL}`);
+    }
+
+    // Leverage validation
+    if (params.leverage !== undefined) {
+      if (params.leverage < 1) {
+        errors.push('Leverage must be at least 1x');
+      } else if (params.leverage > CONFIG.MAX_LEVERAGE) {
+        errors.push(`Leverage ${params.leverage}x exceeds maximum ${CONFIG.MAX_LEVERAGE}x`);
+      }
+    }
+
+    // Side validation
+    if (!params.side) {
+      errors.push('Side (long/short) is required');
+    } else if (params.side !== 'long' && params.side !== 'short') {
+      errors.push('Side must be "long" or "short"');
+    }
+
+    // Limit price validation
+    if (params.orderType === 'limit' && !params.limitPrice) {
+      errors.push('Limit price required for limit orders');
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+    };
+  }
+
+  validateCloseParams(params: ClosePositionParams): ValidationResult {
+    const errors: string[] = [];
+
+    // Symbol validation
+    if (!params.marketSymbol) {
+      errors.push('Market symbol is required');
+    } else if (this.markets[params.marketSymbol] === undefined) {
+      errors.push(`Unknown market: ${params.marketSymbol}`);
+    }
+
+    // Percentage validation
+    if (params.percentage !== undefined) {
+      if (params.percentage < 1) {
+        errors.push('Percentage must be at least 1');
+      } else if (params.percentage > 100) {
+        errors.push('Percentage cannot exceed 100');
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+    };
+  }
+
+  // ============================================================
+  // RISK MANAGEMENT (Stubs - to be implemented in Phase 2)
+  // ============================================================
+
+  requiresHighRiskConfirmation(leverage: number): boolean {
+    return leverage > CONFIG.HIGH_RISK_LEVERAGE_THRESHOLD;
+  }
+
+  calculateLiquidationPrice(entryPrice: number, leverage: number, side: PositionSide): number {
+    // Liquidation price formula:
+    // Long: entryPrice * (1 - 1/leverage * maintenanceMarginRatio)
+    // Short: entryPrice * (1 + 1/leverage * maintenanceMarginRatio)
+    // Using simplified 0.9 maintenance margin ratio for now
+    const maintenanceMarginRatio = 0.9;
+
+    if (side === 'long') {
+      return entryPrice * (1 - maintenanceMarginRatio / leverage);
+    } else {
+      return entryPrice * (1 + maintenanceMarginRatio / leverage);
+    }
   }
 
   // ============================================================

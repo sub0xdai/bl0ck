@@ -13,13 +13,13 @@ export const SERVICE_NAME = 'DRIFT_SERVICE';
  * CRITICAL: Devnet has different/fewer markets than mainnet
  * Always use the correct market map based on network
  */
-export const DEVNET_MARKETS: Record<string, number> = {
+export const DEVNET_MARKETS = {
   'SOL-PERP': 0,
   'BTC-PERP': 1,
   'ETH-PERP': 2,
-};
+} as const;
 
-export const MAINNET_MARKETS: Record<string, number> = {
+export const MAINNET_MARKETS = {
   'SOL-PERP': 0,
   'BTC-PERP': 1,
   'ETH-PERP': 2,
@@ -50,7 +50,7 @@ export const MAINNET_MARKETS: Record<string, number> = {
   'FTM-PERP': 27,
   'SEI-PERP': 28,
   'TIA-PERP': 29,
-};
+} as const;
 
 /**
  * Service configuration
@@ -118,5 +118,5 @@ export function getMarketSymbols(isDevnet: boolean): string[] {
  */
 export function getMarketIndex(symbol: string, isDevnet: boolean): number | undefined {
   const markets = isDevnet ? DEVNET_MARKETS : MAINNET_MARKETS;
-  return markets[symbol];
+  return (markets as Record<string, number>)[symbol];
 }
