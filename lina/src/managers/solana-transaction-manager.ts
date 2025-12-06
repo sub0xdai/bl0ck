@@ -668,21 +668,19 @@ export class SolanaTransactionManager {
       const { balance: solBalance, usdValue: solUsdValue, usdPrice: solUsdPrice } =
         await this.getSOLBalance(pubkey, runtime);
 
-      // Add SOL to tokens list (only if balance > 0)
-      if (solBalance > 0n) {
-        const balanceFormatted = this.formatTokenBalance(solBalance, 9);
-        allTokens.push({
-          symbol: 'SOL',
-          name: 'Solana',
-          balance: solBalance.toString(),
-          balanceFormatted: this.formatBalanceForDisplay(balanceFormatted),
-          usdValue: solUsdValue,
-          usdPrice: solUsdPrice,
-          mintAddress: null,
-          decimals: 9,
-        });
-        totalUsdValue += solUsdValue;
-      }
+      // Always include SOL in tokens list (even if 0) so downstream code can check balance
+      const balanceFormatted = this.formatTokenBalance(solBalance, 9);
+      allTokens.push({
+        symbol: 'SOL',
+        name: 'Solana',
+        balance: solBalance.toString(),
+        balanceFormatted: this.formatBalanceForDisplay(balanceFormatted),
+        usdValue: solUsdValue,
+        usdPrice: solUsdPrice,
+        mintAddress: null,
+        decimals: 9,
+      });
+      totalUsdValue += solUsdValue;
 
       // Get SPL tokens
       const splAccounts = await this.getSPLTokenAccounts(pubkey);

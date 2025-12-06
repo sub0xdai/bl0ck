@@ -60,22 +60,21 @@ async function mapSolanaToTokensResponse(
   // Fetch live SOL price
   const solPrice = await getSolPrice();
 
-  if (solBalance > 0) {
-    const usdValue = solBalance * solPrice;
-    tokens.push({
-      symbol: 'SOL',
-      name: 'Solana',
-      balance: String(Math.floor(solBalance * LAMPORTS_PER_SOL)),
-      balanceFormatted: solBalance.toFixed(9).replace(/\.?0+$/, ''),
-      usdValue,
-      usdPrice: solPrice,
-      contractAddress: null, // Native token
-      chain,
-      decimals: 9,
-      icon: undefined,
-    });
-    totalUsdValue += usdValue;
-  }
+  // Always include SOL (even if 0) so downstream code can check balance
+  const usdValue = solBalance * solPrice;
+  tokens.push({
+    symbol: 'SOL',
+    name: 'Solana',
+    balance: String(Math.floor(solBalance * LAMPORTS_PER_SOL)),
+    balanceFormatted: solBalance.toFixed(9).replace(/\.?0+$/, ''),
+    usdValue,
+    usdPrice: solPrice,
+    contractAddress: null, // Native token
+    chain,
+    decimals: 9,
+    icon: undefined,
+  });
+  totalUsdValue += usdValue;
 
   return {
     tokens,
