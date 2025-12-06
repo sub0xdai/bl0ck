@@ -10,6 +10,7 @@ import { PublicKey } from "@solana/web3.js";
 import { getMint } from "@solana/spl-token";
 import { JupiterService } from "../services/jupiter.service";
 import { SolanaService } from "../../../plugin-solana-core/src/services/solana.service";
+import { getEntityUserId } from "../../../plugin-solana-core/src/utils";
 import type { JupiterSwapResult } from "../types";
 import { isJupiterSwapSupported } from "@/constants/chains";
 
@@ -166,7 +167,8 @@ export const jupiterSwap: Action = {
                 throw new Error("Jupiter swaps are only available on Solana Mainnet. Please switch networks to use this feature.");
             }
 
-            const userId = message.entityId as string;
+            // Get correct JWT user ID (not ElizaOS internal entityId)
+            const userId = await getEntityUserId(runtime, message);
 
             // Extract parameters from composed state
             const composedState = await runtime.composeState(

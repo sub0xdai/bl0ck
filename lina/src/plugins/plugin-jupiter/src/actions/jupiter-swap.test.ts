@@ -18,6 +18,9 @@ const mockGetService = mock((serviceType: string) => {
     if (serviceType === "SOLANA_SERVICE") return mockSolanaService;
     return null;
 });
+const mockGetEntityById = mock(() => Promise.resolve({
+    metadata: { author_id: "test-user-id-123" }
+}));
 
 // Mock services
 const mockJupiterService = {
@@ -33,6 +36,7 @@ const mockRuntime = {
     getService: mockGetService,
     composeState: mockComposeState,
     getSetting: mockGetSetting,
+    getEntityById: mockGetEntityById,
 } as unknown as IAgentRuntime;
 
 describe("jupiterSwap", () => {
@@ -44,6 +48,7 @@ describe("jupiterSwap", () => {
         mockComposeState.mockReset();
         mockGetService.mockReset();
         mockGetSetting.mockReset();
+        mockGetEntityById.mockReset();
 
         // Restore default implementations
         mockGetService.mockImplementation((serviceType: string) => {
@@ -57,6 +62,11 @@ describe("jupiterSwap", () => {
             if (key === "SOLANA_NETWORK") return "solana";
             return null;
         });
+
+        // Default entity with author_id
+        mockGetEntityById.mockImplementation(() => Promise.resolve({
+            metadata: { author_id: "test-user-id-123" }
+        }));
     });
 
     describe("validation", () => {
