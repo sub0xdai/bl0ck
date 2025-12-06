@@ -6,12 +6,29 @@
 import type { Plugin } from '@elizaos/core';
 import { DriftService } from './services/drift.service';
 
+// Import all actions
+import driftOpenLong from './actions/drift-open-long';
+import driftOpenShort from './actions/drift-open-short';
+import driftClosePosition from './actions/drift-close-position';
+import driftGetPositions from './actions/drift-get-positions';
+import driftGetMarkets from './actions/drift-get-markets';
+import driftAccountInfo from './actions/drift-account-info';
+import driftDeposit from './actions/drift-deposit';
+
 export const driftPlugin: Plugin = {
   name: 'drift',
   description: 'Solana perpetual futures trading via Drift Protocol with up to 20x leverage',
   evaluators: [],
   providers: [],
-  actions: [],
+  actions: [
+    driftOpenLong,
+    driftOpenShort,
+    driftClosePosition,
+    driftGetPositions,
+    driftGetMarkets,
+    driftAccountInfo,
+    driftDeposit,
+  ],
   services: [DriftService],
 };
 
