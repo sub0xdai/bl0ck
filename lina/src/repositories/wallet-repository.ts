@@ -161,14 +161,14 @@ export class WalletRepository {
   }
 
   /**
-   * Get wallet by userId
+   * Get wallet by userId with READ COMMITTED isolation
+   * For atomic get-or-create, use getOrLockByUserId instead
    * @param userId User identifier
    * @returns Encrypted wallet data or null if not found
    */
   public async getByUserId(userId: string): Promise<EncryptedWalletData | null> {
     if (!this.pool) {
-      logger.warn('[WalletRepository] Database not configured, returning null');
-      return null;
+      throw new Error('Database not configured. Set WALLET_DB_URL environment variable.');
     }
 
     try {
@@ -204,6 +204,8 @@ export class WalletRepository {
 
   /**
    * Save or update wallet
+   * Uses UPSERT (INSERT ... ON CONFLICT) which is already atomic at DB level
+   * No explicit transaction needed - single statement is auto-committed
    * @param wallet Encrypted wallet data to save
    */
   public async save(wallet: EncryptedWalletData): Promise<void> {
@@ -213,7 +215,8 @@ export class WalletRepository {
 
     try {
       await this.withClient(async (client) => {
-        // Upsert: insert or update on conflict
+        // UPSERT is atomic at database level - no transaction wrapper needed
+        // ON CONFLICT handles race conditions automatically
         await client.query(
           `INSERT INTO solana_wallets (user_id, encrypted_seed_phrase, network, created_at, updated_at)
            VALUES ($1, $2, $3, to_timestamp($4 / 1000.0), NOW())

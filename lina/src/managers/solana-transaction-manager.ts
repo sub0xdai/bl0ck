@@ -15,19 +15,14 @@ import {
   getMint,
 } from '@solana/spl-token';
 import { getSolanaRpcUrl, getSolanaCluster } from '@/constants/chains';
-import { randomBytes, createCipheriv, createDecipheriv } from 'crypto';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import bs58 from 'bs58';
-import { WalletRepository, type EncryptedWalletData } from '@/repositories/wallet-repository';
+import { UnifiedWalletProvider, type WalletData } from '@/repositories/wallet-provider';
 
 // ============================================================================
 // Types
 // ============================================================================
 
 /**
- * Generic cache entry with 5-minute TTL
- * Matches CDP manager pattern exactly
+ * Generic cache entry with TTL
  */
 interface CacheEntry<T> {
   data: T;
@@ -35,28 +30,7 @@ interface CacheEntry<T> {
 }
 
 /**
- * Solana wallet data stored in memory cache
- * Contains the Keypair instance for signing transactions
- */
-interface SolanaWallet {
-  publicKey: string;
-  keypair: Keypair;
-  network: 'solana' | 'solana-devnet';
-}
-
-// EncryptedWalletData is now imported from @/repositories/wallet-repository
-
-/**
- * Wallet storage file structure (legacy - kept for migration)
- * Maps userId to encrypted wallet data
- */
-interface WalletStorageFile {
-  wallets: Record<string, EncryptedWalletData>;
-}
-
-/**
  * Token balance info with USD values and metadata
- * Matches CDP TokenBalance pattern
  */
 interface SolanaTokenBalance {
   symbol: string;
@@ -80,50 +54,48 @@ export class SolanaTransactionManager {
   private connection: Connection | null = null;
   private network: 'solana' | 'solana-devnet' = 'solana-devnet';
 
-  private walletsCache = new Map<string, CacheEntry<SolanaWallet>>();
+  // Balance cache only - wallet caching is handled by UnifiedWalletProvider
   private balancesCache = new Map<string, CacheEntry<any>>();
-  private readonly CACHE_TTL = 60 * 1000; // 60 seconds (reduced from 5 min for faster balance updates)
+  private readonly CACHE_TTL = 60 * 1000; // 60 seconds
 
-  // Wallet storage configuration
-  private readonly WALLET_STORAGE_PATH: string; // Legacy file path (fallback)
-  private readonly ENCRYPTION_ALGORITHM = 'aes-256-gcm' as const;
-  private readonly IV_LENGTH = 12; // GCM standard IV length
-  private readonly AUTH_TAG_LENGTH = 16; // GCM authentication tag length
-  private encryptionKey: Buffer | null = null;
+  // Unified wallet provider - single source of truth for wallet operations
+  private walletProvider: UnifiedWalletProvider;
 
-  // Database-backed wallet storage (primary)
-  private walletRepository: WalletRepository;
-  private walletRepositoryInitPromise: Promise<void> | null = null;
-
-  // Transaction configuration (Task 1.5)
+  // Transaction configuration
   private readonly MIN_SOL_BUFFER = 0.01 * LAMPORTS_PER_SOL; // 0.01 SOL for fees/rent
   private readonly CONFIRMATION_TIMEOUT = 60000; // 60s timeout
 
   // Private constructor to prevent direct instantiation
   private constructor() {
-    // Set storage path (data/ directory in project root) - legacy fallback
-    this.WALLET_STORAGE_PATH = join(process.cwd(), 'data', 'solana-wallets.json');
-
-    // Initialize database-backed wallet repository (primary storage)
-    this.walletRepository = WalletRepository.getInstance();
+    // Get the unified wallet provider singleton
+    this.walletProvider = UnifiedWalletProvider.getInstance();
 
     this.initializeConnection();
-    this.initializeEncryption();
-    this.initializeWalletRepository();
+    this.validateConfiguration();
   }
 
   /**
-   * Initialize the wallet repository (database)
-   * Stores promise to await before first wallet operation
+   * Validate critical configuration at startup
+   * Logs warnings for missing config but doesn't throw (allows read-only ops)
    */
-  private initializeWalletRepository(): void {
-    this.walletRepositoryInitPromise = this.walletRepository.initialize();
-    this.walletRepositoryInitPromise.catch((error) => {
-      logger.error(
-        '[SolanaTransactionManager] Failed to initialize wallet repository:',
-        error instanceof Error ? error.message : String(error)
-      );
-    });
+  private validateConfiguration(): void {
+    const issues: string[] = [];
+
+    if (!this.walletProvider.isConfigured()) {
+      issues.push('WALLET_DB_URL or SOLANA_WALLET_SECRET not set - wallet operations will fail');
+    }
+
+    if (!this.connection) {
+      issues.push('Solana RPC connection failed - transactions will fail');
+    }
+
+    if (issues.length > 0) {
+      logger.warn('[SolanaTransactionManager] Configuration issues detected:');
+      issues.forEach((issue) => logger.warn(`  - ${issue}`));
+      logger.warn('[SolanaTransactionManager] Some operations may fail. Please check your .env file.');
+    } else {
+      logger.info('[SolanaTransactionManager] Configuration validated successfully');
+    }
   }
 
   /**
@@ -205,43 +177,6 @@ export class SolanaTransactionManager {
   }
 
   /**
-   * Initialize encryption key from environment variable
-   * Uses SOLANA_WALLET_SECRET for AES-256-GCM encryption
-   * Matches CDP's wallet encryption pattern
-   */
-  private initializeEncryption(): void {
-    const secret = process.env.SOLANA_WALLET_SECRET;
-
-    if (!secret) {
-      logger.warn(
-        '[SolanaTransactionManager] SOLANA_WALLET_SECRET not set. Wallet creation will fail. Generate with: openssl rand -hex 32'
-      );
-      return;
-    }
-
-    try {
-      // Convert hex string to 32-byte buffer for AES-256
-      this.encryptionKey = Buffer.from(secret, 'hex');
-
-      if (this.encryptionKey.length !== 32) {
-        logger.error(
-          `[SolanaTransactionManager] Invalid SOLANA_WALLET_SECRET length: ${this.encryptionKey.length} bytes (expected 32)`
-        );
-        this.encryptionKey = null;
-        return;
-      }
-
-      logger.info('[SolanaTransactionManager] Encryption initialized successfully');
-    } catch (error) {
-      logger.error(
-        '[SolanaTransactionManager] Failed to initialize encryption:',
-        error instanceof Error ? error.message : String(error)
-      );
-      this.encryptionKey = null;
-    }
-  }
-
-  /**
    * Get the initialized Solana connection
    * Throws if not initialized (matches CDP pattern)
    * @throws Error if connection not initialized
@@ -309,159 +244,19 @@ export class SolanaTransactionManager {
   }
 
   // ============================================================================
-  // Encryption Methods (AES-256-GCM)
-  // ============================================================================
-
-  /**
-   * Encrypt a seed phrase using AES-256-GCM
-   * Format: IV (12 bytes) + encrypted data + auth tag (16 bytes)
-   * @param seedPhrase Seed phrase bytes to encrypt
-   * @returns Base64-encoded encrypted data
-   * @throws Error if encryption key not initialized
-   */
-  private encryptSeedPhrase(seedPhrase: Uint8Array): string {
-    if (!this.encryptionKey) {
-      throw new Error(
-        'Encryption key not initialized. Set SOLANA_WALLET_SECRET environment variable.'
-      );
-    }
-
-    // Generate random IV (12 bytes for GCM)
-    const iv = randomBytes(this.IV_LENGTH);
-
-    // Create cipher
-    const cipher = createCipheriv(this.ENCRYPTION_ALGORITHM, this.encryptionKey, iv);
-
-    // Encrypt seed phrase
-    const encryptedData = Buffer.concat([
-      cipher.update(Buffer.from(seedPhrase)),
-      cipher.final(),
-    ]);
-
-    // Get authentication tag
-    const authTag = cipher.getAuthTag();
-
-    // Combine: IV + encrypted data + auth tag
-    const combined = Buffer.concat([iv, encryptedData, authTag]);
-
-    // Return base64-encoded result
-    return combined.toString('base64');
-  }
-
-  /**
-   * Decrypt a seed phrase using AES-256-GCM
-   * @param encryptedData Base64-encoded encrypted seed phrase
-   * @returns Decrypted seed phrase bytes
-   * @throws Error if decryption fails or encryption key not initialized
-   */
-  private decryptSeedPhrase(encryptedData: string): Uint8Array {
-    if (!this.encryptionKey) {
-      throw new Error(
-        'Encryption key not initialized. Set SOLANA_WALLET_SECRET environment variable.'
-      );
-    }
-
-    try {
-      // Decode base64
-      const combined = Buffer.from(encryptedData, 'base64');
-
-      // Extract components
-      const iv = combined.subarray(0, this.IV_LENGTH);
-      const authTag = combined.subarray(combined.length - this.AUTH_TAG_LENGTH);
-      const encrypted = combined.subarray(this.IV_LENGTH, combined.length - this.AUTH_TAG_LENGTH);
-
-      // Create decipher
-      const decipher = createDecipheriv(this.ENCRYPTION_ALGORITHM, this.encryptionKey, iv);
-      decipher.setAuthTag(authTag);
-
-      // Decrypt
-      const decrypted = Buffer.concat([
-        decipher.update(encrypted),
-        decipher.final(),
-      ]);
-
-      return new Uint8Array(decrypted);
-    } catch (error) {
-      throw new Error(
-        `Failed to decrypt seed phrase: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-  }
-
-  // ============================================================================
-  // Wallet Storage Methods
-  // ============================================================================
-
-  /**
-   * Load wallet storage file from disk
-   * Creates file if it doesn't exist
-   * @returns Wallet storage data
-   */
-  private loadWalletStorage(): WalletStorageFile {
-    try {
-      // Ensure data directory exists
-      const dataDir = join(process.cwd(), 'data');
-      if (!existsSync(dataDir)) {
-        mkdirSync(dataDir, { recursive: true });
-      }
-
-      // Load storage file
-      if (existsSync(this.WALLET_STORAGE_PATH)) {
-        logger.info(`[Persistence] Loading wallet storage from: ${this.WALLET_STORAGE_PATH}`);
-        const fileContent = readFileSync(this.WALLET_STORAGE_PATH, 'utf-8');
-        const data = JSON.parse(fileContent);
-        logger.info(`[Persistence] Loaded ${Object.keys(data.wallets || {}).length} wallets from disk`);
-        return data;
-      }
-
-      logger.warn(`[Persistence] Storage file not found at: ${this.WALLET_STORAGE_PATH}. Creating new storage.`);
-      // Create empty storage if file doesn't exist
-      return { wallets: {} };
-    } catch (error) {
-      logger.error(
-        '[SolanaTransactionManager] Failed to load wallet storage:',
-        error instanceof Error ? error.message : String(error)
-      );
-      return { wallets: {} };
-    }
-  }
-
-  /**
-   * Save wallet storage file to disk
-   * @param storage Wallet storage data to save
-   */
-  private saveWalletStorage(storage: WalletStorageFile): void {
-    try {
-      writeFileSync(
-        this.WALLET_STORAGE_PATH,
-        JSON.stringify(storage, null, 2),
-        'utf-8'
-      );
-    } catch (error) {
-      logger.error(
-        '[SolanaTransactionManager] Failed to save wallet storage:',
-        error instanceof Error ? error.message : String(error)
-      );
-      throw error;
-    }
-  }
-
-  // ============================================================================
-  // Wallet Operations
+  // Wallet Operations (Delegated to UnifiedWalletProvider)
   // ============================================================================
 
   /**
    * Get or create a Solana wallet for a user
-   * - Checks cache first (5-min TTL)
-   * - Loads from database (primary) or file storage (fallback)
-   * - Generates new keypair if no wallet found
-   * - Stores encrypted seed phrase to database
-   *
-   * Matches CDP's getOrCreateWallet pattern with encryption
+   * Delegates to UnifiedWalletProvider which handles:
+   * - Mutex for concurrent operations
+   * - Encryption/decryption
+   * - Database persistence
+   * - Caching
    *
    * @param userId Unique user identifier
    * @returns Wallet public key and keypair
-   * @throws Error if encryption not initialized or storage fails
    */
   async getOrCreateWallet(userId: string): Promise<{
     publicKey: string;
@@ -469,156 +264,16 @@ export class SolanaTransactionManager {
   }> {
     logger.info(`[SolanaTransactionManager] Getting/creating wallet for user: ${userId.substring(0, 8)}...`);
 
-    // Wait for repository initialization before any wallet operations
-    if (this.walletRepositoryInitPromise) {
-      await this.walletRepositoryInitPromise;
-    }
+    const walletData = await this.walletProvider.getOrCreateWallet(userId);
 
-    // Check cache first
-    const cached = this.getCachedData(userId, this.walletsCache);
-    if (cached) {
-      logger.info(`[SolanaTransactionManager] Returning cached wallet: ${cached.publicKey.substring(0, 8)}...`);
-      return {
-        publicKey: cached.publicKey,
-        keypair: cached.keypair,
-      };
-    }
-
-    let keypair: Keypair;
-    let storedWallet: EncryptedWalletData | null = null;
-
-    // Try database first (primary storage)
-    if (this.walletRepository.isConfigured()) {
-      try {
-        storedWallet = await this.walletRepository.getByUserId(userId);
-        logger.info(`[Persistence] Database lookup for userId ${userId.substring(0, 8)}...: ${storedWallet ? 'FOUND' : 'NOT FOUND'}`);
-      } catch (error) {
-        logger.warn(
-          '[SolanaTransactionManager] Database lookup failed, falling back to file storage:',
-          error instanceof Error ? error.message : String(error)
-        );
-      }
-    }
-
-    // Fallback to file storage if database not configured or lookup failed
-    if (!storedWallet) {
-      const storage = this.loadWalletStorage();
-      const fileWallet = storage.wallets[userId];
-      if (fileWallet) {
-        storedWallet = fileWallet;
-        logger.info(`[Persistence] File lookup for userId ${userId.substring(0, 8)}...: FOUND (legacy)`);
-
-        // Migrate to database if configured
-        if (this.walletRepository.isConfigured()) {
-          try {
-            await this.walletRepository.save(fileWallet);
-            logger.info(`[Persistence] Migrated wallet from file to database for userId ${userId.substring(0, 8)}...`);
-          } catch (migrationError) {
-            logger.warn('[Persistence] Failed to migrate wallet to database:', migrationError instanceof Error ? migrationError.message : String(migrationError));
-          }
-        }
-      }
-    }
-
-    if (storedWallet) {
-      // Restore wallet from encrypted storage
-      // Note: Solana keypairs are network-independent - same address works on devnet and mainnet
-      try {
-        logger.info(`[SolanaTransactionManager] Restoring wallet from storage for user: ${userId.substring(0, 8)}...`);
-
-        const decryptedSeed = this.decryptSeedPhrase(storedWallet.encryptedSeedPhrase);
-        keypair = Keypair.fromSecretKey(decryptedSeed);
-
-        logger.info(`[SolanaTransactionManager] Wallet restored: ${keypair.publicKey.toBase58().substring(0, 8)}...`);
-
-        // Update network in storage if it changed (keypair stays the same)
-        if (storedWallet.network !== this.network) {
-          logger.info(`[SolanaTransactionManager] Updating wallet network: ${storedWallet.network} -> ${this.network}`);
-          if (this.walletRepository.isConfigured()) {
-            await this.walletRepository.updateNetwork(userId, this.network);
-          } else {
-            const storage = this.loadWalletStorage();
-            storage.wallets[userId] = { ...storedWallet, network: this.network };
-            this.saveWalletStorage(storage);
-          }
-        }
-      } catch (error) {
-        // CRITICAL: Do NOT regenerate wallet on decryption failure.
-        // This would cause permanent loss of funds in the existing wallet.
-        logger.error(
-          `[SolanaTransactionManager] FATAL: Failed to decrypt wallet for user ${userId}:`,
-          error instanceof Error ? error.message : String(error)
-        );
-        throw new Error(`Failed to decrypt wallet. Please check SOLANA_WALLET_SECRET. Original error: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    } else {
-      // Generate new wallet
-      logger.info(`[SolanaTransactionManager] Generating new wallet for user: ${userId.substring(0, 8)}...`);
-      keypair = Keypair.generate();
-
-      // Save to encrypted storage (database primary, file fallback)
-      await this.saveWalletWithEncryption(userId, keypair);
-    }
-
-    const publicKey = keypair.publicKey.toBase58();
-    logger.info(`[SolanaTransactionManager] Wallet ready: ${publicKey.substring(0, 8)}... on ${this.network}`);
-
-    // Cache wallet
-    this.setCacheData(
-      userId,
-      {
-        publicKey,
-        keypair,
-        network: this.network,
-      },
-      this.walletsCache
-    );
-
-    return { publicKey, keypair };
-  }
-
-  /**
-   * Helper method to encrypt and save wallet to storage
-   * Saves to database (primary) with file fallback
-   * @param userId User identifier
-   * @param keypair Keypair to encrypt and save
-   */
-  private async saveWalletWithEncryption(
-    userId: string,
-    keypair: Keypair
-  ): Promise<void> {
-    const encryptedSeedPhrase = this.encryptSeedPhrase(keypair.secretKey);
-
-    const walletData: EncryptedWalletData = {
-      userId,
-      encryptedSeedPhrase,
-      network: this.network,
-      createdAt: Date.now(),
+    return {
+      publicKey: walletData.publicKey,
+      keypair: walletData.keypair,
     };
-
-    // Save to database (primary) if configured
-    if (this.walletRepository.isConfigured()) {
-      try {
-        await this.walletRepository.save(walletData);
-        logger.info(`[SolanaTransactionManager] Wallet saved to database`);
-        return;
-      } catch (error) {
-        logger.error(
-          '[SolanaTransactionManager] Failed to save wallet to database, falling back to file:',
-          error instanceof Error ? error.message : String(error)
-        );
-      }
-    }
-
-    // Fallback to file storage
-    const storage = this.loadWalletStorage();
-    storage.wallets[userId] = walletData;
-    this.saveWalletStorage(storage);
-    logger.info(`[SolanaTransactionManager] Wallet saved to file storage (fallback)`);
   }
 
   // ============================================================================
-  // Balance Query Methods (Task 1.4)
+  // Balance Query Methods
   // ============================================================================
 
   /**
