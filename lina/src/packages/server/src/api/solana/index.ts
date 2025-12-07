@@ -6,6 +6,28 @@ import { requireAuth, type AuthenticatedRequest } from '../../middleware';
 import { SolanaTransactionManager } from '@/managers/solana-transaction-manager';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 
+// Cache SOL price for 60 seconds to avoid rate limiting
+let cachedSolPrice: number | null = null;
+let lastPriceFetch = 0;
+const PRICE_CACHE_TTL = 60_000;
+
+async function getSolPrice(): Promise<number> {
+  const now = Date.now();
+  if (cachedSolPrice && now - lastPriceFetch < PRICE_CACHE_TTL) {
+    return cachedSolPrice;
+  }
+  try {
+    const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+    const data = await response.json() as { solana?: { usd?: number } };
+    cachedSolPrice = data.solana?.usd ?? 200;
+    lastPriceFetch = now;
+    return cachedSolPrice;
+  } catch (error) {
+    logger.warn('[Solana API] Failed to fetch SOL price, using cached or fallback');
+    return cachedSolPrice ?? 200;
+  }
+}
+
 export function solanaRouter(_serverInstance: AgentServer): express.Router {
   const router = express.Router();
 
@@ -34,11 +56,12 @@ export function solanaRouter(_serverInstance: AgentServer): express.Router {
 
       // TODO: Add token enrichment with getTokenBalances when runtime access is available
       // For now, return basic wallet info
+      const solPrice = await getSolPrice();
       const result = {
         publicKey,
         solBalance,
         tokens: [],
-        totalUSD: solBalance * 200, // Rough estimate, replace with CoinGecko price
+        totalUSD: solBalance * solPrice,
       };
 
       sendSuccess(res, result);
@@ -74,11 +97,12 @@ export function solanaRouter(_serverInstance: AgentServer): express.Router {
       const balance = await connection.getBalance(keypair.publicKey);
       const solBalance = Number(balance) / LAMPORTS_PER_SOL;
 
+      const solPrice = await getSolPrice();
       const result = {
         publicKey,
         solBalance,
         tokens: [],
-        totalUSD: solBalance * 200,
+        totalUSD: solBalance * solPrice,
       };
 
       sendSuccess(res, result);
