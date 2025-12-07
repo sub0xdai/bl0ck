@@ -7,7 +7,7 @@ import type {
     JupiterSwapResult,
 } from "../types";
 
-const JUPITER_QUOTE_API = "https://quote-api.jup.ag/v6";
+const JUPITER_QUOTE_API = "https://lite-api.jup.ag/swap/v1";
 
 /**
  * JupiterService provides Jupiter DEX aggregator integration for Solana token swaps
