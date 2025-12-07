@@ -12,6 +12,7 @@ build/
 .env
 .env.local
 .env.*.local
+.envrc
 
 # Database
 .eliza/
@@ -53,3 +54,12 @@ packages/*/dist/
 packages/*/node_modules/
 packages/*/.turbo/
 packages/*/tsconfig.tsbuildinfo
+
+# Deployment artifacts (DO NOT COMMIT)
+webhook-secret.txt
+*.tar.gz
+*.backup
+nohup.out
+
+# Local direnv (if using .envrc from .envrc.sample)
+# .envrc should be customized per-user, not committed
