@@ -15,11 +15,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 async function main() {
   const server = new AgentServer();
 
+  // Debug: Log database configuration
+  const postgresUrl = process.env.POSTGRES_URL;
+  console.log(`[DEBUG] POSTGRES_URL set: ${postgresUrl ? 'YES (length: ' + postgresUrl.length + ')' : 'NO'}`);
+  console.log(`[DEBUG] POSTGRES_URL starts with: ${postgresUrl ? postgresUrl.substring(0, 30) + '...' : 'N/A'}`);
+
   // Initialize server with custom client path
   await server.initialize({
     clientPath: path.resolve(__dirname, 'dist/frontend'), //  Point to OUR custom UI
     dataDir: process.env.PGLITE_DATA_DIR || path.resolve(__dirname, '.eliza/.elizadb'),
-    postgresUrl: process.env.POSTGRES_URL,
+    postgresUrl: postgresUrl,
   });
 
   // Load characters from project
