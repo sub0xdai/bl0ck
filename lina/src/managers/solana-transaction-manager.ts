@@ -411,6 +411,13 @@ export class SolanaTransactionManager {
             usdPrice = marketData?.market_data?.current_price?.usd || 0;
           }
         }
+        // Fallback: direct CoinGecko API call if service unavailable or returned 0
+        if (usdPrice === 0) {
+          const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+          const data = await response.json() as { solana?: { usd?: number } };
+          usdPrice = data.solana?.usd ?? 0;
+          logger.debug(`[SolanaTransactionManager] SOL price from direct API: $${usdPrice}`);
+        }
       } catch (priceError) {
         logger.warn(
           '[SolanaTransactionManager] Failed to fetch SOL price:',
