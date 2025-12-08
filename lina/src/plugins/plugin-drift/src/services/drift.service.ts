@@ -185,11 +185,15 @@ export class DriftService extends Service {
       const keypair = walletInfo.keypair;
       const wallet = new Wallet(keypair);
 
-      // Create DriftClient
+      // Create DriftClient with polling subscription for reliability
       const client = new DriftClient({
         connection: this.connection!,
         wallet,
         env: this.isDevnet ? 'devnet' : 'mainnet-beta',
+        accountSubscription: {
+          type: 'polling',
+          accountLoader: undefined, // Uses default
+        },
       });
 
       // Subscribe with retry for rate limiting
@@ -199,7 +203,11 @@ export class DriftService extends Service {
       let needsInit = false;
       try {
         const user = client.getUser();
-        user.getUserAccount(); // Throws if account doesn't exist
+        const account = user.getUserAccount();
+        // Verify account is fully loaded (spotPositions exists)
+        if (!account || account.spotPositions === undefined) {
+          needsInit = true;
+        }
       } catch (error) {
         needsInit = true;
       }
@@ -223,13 +231,39 @@ export class DriftService extends Service {
         await withRetry(() => client.initializeUserAccount());
         logger.info(`[DRIFT_SERVICE] Drift account initialized for user ${userId}`);
 
-        // Re-subscribe client to pick up the new account
+        // Unsubscribe and resubscribe to pick up the new account
+        await client.unsubscribe();
         await withRetry(() => client.subscribe());
+
+        // Wait a moment for subscription to sync
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
 
-      // Now get fresh user object and subscribe (after account exists)
+      // Get user and subscribe
       const user = client.getUser();
       await withRetry(() => user.subscribe());
+
+      // Verify user account is loaded before caching
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          const account = user.getUserAccount();
+          if (account && account.spotPositions !== undefined) {
+            break; // Account is fully loaded
+          }
+        } catch (e) {
+          // Account not ready yet
+        }
+        retries--;
+        if (retries > 0) {
+          logger.info(`[DRIFT_SERVICE] Waiting for user account to sync... (${retries} retries left)`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+
+      if (retries === 0) {
+        throw new Error('Failed to load Drift user account after initialization');
+      }
 
       // Cache client for reuse
       this.clients.set(userId, client);
