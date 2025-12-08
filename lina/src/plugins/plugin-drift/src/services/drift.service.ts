@@ -195,12 +195,16 @@ export class DriftService extends Service {
       // Subscribe with retry for rate limiting
       await withRetry(() => client.subscribe());
 
-      // Initialize user account if it doesn't exist
-      const user = client.getUser();
-
+      // Check if user account exists, initialize if needed
+      let needsInit = false;
       try {
-        user.getUserAccount();
+        const user = client.getUser();
+        user.getUserAccount(); // Throws if account doesn't exist
       } catch (error) {
+        needsInit = true;
+      }
+
+      if (needsInit) {
         // User account doesn't exist - need to initialize
         logger.info(`[DRIFT_SERVICE] Drift account not found for user ${userId}, initializing...`);
 
@@ -218,9 +222,13 @@ export class DriftService extends Service {
         // Initialize Drift user account (with retry)
         await withRetry(() => client.initializeUserAccount());
         logger.info(`[DRIFT_SERVICE] Drift account initialized for user ${userId}`);
+
+        // Re-subscribe client to pick up the new account
+        await withRetry(() => client.subscribe());
       }
 
-      // Subscribe to user account updates (with retry)
+      // Now get fresh user object and subscribe (after account exists)
+      const user = client.getUser();
       await withRetry(() => user.subscribe());
 
       // Cache client for reuse

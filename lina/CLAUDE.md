@@ -14,6 +14,8 @@ Lina is a DeFi-focused AI agent built on ElizaOS with a custom React frontend. I
 
 ### Building and Running
 
+WARNING! **always be swarming!** - Will your task benefit from parallelization? Deploy sub agents
+
 ```bash
 # Development: Build all packages and start server
 bun run dev
