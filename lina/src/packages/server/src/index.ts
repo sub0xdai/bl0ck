@@ -1503,6 +1503,12 @@ export class AgentServer {
       throw new Error(`Server ${serverId} not found`);
     }
 
+    // Handle database adapters that don't support this method (e.g., npm @elizaos/plugin-sql)
+    if (typeof (this.database as any).addAgentToServer !== 'function') {
+      logger.debug(`[AgentServer] Database adapter doesn't support addAgentToServer, skipping`);
+      return;
+    }
+
     return (this.database as any).addAgentToServer(serverId, agentId);
   }
 
@@ -1512,6 +1518,11 @@ export class AgentServer {
    * @param {UUID} agentId - The agent ID to remove
    */
   async removeAgentFromServer(serverId: UUID, agentId: UUID): Promise<void> {
+    // Handle database adapters that don't support this method
+    if (typeof (this.database as any).removeAgentFromServer !== 'function') {
+      logger.debug(`[AgentServer] Database adapter doesn't support removeAgentFromServer, skipping`);
+      return;
+    }
     return (this.database as any).removeAgentFromServer(serverId, agentId);
   }
 
@@ -1521,6 +1532,11 @@ export class AgentServer {
    * @returns {Promise<UUID[]>} Array of agent IDs
    */
   async getAgentsForServer(serverId: UUID): Promise<UUID[]> {
+    // Handle database adapters that don't support this method
+    if (typeof (this.database as any).getAgentsForServer !== 'function') {
+      logger.debug(`[AgentServer] Database adapter doesn't support getAgentsForServer, returning empty`);
+      return [];
+    }
     return (this.database as any).getAgentsForServer(serverId);
   }
 
@@ -1530,6 +1546,12 @@ export class AgentServer {
    * @returns {Promise<UUID[]>} Array of server IDs
    */
   async getServersForAgent(agentId: UUID): Promise<UUID[]> {
+    // Handle database adapters that don't support getAgentsForServer
+    if (typeof (this.database as any).getAgentsForServer !== 'function') {
+      logger.debug(`[AgentServer] Database adapter doesn't support getAgentsForServer, returning empty`);
+      return [];
+    }
+
     // This method isn't directly supported in the adapter, so we need to implement it differently
     const servers = await (this.database as any).getMessageServers();
     const serverIds = [];
