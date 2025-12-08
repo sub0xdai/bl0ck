@@ -288,9 +288,20 @@ export class DriftService extends Service {
       const leverage = params.leverage || CONFIG.DEFAULT_LEVERAGE;
       const marginRequired = params.size / leverage;
 
-      // FIX: Ensure wallet has USDC (swap if needed), then deposit to Drift
-      await this.ensureCollateral(userId, marginRequired);
-      await this.deposit(userId, marginRequired);
+      // Check existing Drift collateral first
+      const user = client.getUser();
+      const freeCollateral = Number(user.getFreeCollateral().toString()) / 1_000_000; // Convert from 6 decimals
+      logger.info(`[DRIFT_SERVICE] Free collateral: $${freeCollateral.toFixed(2)}, Required: $${marginRequired.toFixed(2)}`);
+
+      // Only deposit if there's a shortfall
+      if (freeCollateral < marginRequired) {
+        const shortfall = marginRequired - freeCollateral;
+        logger.info(`[DRIFT_SERVICE] Need to deposit additional $${shortfall.toFixed(2)}`);
+        await this.ensureCollateral(userId, shortfall);
+        await this.deposit(userId, shortfall);
+      } else {
+        logger.info(`[DRIFT_SERVICE] Sufficient collateral in Drift, skipping deposit`);
+      }
 
       // Convert USD size to base asset amount
       // Formula: (USD_Size * BASE_PRECISION * PRICE_PRECISION) / Oracle_Price_Raw
