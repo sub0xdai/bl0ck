@@ -7,7 +7,7 @@
 
 import { Service, logger, type IAgentRuntime } from '@elizaos/core';
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { DriftClient, Wallet, BN, PositionDirection, MarketType, getMarketOrderParams } from '@drift-labs/sdk';
+import { DriftClient, Wallet, BN, PositionDirection, MarketType, getMarketOrderParams, User } from '@drift-labs/sdk';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { SolanaTransactionManager } from '@/managers/solana-transaction-manager';
 import { SERVICE_NAME, CONFIG, DEVNET_MARKETS, MAINNET_MARKETS, MINTS, ERRORS } from '../constants';
@@ -185,74 +185,106 @@ export class DriftService extends Service {
       const keypair = walletInfo.keypair;
       const wallet = new Wallet(keypair);
 
-      // Create DriftClient - use websocket for speed, fall back gracefully
+      // Create DriftClient
       const client = new DriftClient({
         connection: this.connection!,
         wallet,
         env: this.isDevnet ? 'devnet' : 'mainnet-beta',
       });
 
-      // Subscribe with timeout (don't hang forever)
-      const subscribeWithTimeout = async () => {
-        const timeout = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Subscribe timeout')), 10000)
+      // Subscribe with timeout (15s max)
+      const subscribeWithTimeout = async (): Promise<boolean> => {
+        const timeout = new Promise<boolean>((_, reject) =>
+          setTimeout(() => reject(new Error('DriftClient subscribe timeout (15s)')), 15000)
         );
-        await Promise.race([client.subscribe(), timeout]);
+        return Promise.race([client.subscribe(), timeout]);
       };
 
-      try {
-        await subscribeWithTimeout();
-      } catch (e) {
-        logger.warn(`[DRIFT_SERVICE] Initial subscribe slow/failed, retrying: ${e}`);
-        await withRetry(() => client.subscribe());
+      const subscribed = await subscribeWithTimeout();
+      if (!subscribed) {
+        throw new Error('DriftClient subscription failed');
       }
+      logger.info(`[DRIFT_SERVICE] DriftClient subscribed for ${userId}`);
 
-      // Quick check if user account exists
-      let needsInit = false;
-      try {
-        const user = client.getUser();
-        user.getUserAccount();
-      } catch (error) {
-        needsInit = true;
-      }
+      // Check if user account exists using SDK method (not try/catch hack)
+      const needsInit = !client.hasUser();
 
       if (needsInit) {
-        logger.info(`[DRIFT_SERVICE] Drift account not found for user ${userId}, initializing...`);
+        logger.info(`[DRIFT_SERVICE] Drift account not found for ${userId}, initializing...`);
 
         const solBalance = await this.connection!.getBalance(keypair.publicKey);
         const minSolRequired = CONFIG.MIN_SOL_FOR_INIT * LAMPORTS_PER_SOL;
 
         if (solBalance < minSolRequired) {
           throw new Error(
-            `Need at least ${CONFIG.MIN_SOL_FOR_INIT} SOL to initialize Drift account. ` +
-            `Current balance: ${(solBalance / LAMPORTS_PER_SOL).toFixed(4)} SOL`
+            `Need ${CONFIG.MIN_SOL_FOR_INIT} SOL to initialize Drift. ` +
+            `Have: ${(solBalance / LAMPORTS_PER_SOL).toFixed(4)} SOL`
           );
         }
 
+        // Initialize account - SDK calls addUser() internally, DO NOT unsubscribe after!
         await withRetry(() => client.initializeUserAccount());
-        logger.info(`[DRIFT_SERVICE] Drift account initialized for user ${userId}`);
-
-        // Quick resubscribe after init
-        await client.unsubscribe();
-        await client.subscribe();
+        logger.info(`[DRIFT_SERVICE] Drift account initialized for ${userId}`);
       }
 
-      // Subscribe user (quick, no long waits)
+      // Verify user is ready
       const user = client.getUser();
-      try {
-        await user.subscribe();
-      } catch (e) {
-        logger.warn(`[DRIFT_SERVICE] User subscribe issue: ${e}`);
+
+      // Ensure user subscription is active
+      if (!user.isSubscribed) {
+        const userSubscribed = await user.subscribe();
+        if (!userSubscribed) {
+          throw new Error('User subscription failed');
+        }
+      }
+
+      // Force fetch account data to ensure it's loaded
+      await user.fetchAccounts();
+
+      // CRITICAL: Validate account data exists before caching
+      const userAccount = user.getUserAccount();
+      if (!userAccount || userAccount.spotPositions === undefined) {
+        throw new Error('User account data not loaded after subscription');
       }
 
       // Cache client for reuse
       this.clients.set(userId, client);
-      logger.info(`[DRIFT_SERVICE] Created DriftClient for user ${userId}`);
+      logger.info(`[DRIFT_SERVICE] Client ready for ${userId}`);
 
       return client;
     } finally {
       release();
     }
+  }
+
+  /**
+   * Get user with validated account data
+   * Call this before any operation that accesses user account data
+   */
+  private async getValidatedUser(client: DriftClient): Promise<User> {
+    const user = client.getUser();
+
+    // Ensure subscription is active
+    if (!user.isSubscribed) {
+      const subscribed = await user.subscribe();
+      if (!subscribed) {
+        throw new Error('User re-subscription failed');
+      }
+      await user.fetchAccounts();
+    }
+
+    // Validate account data exists
+    const account = user.getUserAccount();
+    if (!account || account.spotPositions === undefined) {
+      // Try fetching again
+      await user.fetchAccounts();
+      const retryAccount = user.getUserAccount();
+      if (!retryAccount || retryAccount.spotPositions === undefined) {
+        throw new Error('Unable to load user account data');
+      }
+    }
+
+    return user;
   }
 
   // ============================================================
@@ -288,8 +320,8 @@ export class DriftService extends Service {
       const leverage = params.leverage || CONFIG.DEFAULT_LEVERAGE;
       const marginRequired = params.size / leverage;
 
-      // Check existing Drift collateral first
-      const user = client.getUser();
+      // Check existing Drift collateral first (with validated user)
+      const user = await this.getValidatedUser(client);
       const freeCollateral = Number(user.getFreeCollateral().toString()) / 1_000_000; // Convert from 6 decimals
       logger.info(`[DRIFT_SERVICE] Free collateral: $${freeCollateral.toFixed(2)}, Required: $${marginRequired.toFixed(2)}`);
 
@@ -365,7 +397,7 @@ export class DriftService extends Service {
         throw new Error(`Unknown market: ${params.marketSymbol}`);
       }
 
-      const user = client.getUser();
+      const user = await this.getValidatedUser(client);
       const position = user.getPerpPosition(marketIndex);
 
       // Check if position exists
@@ -425,7 +457,7 @@ export class DriftService extends Service {
       return null;
     }
 
-    const user = client.getUser();
+    const user = await this.getValidatedUser(client);
     const position = user.getPerpPosition(marketIndex);
 
     if (!position || position.baseAssetAmount.isZero()) {
@@ -483,7 +515,7 @@ export class DriftService extends Service {
 
   async getAccountInfo(userId: string): Promise<DriftAccountInfo> {
     const client = await this.getClientForUser(userId);
-    const user = client.getUser();
+    const user = await this.getValidatedUser(client);
     const userAccount = user.getUserAccount();
 
     // Calculate margin ratio (collateral / position value * 100)
