@@ -6,7 +6,8 @@ import { requireAuth, type AuthenticatedRequest } from '../../middleware';
 import { CdpTransactionManager } from '@/managers/cdp-transaction-manager';
 import { SolanaTransactionManager } from '@/managers/solana-transaction-manager';
 import { isSolanaNetwork, MAINNET_NETWORKS } from '@/constants/chains';
-import { LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { LAMPORTS_PER_SOL, PublicKey, type Connection, type Keypair } from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 
 /**
  * Token interface (unified format for all chains)
@@ -33,26 +34,66 @@ interface TokensResponse {
   synced?: boolean;
 }
 
+// Known SPL token metadata
+const KNOWN_SPL_TOKENS: Record<string, { symbol: string; name: string; decimals: number; coingeckoId?: string }> = {
+  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': { symbol: 'USDC', name: 'USD Coin', decimals: 6, coingeckoId: 'usd-coin' },
+  'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB': { symbol: 'USDT', name: 'Tether USD', decimals: 6, coingeckoId: 'tether' },
+  'So11111111111111111111111111111111111111112': { symbol: 'WSOL', name: 'Wrapped SOL', decimals: 9, coingeckoId: 'solana' },
+  'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263': { symbol: 'BONK', name: 'Bonk', decimals: 5, coingeckoId: 'bonk' },
+  'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN': { symbol: 'JUP', name: 'Jupiter', decimals: 6, coingeckoId: 'jupiter-exchange-solana' },
+};
+
+// Price cache
+const priceCache: Map<string, { price: number; timestamp: number }> = new Map();
+const PRICE_CACHE_TTL = 60_000;
+
 /**
  * Fetch live SOL price from CoinGecko
  */
 async function getSolPrice(): Promise<number> {
+  const cached = priceCache.get('solana');
+  if (cached && Date.now() - cached.timestamp < PRICE_CACHE_TTL) {
+    return cached.price;
+  }
   try {
     const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
     const data = await res.json();
-    return data.solana?.usd || 200;
+    const price = data.solana?.usd || 200;
+    priceCache.set('solana', { price, timestamp: Date.now() });
+    return price;
   } catch {
-    return 200; // Fallback
+    return cached?.price || 200;
   }
 }
 
 /**
- * Map Solana wallet data to unified Token format
+ * Fetch token price from CoinGecko
+ */
+async function getTokenPrice(coingeckoId: string): Promise<number> {
+  const cached = priceCache.get(coingeckoId);
+  if (cached && Date.now() - cached.timestamp < PRICE_CACHE_TTL) {
+    return cached.price;
+  }
+  try {
+    const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coingeckoId}&vs_currencies=usd`);
+    const data = await res.json() as Record<string, { usd?: number }>;
+    const price = data[coingeckoId]?.usd || 0;
+    priceCache.set(coingeckoId, { price, timestamp: Date.now() });
+    return price;
+  } catch {
+    return cached?.price || 0;
+  }
+}
+
+/**
+ * Map Solana wallet data to unified Token format (includes SPL tokens)
  */
 async function mapSolanaToTokensResponse(
   publicKey: string,
   solBalance: number,
-  chain: string
+  chain: string,
+  connection: Connection,
+  keypair: Keypair
 ): Promise<TokensResponse> {
   const tokens: Token[] = [];
   let totalUsdValue = 0;
@@ -61,20 +102,68 @@ async function mapSolanaToTokensResponse(
   const solPrice = await getSolPrice();
 
   // Always include SOL (even if 0) so downstream code can check balance
-  const usdValue = solBalance * solPrice;
+  const solUsdValue = solBalance * solPrice;
   tokens.push({
     symbol: 'SOL',
     name: 'Solana',
     balance: String(Math.floor(solBalance * LAMPORTS_PER_SOL)),
     balanceFormatted: solBalance.toFixed(9).replace(/\.?0+$/, ''),
-    usdValue,
+    usdValue: solUsdValue,
     usdPrice: solPrice,
     contractAddress: null, // Native token
     chain,
     decimals: 9,
     icon: undefined,
   });
-  totalUsdValue += usdValue;
+  totalUsdValue += solUsdValue;
+
+  // Fetch SPL token accounts
+  try {
+    const tokenAccounts = await connection.getTokenAccountsByOwner(
+      keypair.publicKey,
+      { programId: TOKEN_PROGRAM_ID }
+    );
+
+    for (const { account } of tokenAccounts.value) {
+      const data = account.data;
+      const mint = new PublicKey(data.slice(0, 32)).toBase58();
+      const amountBuffer = data.slice(64, 72);
+      const amount = amountBuffer.readBigUInt64LE(0);
+
+      if (amount === 0n) continue;
+
+      const tokenInfo = KNOWN_SPL_TOKENS[mint];
+      const decimals = tokenInfo?.decimals ?? 9;
+      const tokenBalance = Number(amount) / Math.pow(10, decimals);
+
+      // Get price for known tokens
+      let tokenUsdPrice = 0;
+      let tokenUsdValue = 0;
+      if (tokenInfo?.coingeckoId) {
+        tokenUsdPrice = await getTokenPrice(tokenInfo.coingeckoId);
+        tokenUsdValue = tokenBalance * tokenUsdPrice;
+      } else if (tokenInfo?.symbol === 'USDC' || tokenInfo?.symbol === 'USDT') {
+        tokenUsdPrice = 1;
+        tokenUsdValue = tokenBalance;
+      }
+
+      tokens.push({
+        symbol: tokenInfo?.symbol ?? mint.slice(0, 4) + '...',
+        name: tokenInfo?.name ?? 'Unknown Token',
+        balance: String(amount),
+        balanceFormatted: tokenBalance.toFixed(decimals).replace(/\.?0+$/, ''),
+        usdValue: tokenUsdValue,
+        usdPrice: tokenUsdPrice,
+        contractAddress: mint,
+        chain,
+        decimals,
+        icon: undefined,
+      });
+      totalUsdValue += tokenUsdValue;
+    }
+  } catch (tokenError) {
+    logger.warn('[Wallet API] Failed to fetch SPL token accounts:', tokenError);
+  }
 
   return {
     tokens,
@@ -119,12 +208,12 @@ export function walletRouter(_serverInstance: AgentServer): express.Router {
         const { publicKey, keypair } = await solanaTransactionManager.getOrCreateWallet(userId);
 
         // Get SOL balance
-        const connection = (solanaTransactionManager as any).connection;
+        const connection = (solanaTransactionManager as any).connection as Connection;
         const balance = await connection.getBalance(keypair.publicKey);
         const solBalance = Number(balance) / LAMPORTS_PER_SOL;
 
-        // Map to unified format
-        const result = await mapSolanaToTokensResponse(publicKey, solBalance, chain);
+        // Map to unified format (includes SPL tokens)
+        const result = await mapSolanaToTokensResponse(publicKey, solBalance, chain, connection, keypair);
 
         sendSuccess(res, result);
       } else {
@@ -172,12 +261,12 @@ export function walletRouter(_serverInstance: AgentServer): express.Router {
         const { publicKey, keypair } = await solanaTransactionManager.getOrCreateWallet(userId);
 
         // Get fresh SOL balance
-        const connection = (solanaTransactionManager as any).connection;
+        const connection = (solanaTransactionManager as any).connection as Connection;
         const balance = await connection.getBalance(keypair.publicKey);
         const solBalance = Number(balance) / LAMPORTS_PER_SOL;
 
-        // Map to unified format
-        const result = await mapSolanaToTokensResponse(publicKey, solBalance, chain);
+        // Map to unified format (includes SPL tokens)
+        const result = await mapSolanaToTokensResponse(publicKey, solBalance, chain, connection, keypair);
 
         sendSuccess(res, { ...result, synced: true });
       } else {
