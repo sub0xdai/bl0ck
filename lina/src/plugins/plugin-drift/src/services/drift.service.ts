@@ -185,39 +185,41 @@ export class DriftService extends Service {
       const keypair = walletInfo.keypair;
       const wallet = new Wallet(keypair);
 
-      // Create DriftClient with polling subscription for reliability
+      // Create DriftClient - use websocket for speed, fall back gracefully
       const client = new DriftClient({
         connection: this.connection!,
         wallet,
         env: this.isDevnet ? 'devnet' : 'mainnet-beta',
-        accountSubscription: {
-          type: 'polling',
-          accountLoader: undefined, // Uses default
-        },
       });
 
-      // Subscribe with retry for rate limiting
-      await withRetry(() => client.subscribe());
+      // Subscribe with timeout (don't hang forever)
+      const subscribeWithTimeout = async () => {
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Subscribe timeout')), 10000)
+        );
+        await Promise.race([client.subscribe(), timeout]);
+      };
 
-      // Check if user account exists, initialize if needed
+      try {
+        await subscribeWithTimeout();
+      } catch (e) {
+        logger.warn(`[DRIFT_SERVICE] Initial subscribe slow/failed, retrying: ${e}`);
+        await withRetry(() => client.subscribe());
+      }
+
+      // Quick check if user account exists
       let needsInit = false;
       try {
         const user = client.getUser();
-        const account = user.getUserAccount();
-        // Verify account is fully loaded (spotPositions exists)
-        if (!account || account.spotPositions === undefined) {
-          needsInit = true;
-        }
+        user.getUserAccount();
       } catch (error) {
         needsInit = true;
       }
 
       if (needsInit) {
-        // User account doesn't exist - need to initialize
         logger.info(`[DRIFT_SERVICE] Drift account not found for user ${userId}, initializing...`);
 
-        // Check SOL balance for account initialization (with retry)
-        const solBalance = await withRetry(() => this.connection!.getBalance(keypair.publicKey));
+        const solBalance = await this.connection!.getBalance(keypair.publicKey);
         const minSolRequired = CONFIG.MIN_SOL_FOR_INIT * LAMPORTS_PER_SOL;
 
         if (solBalance < minSolRequired) {
@@ -227,42 +229,20 @@ export class DriftService extends Service {
           );
         }
 
-        // Initialize Drift user account (with retry)
         await withRetry(() => client.initializeUserAccount());
         logger.info(`[DRIFT_SERVICE] Drift account initialized for user ${userId}`);
 
-        // Unsubscribe and resubscribe to pick up the new account
+        // Quick resubscribe after init
         await client.unsubscribe();
-        await withRetry(() => client.subscribe());
-
-        // Wait a moment for subscription to sync
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await client.subscribe();
       }
 
-      // Get user and subscribe
+      // Subscribe user (quick, no long waits)
       const user = client.getUser();
-      await withRetry(() => user.subscribe());
-
-      // Verify user account is loaded before caching
-      let retries = 3;
-      while (retries > 0) {
-        try {
-          const account = user.getUserAccount();
-          if (account && account.spotPositions !== undefined) {
-            break; // Account is fully loaded
-          }
-        } catch (e) {
-          // Account not ready yet
-        }
-        retries--;
-        if (retries > 0) {
-          logger.info(`[DRIFT_SERVICE] Waiting for user account to sync... (${retries} retries left)`);
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-      }
-
-      if (retries === 0) {
-        throw new Error('Failed to load Drift user account after initialization');
+      try {
+        await user.subscribe();
+      } catch (e) {
+        logger.warn(`[DRIFT_SERVICE] User subscribe issue: ${e}`);
       }
 
       // Cache client for reuse
