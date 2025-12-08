@@ -21,6 +21,12 @@ import mcpPlugin from '@elizaos/plugin-mcp';
 import morphoPlugin from './plugins/plugin-morpho/src/index.ts';
 import strategyCorePlugin from './plugins/plugin-strategy-core/src/index.ts';
 
+// Skip MCP if NANSEN_API_KEY not set (prevents hanging on connection)
+const shouldLoadMcp = !!process.env.NANSEN_API_KEY;
+if (!shouldLoadMcp) {
+  logger.warn('[INIT] NANSEN_API_KEY not set, skipping MCP plugin to prevent connection hang');
+}
+
 const initCharacter = ({ runtime }: { runtime: IAgentRuntime }) => {
   logger.info('Initializing character');
   logger.info({ name: character.name }, 'Character loaded:');
@@ -45,12 +51,11 @@ export const projectAgent: ProjectAgent = {
     defiLlamaPlugin,
     relayPlugin,
     etherscanPlugin,
-    mcpPlugin,
+    ...(shouldLoadMcp ? [mcpPlugin] : []), // Skip MCP if no API key
     analyticsPlugin,
     clankerPlugin,
     morphoPlugin,
     strategyCorePlugin,
-    // x402DiscoveryPlugin,
   ],
 };
 
