@@ -132,10 +132,21 @@ export class DriftService extends Service {
     this.isDevnet = network !== 'solana'; // 'solana' = mainnet, anything else = devnet
     this.markets = this.isDevnet ? DEVNET_MARKETS : MAINNET_MARKETS;
 
-    // Initialize connection
-    const rpcUrl = this.isDevnet
-      ? 'https://api.devnet.solana.com'
-      : (this.runtime.getSetting('SOLANA_RPC_URL') || 'https://api.mainnet-beta.solana.com');
+    // Initialize connection - prioritize Helius for better rate limits
+    let rpcUrl: string;
+    if (this.isDevnet) {
+      rpcUrl = 'https://api.devnet.solana.com';
+    } else {
+      // Check for Helius API key first (same as SolanaTransactionManager)
+      const heliusKey = process.env.HELIUS_API_KEY || this.runtime.getSetting('HELIUS_API_KEY');
+      if (heliusKey) {
+        rpcUrl = `https://mainnet.helius-rpc.com/?api-key=${heliusKey}`;
+        logger.info('[DRIFT_SERVICE] Using Helius RPC');
+      } else {
+        rpcUrl = this.runtime.getSetting('SOLANA_RPC_URL') || 'https://api.mainnet-beta.solana.com';
+        logger.warn('[DRIFT_SERVICE] No HELIUS_API_KEY found, using public RPC (may rate-limit)');
+      }
+    }
 
     this.connection = new Connection(rpcUrl, 'confirmed');
 
