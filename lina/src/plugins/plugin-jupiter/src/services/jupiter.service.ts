@@ -129,10 +129,7 @@ export class JupiterService extends Service {
 
         logger.info("[JUPITER_SERVICE] Sending signed transaction to Solana network");
 
-        // Get blockhash for confirmation tracking
-        const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('confirmed');
-
-        // Send transaction to Solana network
+        // Send transaction to Solana network (don't wait for confirmation - return immediately)
         const signature = await this.connection.sendRawTransaction(
             transaction.serialize(),
             {
@@ -141,23 +138,7 @@ export class JupiterService extends Service {
             }
         );
 
-        logger.info(`[JUPITER_SERVICE] Transaction sent: ${signature}, confirming...`);
-
-        // Confirm transaction with modern blockhash strategy
-        const confirmation = await this.connection.confirmTransaction(
-            {
-                signature,
-                blockhash,
-                lastValidBlockHeight,
-            },
-            "confirmed"
-        );
-
-        if (confirmation.value.err) {
-            throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
-        }
-
-        logger.info(`[JUPITER_SERVICE] Swap successful: ${signature}`);
+        logger.info(`[JUPITER_SERVICE] Transaction sent: ${signature} (not waiting for confirmation)`);
 
         // Get explorer URL
         const network = this.manager.getNetwork();
