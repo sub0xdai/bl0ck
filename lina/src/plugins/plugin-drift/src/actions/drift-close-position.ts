@@ -64,7 +64,7 @@ export const driftClosePosition: Action = {
         throw new Error('Drift service not initialized');
       }
 
-      const userId = extractUserId(message);
+      const userId = await extractUserId(runtime, message);
       const params = await extractActionParams(runtime, message);
 
       const marketSymbol = (params?.marketSymbol as string)?.trim()?.toUpperCase();

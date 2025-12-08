@@ -53,7 +53,7 @@ export const driftAccountInfo: Action = {
         throw new Error('Drift service not initialized');
       }
 
-      const userId = extractUserId(message);
+      const userId = await extractUserId(runtime, message);
       const accountInfo = await service.getAccountInfo(userId);
 
       const text = formatAccountInfo(accountInfo);

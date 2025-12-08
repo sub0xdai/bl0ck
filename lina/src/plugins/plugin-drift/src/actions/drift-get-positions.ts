@@ -53,7 +53,7 @@ export const driftGetPositions: Action = {
         throw new Error('Drift service not initialized');
       }
 
-      const userId = extractUserId(message);
+      const userId = await extractUserId(runtime, message);
       const positions = await service.getPositions(userId);
 
       const text = formatPositions(positions);

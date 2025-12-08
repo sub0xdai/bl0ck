@@ -240,7 +240,7 @@ export class DriftService extends Service {
         marketType: MarketType.PERP,
       });
 
-      const txSig = await client.placeAndTakePerpOrder(orderParams);
+      const txSig = await client.placeAndTakePerpOrder(marketIndex, orderParams);
       await this.connection!.confirmTransaction(txSig, 'confirmed');
 
       // Get updated position
@@ -309,7 +309,8 @@ export class DriftService extends Service {
         reduceOnly: true,
       });
 
-      const txSig = await client.closePosition(orderParams);
+      // Use placeAndTakePerpOrder with reduceOnly (closePosition is deprecated)
+      const txSig = await client.placeAndTakePerpOrder(marketIndex, orderParams);
       await this.connection!.confirmTransaction(txSig, 'confirmed');
 
       logger.info(`[DRIFT_SERVICE] Closed ${percentage}% of ${params.marketSymbol} position for user ${userId}`);
@@ -354,23 +355,31 @@ export class DriftService extends Service {
     }
     const oraclePrice = marketAccount.amm.historicalOracleData.lastOraclePrice;
 
-    // Calculate entry price
-    const entryPrice = position.quoteAssetAmount.abs()
+    // Calculate entry price (QUOTE_PRECISION = 6, BASE_PRECISION = 9)
+    const entryPriceBn = position.quoteAssetAmount.abs()
       .mul(new BN(1_000_000)) // QUOTE_PRECISION (6 decimals)
       .div(position.baseAssetAmount.abs())
       .div(new BN(1_000_000_000)); // BASE_PRECISION (9 decimals)
 
+    // Calculate position side and leverage
+    const side: PositionSide = position.baseAssetAmount.gt(new BN(0)) ? 'long' : 'short';
+    const leverage = user.getLeverage() / 10000;
+    const entryPriceNum = Number(entryPriceBn.toString());
+
+    // Calculate liquidation price using existing function
+    const liquidationPrice = this.calculateLiquidationPrice(entryPriceNum, leverage, side);
+
     return {
       marketIndex,
       marketSymbol,
-      side: position.baseAssetAmount.gt(new BN(0)) ? 'long' : 'short',
+      side,
       size: position.baseAssetAmount.abs().toString(),
       notionalValue: position.baseAssetAmount.abs().mul(new BN(oraclePrice.toString())).div(new BN(1_000_000_000)).toString(),
-      entryPrice: entryPrice.toString(),
+      entryPrice: entryPriceBn.toString(),
       markPrice: oraclePrice.toString(),
-      liquidationPrice: '0', // TODO: Calculate from user account
+      liquidationPrice: liquidationPrice.toFixed(2),
       unrealizedPnl: user.getUnrealizedPNL().toString(),
-      leverage: user.getLeverage() / 10000,
+      leverage,
       marginUsed: position.quoteAssetAmount.abs().toString(),
     };
   }
@@ -393,14 +402,21 @@ export class DriftService extends Service {
     const user = client.getUser();
     const userAccount = user.getUserAccount();
 
+    // Calculate margin ratio (collateral / position value * 100)
+    const totalCollateral = user.getTotalCollateral();
+    const totalPositionValue = user.getTotalAssetValue();
+    const marginRatio = totalPositionValue.gt(new BN(0))
+      ? Number(totalCollateral.mul(new BN(10000)).div(totalPositionValue)) / 100
+      : 100; // 100% if no positions
+
     return {
       authority: userAccount.authority.toBase58(),
       subAccountId: userAccount.subAccountId,
-      collateral: user.getTotalCollateral().toString(),
+      collateral: totalCollateral.toString(),
       freeCollateral: user.getFreeCollateral().toString(),
-      totalPositionValue: user.getTotalAssetValue().toString(),
+      totalPositionValue: totalPositionValue.toString(),
       unrealizedPnl: user.getUnrealizedPNL().toString(),
-      marginRatio: '0', // TODO: Calculate from user account
+      marginRatio: marginRatio.toFixed(2),
       leverage: user.getLeverage() / 10000,
     };
   }

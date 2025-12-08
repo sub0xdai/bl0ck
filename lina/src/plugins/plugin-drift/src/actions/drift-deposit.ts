@@ -59,7 +59,7 @@ export const driftDeposit: Action = {
         throw new Error('Drift service not initialized');
       }
 
-      const userId = extractUserId(message);
+      const userId = await extractUserId(runtime, message);
       const params = await extractActionParams(runtime, message);
 
       const amount = params?.amount ? Number(params.amount) : undefined;
