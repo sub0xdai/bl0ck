@@ -413,6 +413,14 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
         }
       } catch (error: any) {
         console.warn('[MainApp] Could not load channels:', error.message);
+        // On error, auto-enter new chat mode if not already initialized
+        // This prevents the UI from being stuck on "Loading Chat..."
+        if (!hasInitialized.current) {
+          console.log('[MainApp] Error loading channels, entering new chat mode...');
+          hasInitialized.current = true;
+          setIsNewChatMode(true);
+          setActiveChannelId(null);
+        }
       } finally {
         setIsLoadingChannels(false);
       }
