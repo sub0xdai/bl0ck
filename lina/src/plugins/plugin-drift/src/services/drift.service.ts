@@ -166,9 +166,23 @@ export class DriftService extends Service {
    * Handles account initialization and wallet management
    */
   private async getClientForUser(userId: string): Promise<DriftClient> {
-    // Return existing client if already created
+    // Return existing client if already created and still valid
     if (this.clients.has(userId)) {
-      return this.clients.get(userId)!;
+      const cachedClient = this.clients.get(userId)!;
+      // Validate cached client's user is still usable
+      try {
+        const user = cachedClient.getUser();
+        if (user && user.isSubscribed) {
+          return cachedClient;
+        }
+        // User not subscribed - clear cache and reinitialize
+        logger.warn(`[DRIFT_SERVICE] Cached client for ${userId} has invalid user, reinitializing...`);
+        this.clients.delete(userId);
+      } catch (e) {
+        // Cache corrupted - clear and reinitialize
+        logger.warn(`[DRIFT_SERVICE] Cached client for ${userId} is corrupted, reinitializing...`);
+        this.clients.delete(userId);
+      }
     }
 
     // Acquire lock to prevent race conditions on concurrent user operations
@@ -270,17 +284,21 @@ export class DriftService extends Service {
       if (!subscribed) {
         throw new Error('User re-subscription failed');
       }
-      await user.fetchAccounts();
     }
+
+    // ALWAYS fetch accounts to ensure fresh data (fixes stale cache issue)
+    // Previously only fetched when !isSubscribed, leaving cached clients with undefined data
+    await user.fetchAccounts();
 
     // Validate account data exists
     const account = user.getUserAccount();
     if (!account || account.spotPositions === undefined) {
-      // Try fetching again
+      // One more retry with explicit fetch
+      logger.warn('[DRIFT_SERVICE] Account data missing after fetch, retrying...');
       await user.fetchAccounts();
       const retryAccount = user.getUserAccount();
       if (!retryAccount || retryAccount.spotPositions === undefined) {
-        throw new Error('Unable to load user account data');
+        throw new Error('Unable to load user account data - account may not be initialized');
       }
     }
 

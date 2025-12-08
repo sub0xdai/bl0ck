@@ -44,7 +44,11 @@ class MockPublicKey {
 }
 
 const mockGetUser = mock(() => ({
-  getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+  getUserAccount: () => ({
+    authority: new MockPublicKey('mockAuth'),
+    subAccountId: 0,
+    spotPositions: [], // Required for validation
+  }),
   getSpotPosition: () => ({ scaledBalance: BigInt(1000000000), marketIndex: 0 }),
   getPerpPosition: () => ({
     baseAssetAmount: new MockBN(100000000),
@@ -58,7 +62,9 @@ const mockGetUser = mock(() => ({
   getTotalAssetValue: () => new MockBN(200000000),
   getUnrealizedPNL: () => new MockBN(5000000),
   getLeverage: () => 50000,
-  subscribe: mock(() => Promise.resolve()),
+  isSubscribed: true, // Required for cache validation
+  subscribe: mock(() => Promise.resolve(true)),
+  fetchAccounts: mock(() => Promise.resolve()), // Required for getValidatedUser
 }));
 
 const mockInitializeUserAccount = mock(() => Promise.resolve('mockTxSig123'));
@@ -68,8 +74,9 @@ const mockOpenPosition = mock(() => Promise.resolve('mockPositionTx'));
 mock.module('@drift-labs/sdk', () => ({
   DriftClient: class {
     constructor(public config: any) {}
-    subscribe = mock(() => Promise.resolve());
+    subscribe = mock(() => Promise.resolve(true)); // Must return true for validation
     unsubscribe = mock(() => Promise.resolve());
+    hasUser = mock(() => true); // Account exists
     getUser = mockGetUser;
     initializeUserAccount = mockInitializeUserAccount;
     deposit = mockDeposit;
@@ -182,7 +189,11 @@ const createMockRuntime = (settings: Record<string, string | undefined> = {}, op
 
 const resetMocks = () => {
   mockGetUser.mockImplementation(() => ({
-    getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+    getUserAccount: () => ({
+      authority: new MockPublicKey('mockAuth'),
+      subAccountId: 0,
+      spotPositions: [], // Required for validation
+    }),
     getSpotPosition: () => ({ scaledBalance: BigInt(1000000000), marketIndex: 0 }),
     getPerpPosition: () => ({
       baseAssetAmount: new MockBN(100000000),
@@ -193,10 +204,12 @@ const resetMocks = () => {
     getFreeCollateral: () => new MockBN(50000000),
     getTotalCollateral: () => new MockBN(100000000),
     getTotalPerpPositionValue: () => new MockBN(200000000),
-  getTotalAssetValue: () => new MockBN(200000000),
+    getTotalAssetValue: () => new MockBN(200000000),
     getUnrealizedPNL: () => new MockBN(5000000),
     getLeverage: () => 50000,
-    subscribe: mock(() => Promise.resolve()),
+    isSubscribed: true, // Required for cache validation
+    subscribe: mock(() => Promise.resolve(true)),
+    fetchAccounts: mock(() => Promise.resolve()), // Required for getValidatedUser
   }));
   mockGetBalance.mockImplementation(() => Promise.resolve(50000000));
   mockGetTokenAccountBalance.mockImplementation(() => Promise.resolve({

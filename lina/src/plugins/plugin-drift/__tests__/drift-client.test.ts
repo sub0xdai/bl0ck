@@ -46,6 +46,7 @@ const mockGetUser = mock(() => ({
   getUserAccount: () => ({
     authority: new MockPublicKey('mockAuthority123'),
     subAccountId: 0,
+    spotPositions: [], // Required for validation
   }),
   getSpotPosition: (index: number) => ({
     scaledBalance: BigInt(1000000000),
@@ -63,7 +64,9 @@ const mockGetUser = mock(() => ({
   getTotalAssetValue: () => new MockBN(200000000),
   getUnrealizedPNL: () => new MockBN(5000000),
   getLeverage: () => 50000,
-  subscribe: mock(() => Promise.resolve()),
+  isSubscribed: true, // Required for cache validation
+  subscribe: mock(() => Promise.resolve(true)),
+  fetchAccounts: mock(() => Promise.resolve()), // Required for getValidatedUser
 }));
 
 const mockSubscribe = mock(() => Promise.resolve());
@@ -79,8 +82,9 @@ const mockGetPerpMarketAccount = mock(() => ({
 mock.module('@drift-labs/sdk', () => ({
   DriftClient: class {
     constructor(public config: any) {}
-    subscribe = mockSubscribe;
+    subscribe = mock(() => Promise.resolve(true)); // Must return true for validation
     unsubscribe = mockUnsubscribe;
+    hasUser = mock(() => true); // Account exists
     getUser = mockGetUser;
     getPerpMarketAccount = mockGetPerpMarketAccount;
   },
