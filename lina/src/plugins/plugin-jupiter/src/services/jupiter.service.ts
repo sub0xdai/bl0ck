@@ -106,7 +106,9 @@ export class JupiterService extends Service {
                 userPublicKey: userPublicKey,
                 wrapAndUnwrapSol: true,
                 dynamicComputeUnitLimit: true,
-                prioritizationFeeLamports: "auto",
+                prioritizationFeeLamports: {
+                    autoMultiplier: 2,
+                },
             }),
         });
 
@@ -127,18 +129,27 @@ export class JupiterService extends Service {
 
         logger.info("[JUPITER_SERVICE] Sending signed transaction to Solana network");
 
+        // Get blockhash for confirmation tracking
+        const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('confirmed');
+
         // Send transaction to Solana network
         const signature = await this.connection.sendRawTransaction(
             transaction.serialize(),
             {
                 skipPreflight: false,
-                maxRetries: 3,
+                maxRetries: 5,
             }
         );
 
-        // Confirm transaction
+        logger.info(`[JUPITER_SERVICE] Transaction sent: ${signature}, confirming...`);
+
+        // Confirm transaction with modern blockhash strategy
         const confirmation = await this.connection.confirmTransaction(
-            signature,
+            {
+                signature,
+                blockhash,
+                lastValidBlockHeight,
+            },
             "confirmed"
         );
 
