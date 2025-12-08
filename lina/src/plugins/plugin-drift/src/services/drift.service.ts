@@ -44,6 +44,44 @@ class AsyncMutex {
   }
 }
 
+/**
+ * Retry wrapper with exponential backoff for RPC rate limiting (429 errors)
+ * @param fn Async function to retry
+ * @param maxRetries Maximum number of retries (default: 3)
+ * @param baseDelayMs Base delay in milliseconds (default: 1000)
+ * @returns Result of the function
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelayMs: number = 1000
+): Promise<T> {
+  let lastError: Error | unknown;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      const errorStr = String(error);
+
+      // Only retry on 429 rate limit errors
+      if (errorStr.includes('429') || errorStr.includes('Too Many Requests')) {
+        if (attempt < maxRetries) {
+          const delayMs = baseDelayMs * Math.pow(2, attempt);
+          logger.warn(`[DRIFT_SERVICE] RPC rate limited (429), retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          continue;
+        }
+      }
+      // Non-429 errors or max retries exceeded - throw immediately
+      throw error;
+    }
+  }
+
+  throw lastError;
+}
+
 export class DriftService extends Service {
   static serviceType = SERVICE_NAME;
   capabilityDescription = 'Solana perpetual futures trading via Drift Protocol with up to 20x leverage';
@@ -143,7 +181,8 @@ export class DriftService extends Service {
         env: this.isDevnet ? 'devnet' : 'mainnet-beta',
       });
 
-      await client.subscribe();
+      // Subscribe with retry for rate limiting
+      await withRetry(() => client.subscribe());
 
       // Initialize user account if it doesn't exist
       const user = client.getUser();
@@ -154,8 +193,8 @@ export class DriftService extends Service {
         // User account doesn't exist - need to initialize
         logger.info(`[DRIFT_SERVICE] Drift account not found for user ${userId}, initializing...`);
 
-        // Check SOL balance for account initialization
-        const solBalance = await this.connection!.getBalance(keypair.publicKey);
+        // Check SOL balance for account initialization (with retry)
+        const solBalance = await withRetry(() => this.connection!.getBalance(keypair.publicKey));
         const minSolRequired = CONFIG.MIN_SOL_FOR_INIT * LAMPORTS_PER_SOL;
 
         if (solBalance < minSolRequired) {
@@ -165,13 +204,13 @@ export class DriftService extends Service {
           );
         }
 
-        // Initialize Drift user account
-        await client.initializeUserAccount();
+        // Initialize Drift user account (with retry)
+        await withRetry(() => client.initializeUserAccount());
         logger.info(`[DRIFT_SERVICE] Drift account initialized for user ${userId}`);
       }
 
-      // Subscribe to user account updates
-      await user.subscribe();
+      // Subscribe to user account updates (with retry)
+      await withRetry(() => user.subscribe());
 
       // Cache client for reuse
       this.clients.set(userId, client);
@@ -240,8 +279,9 @@ export class DriftService extends Service {
         marketType: MarketType.PERP,
       });
 
-      const txSig = await client.placeAndTakePerpOrder(marketIndex, orderParams);
-      await this.connection!.confirmTransaction(txSig, 'confirmed');
+      // Use retry wrapper for RPC rate limiting
+      const txSig = await withRetry(() => client.placeAndTakePerpOrder(marketIndex, orderParams));
+      await withRetry(() => this.connection!.confirmTransaction(txSig, 'confirmed'));
 
       // Get updated position
       const position = await this.getPosition(userId, params.marketSymbol);
@@ -309,9 +349,9 @@ export class DriftService extends Service {
         reduceOnly: true,
       });
 
-      // Use placeAndTakePerpOrder with reduceOnly (closePosition is deprecated)
-      const txSig = await client.placeAndTakePerpOrder(marketIndex, orderParams);
-      await this.connection!.confirmTransaction(txSig, 'confirmed');
+      // Use placeAndTakePerpOrder with reduceOnly (closePosition is deprecated) + retry wrapper
+      const txSig = await withRetry(() => client.placeAndTakePerpOrder(marketIndex, orderParams));
+      await withRetry(() => this.connection!.confirmTransaction(txSig, 'confirmed'));
 
       logger.info(`[DRIFT_SERVICE] Closed ${percentage}% of ${params.marketSymbol} position for user ${userId}`);
 
@@ -475,11 +515,11 @@ export class DriftService extends Service {
       );
 
       // Deposit USDC from wallet to Drift (amount in base units - 6 decimals)
-      // marketIndex 0 = USDC spot market
+      // marketIndex 0 = USDC spot market (with retry wrapper)
       const depositAmount = new BN(amount * 1_000_000);
-      const txSig = await client.deposit(depositAmount, 0, usdcAta);
+      const txSig = await withRetry(() => client.deposit(depositAmount, 0, usdcAta));
 
-      await this.connection!.confirmTransaction(txSig, 'confirmed');
+      await withRetry(() => this.connection!.confirmTransaction(txSig, 'confirmed'));
 
       logger.info(`[DRIFT_SERVICE] Deposited $${amount} USDC from wallet to Drift for user ${userId}`);
 

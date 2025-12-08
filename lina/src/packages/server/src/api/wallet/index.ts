@@ -48,28 +48,60 @@ const priceCache: Map<string, { price: number; timestamp: number }> = new Map();
 const PRICE_CACHE_TTL = 60_000;
 
 /**
- * Fetch live SOL price from CoinGecko
+ * Fetch live SOL price from CoinGecko (with Jupiter fallback)
  */
 async function getSolPrice(): Promise<number> {
   const cached = priceCache.get('solana');
   if (cached && Date.now() - cached.timestamp < PRICE_CACHE_TTL) {
     return cached.price;
   }
+
+  // Try CoinGecko first
   try {
     const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
     const data = await res.json();
-    const price = data.solana?.usd || 200;
-    priceCache.set('solana', { price, timestamp: Date.now() });
-    return price;
-  } catch {
-    return cached?.price || 200;
+    const price = data.solana?.usd;
+    if (price && price > 0) {
+      priceCache.set('solana', { price, timestamp: Date.now() });
+      return price;
+    }
+  } catch (e) {
+    logger.warn('[Wallet API] CoinGecko SOL price failed:', e);
   }
+
+  // Fallback to Jupiter Price API
+  try {
+    const res = await fetch('https://api.jup.ag/price/v2?ids=So11111111111111111111111111111111111111112');
+    const data = await res.json() as { data?: { So11111111111111111111111111111111111111112?: { price?: string } } };
+    const priceStr = data?.data?.So11111111111111111111111111111111111111112?.price;
+    if (priceStr) {
+      const price = parseFloat(priceStr);
+      if (price > 0) {
+        priceCache.set('solana', { price, timestamp: Date.now() });
+        return price;
+      }
+    }
+  } catch (e) {
+    logger.warn('[Wallet API] Jupiter SOL price failed:', e);
+  }
+
+  // Return cached or error (never hardcode)
+  if (cached?.price) {
+    return cached.price;
+  }
+  throw new Error('Failed to fetch SOL price from all sources');
 }
 
+// Stablecoins that should default to $1.00 if price fetch fails
+const STABLECOIN_IDS = ['usd-coin', 'tether', 'dai', 'usdc', 'usdt'];
+
 /**
- * Fetch token price from CoinGecko
+ * Fetch token price from CoinGecko (with stablecoin fallback)
  */
 async function getTokenPrice(coingeckoId: string): Promise<number> {
+  const isStablecoin = STABLECOIN_IDS.includes(coingeckoId.toLowerCase());
+  const stablecoinDefault = isStablecoin ? 1.0 : 0;
+
   const cached = priceCache.get(coingeckoId);
   if (cached && Date.now() - cached.timestamp < PRICE_CACHE_TTL) {
     return cached.price;
@@ -77,11 +109,16 @@ async function getTokenPrice(coingeckoId: string): Promise<number> {
   try {
     const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coingeckoId}&vs_currencies=usd`);
     const data = await res.json() as Record<string, { usd?: number }>;
-    const price = data[coingeckoId]?.usd || 0;
-    priceCache.set(coingeckoId, { price, timestamp: Date.now() });
-    return price;
-  } catch {
-    return cached?.price || 0;
+    const price = data[coingeckoId]?.usd;
+    if (price && price > 0) {
+      priceCache.set(coingeckoId, { price, timestamp: Date.now() });
+      return price;
+    }
+    // API returned but no valid price - use stablecoin default
+    return stablecoinDefault;
+  } catch (e) {
+    logger.warn(`[Wallet API] CoinGecko price fetch failed for ${coingeckoId}:`, e);
+    return cached?.price || stablecoinDefault;
   }
 }
 

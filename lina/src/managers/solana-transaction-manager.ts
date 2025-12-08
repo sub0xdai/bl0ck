@@ -18,6 +18,26 @@ import { getSolanaRpcUrl, getSolanaCluster } from '@/constants/chains';
 import { UnifiedWalletProvider, type WalletData } from '@/repositories/wallet-provider';
 
 // ============================================================================
+// Known Token Metadata (fallback when CoinGecko is unavailable)
+// ============================================================================
+
+const KNOWN_SPL_TOKENS: Record<string, { symbol: string; name: string; decimals: number; coingeckoId?: string }> = {
+  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': { symbol: 'USDC', name: 'USD Coin', decimals: 6, coingeckoId: 'usd-coin' },
+  'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB': { symbol: 'USDT', name: 'Tether USD', decimals: 6, coingeckoId: 'tether' },
+  'So11111111111111111111111111111111111111112': { symbol: 'WSOL', name: 'Wrapped SOL', decimals: 9, coingeckoId: 'solana' },
+  'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263': { symbol: 'BONK', name: 'Bonk', decimals: 5, coingeckoId: 'bonk' },
+  'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN': { symbol: 'JUP', name: 'Jupiter', decimals: 6, coingeckoId: 'jupiter-exchange-solana' },
+  'mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So': { symbol: 'mSOL', name: 'Marinade Staked SOL', decimals: 9, coingeckoId: 'msol' },
+  '7dHbWXmci3dT8UFYWYZweBLXgycu7Y3iL6trKn1Y7ARj': { symbol: 'stSOL', name: 'Lido Staked SOL', decimals: 9, coingeckoId: 'lido-staked-sol' },
+  'rndrizKT3MK1iimdxRdWabcF7Zg7AR5T4nud4EkHBof': { symbol: 'RNDR', name: 'Render Token', decimals: 8, coingeckoId: 'render-token' },
+  '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R': { symbol: 'RAY', name: 'Raydium', decimals: 6, coingeckoId: 'raydium' },
+  'orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE': { symbol: 'ORCA', name: 'Orca', decimals: 6, coingeckoId: 'orca' },
+};
+
+// Stablecoin symbols that should default to $1.00
+const STABLECOINS = ['USDC', 'USDT', 'DAI', 'BUSD', 'TUSD', 'USDP'];
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -400,8 +420,10 @@ export class SolanaTransactionManager {
 
       logger.debug(`[SolanaTransactionManager] SOL balance: ${lamports} lamports`);
 
-      // Fetch SOL price from CoinGecko
+      // Fetch SOL price: CoinGecko Service → CoinGecko Direct → Jupiter fallback
       let usdPrice = 0;
+
+      // Try CoinGecko service first
       try {
         const coingeckoService = runtime.getService('CoinGeckoService' as any);
         if (coingeckoService) {
@@ -411,18 +433,42 @@ export class SolanaTransactionManager {
             usdPrice = marketData?.market_data?.current_price?.usd || 0;
           }
         }
-        // Fallback: direct CoinGecko API call if service unavailable or returned 0
-        if (usdPrice === 0) {
+      } catch (cgServiceError) {
+        logger.warn('[SolanaTransactionManager] CoinGecko service failed:', cgServiceError);
+      }
+
+      // Fallback: direct CoinGecko API
+      if (usdPrice === 0) {
+        try {
           const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
           const data = await response.json() as { solana?: { usd?: number } };
           usdPrice = data.solana?.usd ?? 0;
-          logger.debug(`[SolanaTransactionManager] SOL price from direct API: $${usdPrice}`);
+          if (usdPrice > 0) {
+            logger.debug(`[SolanaTransactionManager] SOL price from CoinGecko direct: $${usdPrice}`);
+          }
+        } catch (cgDirectError) {
+          logger.warn('[SolanaTransactionManager] CoinGecko direct API failed:', cgDirectError);
         }
-      } catch (priceError) {
-        logger.warn(
-          '[SolanaTransactionManager] Failed to fetch SOL price:',
-          priceError instanceof Error ? priceError.message : String(priceError)
-        );
+      }
+
+      // Fallback: Jupiter Price API
+      if (usdPrice === 0) {
+        try {
+          const SOL_MINT = 'So11111111111111111111111111111111111111112';
+          const res = await fetch(`https://api.jup.ag/price/v2?ids=${SOL_MINT}`);
+          const data = await res.json() as { data?: Record<string, { price?: string }> };
+          const priceStr = data?.data?.[SOL_MINT]?.price;
+          if (priceStr) {
+            usdPrice = parseFloat(priceStr);
+            logger.debug(`[SolanaTransactionManager] SOL price from Jupiter: $${usdPrice}`);
+          }
+        } catch (jupError) {
+          logger.warn('[SolanaTransactionManager] Jupiter price API failed:', jupError);
+        }
+      }
+
+      if (usdPrice === 0) {
+        logger.error('[SolanaTransactionManager] Failed to fetch SOL price from all sources');
       }
 
       // Calculate USD value
@@ -497,7 +543,7 @@ export class SolanaTransactionManager {
   }
 
   /**
-   * Enrich token with price data from CoinGecko
+   * Enrich token with price data (local metadata → CoinGecko → Jupiter fallback)
    * @param mint Token mint address
    * @param balance Raw balance
    * @param decimals Token decimals
@@ -510,11 +556,14 @@ export class SolanaTransactionManager {
     decimals: number,
     runtime: IAgentRuntime
   ): Promise<SolanaTokenBalance> {
-    let symbol = 'UNKNOWN';
-    let name = 'Unknown Token';
+    // Check local known tokens FIRST
+    const knownToken = KNOWN_SPL_TOKENS[mint];
+    let symbol = knownToken?.symbol || 'UNKNOWN';
+    let name = knownToken?.name || 'Unknown Token';
     let usdPrice = 0;
     let icon: string | undefined = undefined;
 
+    // Try CoinGecko for price and additional metadata
     try {
       const coingeckoService = runtime.getService('CoinGeckoService' as any);
 
@@ -523,17 +572,44 @@ export class SolanaTransactionManager {
 
         if (metadata && metadata.length > 0 && metadata[0].success) {
           const tokenData = metadata[0].data as any;
-          symbol = tokenData.symbol?.toUpperCase() || 'UNKNOWN';
-          name = tokenData.name || 'Unknown Token';
+          // Only override if CoinGecko has data and we don't have local
+          if (!knownToken) {
+            symbol = tokenData.symbol?.toUpperCase() || symbol;
+            name = tokenData.name || name;
+          }
           usdPrice = tokenData.market_data?.current_price?.usd || 0;
           icon = tokenData.image?.small || tokenData.image?.thumb;
         }
       }
     } catch (error) {
       logger.warn(
-        `[SolanaTransactionManager] Failed to fetch metadata for ${mint}:`,
+        `[SolanaTransactionManager] CoinGecko failed for ${mint}:`,
         error instanceof Error ? error.message : String(error)
       );
+    }
+
+    // Fallback: Jupiter Price API if CoinGecko failed
+    if (usdPrice === 0) {
+      try {
+        const res = await fetch(`https://api.jup.ag/price/v2?ids=${mint}`);
+        const data = await res.json() as { data?: Record<string, { price?: string }> };
+        const priceStr = data?.data?.[mint]?.price;
+        if (priceStr) {
+          usdPrice = parseFloat(priceStr);
+          logger.debug(`[SolanaTransactionManager] Jupiter price for ${symbol}: $${usdPrice}`);
+        }
+      } catch (jupError) {
+        logger.warn(
+          `[SolanaTransactionManager] Jupiter price failed for ${mint}:`,
+          jupError instanceof Error ? jupError.message : String(jupError)
+        );
+      }
+    }
+
+    // Stablecoin fallback: default to $1.00 if still no price
+    if (usdPrice === 0 && STABLECOINS.includes(symbol)) {
+      usdPrice = 1.0;
+      logger.debug(`[SolanaTransactionManager] Using stablecoin default for ${symbol}: $1.00`);
     }
 
     // Format balance
