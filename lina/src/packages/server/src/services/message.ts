@@ -684,12 +684,23 @@ export class MessageBusService extends Service {
       const room = await this.runtime.getRoom(agentRoomId);
       const world = await this.runtime.getWorld(agentWorldId);
 
-      const channelId = room?.channelId as UUID;
-      const serverId = world?.serverId as UUID;
+      // Try room/world first, fall back to originalMessage
+      let channelId = room?.channelId as UUID;
+      let serverId = world?.serverId as UUID;
+
+      // Fallback: use originalMessage if room/world don't have channelId/serverId
+      if (!channelId && originalMessage?.channel_id) {
+        channelId = originalMessage.channel_id as UUID;
+        logger.warn(`[${this.runtime.character.name}] MessageBusService: Using originalMessage.channel_id as fallback: ${channelId}`);
+      }
+      if (!serverId && originalMessage?.server_id) {
+        serverId = originalMessage.server_id as UUID;
+        logger.warn(`[${this.runtime.character.name}] MessageBusService: Using originalMessage.server_id as fallback: ${serverId}`);
+      }
 
       if (!channelId || !serverId) {
         logger.error(
-          `[${this.runtime.character.name}] MessageBusService: Cannot map agent room/world to central IDs for response. AgentRoomID: ${agentRoomId}, AgentWorldID: ${agentWorldId}. Room or World object missing, or channelId/serverId not found on them.`
+          `[${this.runtime.character.name}] MessageBusService: Cannot map agent room/world to central IDs for response. AgentRoomID: ${agentRoomId}, AgentWorldID: ${agentWorldId}. Room channelId: ${channelId}, World serverId: ${serverId}. OriginalMessage: ${originalMessage ? 'present' : 'missing'}`
         );
         return;
       }
