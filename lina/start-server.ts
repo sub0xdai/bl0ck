@@ -43,18 +43,33 @@ async function migrateWalletTableIfNeeded() {
 
     try {
       // Check if old table exists in public schema
-      const result = await client.query(`
+      const oldExists = await client.query(`
         SELECT EXISTS (
           SELECT FROM information_schema.tables
           WHERE table_schema = 'public' AND table_name = 'solana_wallets'
         )
       `);
 
-      if (result.rows[0].exists) {
-        console.log('[STARTUP] Migrating wallet table from public to lina_wallets schema...');
-        await client.query(`CREATE SCHEMA IF NOT EXISTS lina_wallets`);
-        await client.query(`ALTER TABLE public.solana_wallets SET SCHEMA lina_wallets`);
-        console.log('[STARTUP] Wallet table migration complete');
+      if (oldExists.rows[0].exists) {
+        // Check if target already exists in lina_wallets schema
+        const targetExists = await client.query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_schema = 'lina_wallets' AND table_name = 'solana_wallets'
+          )
+        `);
+
+        if (targetExists.rows[0].exists) {
+          // Both exist - drop the stale public one (target already migrated)
+          console.log('[STARTUP] Target table exists, dropping stale public.solana_wallets...');
+          await client.query(`DROP TABLE public.solana_wallets`);
+        } else {
+          // Normal migration path
+          console.log('[STARTUP] Migrating wallet table from public to lina_wallets schema...');
+          await client.query(`CREATE SCHEMA IF NOT EXISTS lina_wallets`);
+          await client.query(`ALTER TABLE public.solana_wallets SET SCHEMA lina_wallets`);
+          console.log('[STARTUP] Wallet table migration complete');
+        }
       }
 
       // Ensure schema and table exist
