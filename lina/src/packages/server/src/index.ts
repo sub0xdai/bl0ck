@@ -328,31 +328,27 @@ export class AgentServer {
       await this.database.init();
       logger.success('Database initialized for server operations');
 
-      // Only run plugin-sql migrations for PostgreSQL (PGlite doesn't support information_schema queries)
-      if (options?.postgresUrl) {
-        logger.info('[INIT] Running database migrations for messaging tables...');
-        try {
-          const migrationService = new DatabaseMigrationService();
+      // Run migrations for the SQL plugin schema
+      logger.info('[INIT] Running database migrations for messaging tables...');
+      try {
+        const migrationService = new DatabaseMigrationService();
 
-          // Get the underlying database instance
-          const db = (this.database as any).getDatabase();
-          await migrationService.initializeWithDatabase(db);
+        // Get the underlying database instance
+        const db = (this.database as any).getDatabase();
+        await migrationService.initializeWithDatabase(db);
 
-          // Register the SQL plugin schema
-          migrationService.discoverAndRegisterPluginSchemas([sqlPlugin]);
+        // Register the SQL plugin schema
+        migrationService.discoverAndRegisterPluginSchemas([sqlPlugin]);
 
-          // Run the migrations
-          await migrationService.runAllPluginMigrations();
+        // Run the migrations
+        await migrationService.runAllPluginMigrations();
 
-          logger.success('[INIT] Database migrations completed successfully');
-        } catch (migrationError) {
-          logger.error({ error: migrationError }, '[INIT] Failed to run database migrations:');
-          throw new Error(
-            `Database migration failed: ${migrationError instanceof Error ? migrationError.message : String(migrationError)}`
-          );
-        }
-      } else {
-        logger.info('[INIT] Using PGlite - skipping plugin-sql migrations (not compatible)');
+        logger.success('[INIT] Database migrations completed successfully');
+      } catch (migrationError) {
+        logger.error({ error: migrationError }, '[INIT] Failed to run database migrations:');
+        throw new Error(
+          `Database migration failed: ${migrationError instanceof Error ? migrationError.message : String(migrationError)}`
+        );
       }
 
       // Add a small delay to ensure database is fully ready
