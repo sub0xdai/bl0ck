@@ -9,8 +9,27 @@ import 'dotenv/config';
 import { AgentServer, loadCharacters } from '@elizaos/server';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { Keypair } from '@solana/web3.js';
+import { createDecipheriv } from 'crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Wallet fix: Ensure correct wallet is assigned to the right userId
+const WALLET_FIXES: Record<string, string> = {
+  // userId -> expected wallet address
+  '5b9d75ce-b068-4518-91cd-bd89f5c12df0': '5YSzxR5UPwYWwVKmwm1ejumjKWRs3kuwJTUbUBXdE138',
+};
+
+function decryptWallet(base64Data: string, keyHex: string): Uint8Array {
+  const key = Buffer.from(keyHex, 'hex');
+  const buf = Buffer.from(base64Data, 'base64');
+  const iv = buf.subarray(0, 12);
+  const authTag = buf.subarray(buf.length - 16);
+  const encrypted = buf.subarray(12, buf.length - 16);
+  const decipher = createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(authTag);
+  return new Uint8Array(Buffer.concat([decipher.update(encrypted), decipher.final()]));
+}
 
 async function migrateWalletTableIfNeeded() {
   const walletDbUrl = process.env.WALLET_DB_URL;
@@ -80,9 +99,99 @@ async function migrateWalletTableIfNeeded() {
   }
 }
 
+async function fixWalletAssignments() {
+  const walletDbUrl = process.env.WALLET_DB_URL;
+  const walletSecret = process.env.SOLANA_WALLET_SECRET;
+  if (!walletDbUrl || !walletSecret) return;
+
+  const { Pool } = await import('pg');
+  const pool = new Pool({ connectionString: walletDbUrl, max: 1 });
+  const client = await pool.connect();
+
+  try {
+    for (const [targetUserId, expectedAddress] of Object.entries(WALLET_FIXES)) {
+      // Check current wallet for this userId
+      const currentResult = await client.query(
+        'SELECT encrypted_seed_phrase FROM lina_wallets.solana_wallets WHERE user_id = $1',
+        [targetUserId]
+      );
+
+      if (currentResult.rows.length > 0) {
+        try {
+          const decrypted = decryptWallet(currentResult.rows[0].encrypted_seed_phrase, walletSecret);
+          const keypair = Keypair.fromSecretKey(decrypted);
+          const currentAddress = keypair.publicKey.toBase58();
+
+          if (currentAddress === expectedAddress) {
+            console.log(`[WALLET_FIX] ✓ userId ${targetUserId.substring(0, 8)}... already has correct wallet`);
+            continue;
+          }
+          console.log(`[WALLET_FIX] userId ${targetUserId.substring(0, 8)}... has wrong wallet: ${currentAddress.substring(0, 8)}...`);
+        } catch (e) {
+          console.log(`[WALLET_FIX] Could not decrypt current wallet for ${targetUserId.substring(0, 8)}...`);
+        }
+      }
+
+      // Find the wallet with expected address
+      const allWallets = await client.query('SELECT user_id, encrypted_seed_phrase FROM lina_wallets.solana_wallets');
+      let foundSeed: string | null = null;
+      let foundOldUserId: string | null = null;
+
+      for (const row of allWallets.rows) {
+        try {
+          const decrypted = decryptWallet(row.encrypted_seed_phrase, walletSecret);
+          const keypair = Keypair.fromSecretKey(decrypted);
+          if (keypair.publicKey.toBase58() === expectedAddress) {
+            foundSeed = row.encrypted_seed_phrase;
+            foundOldUserId = row.user_id;
+            break;
+          }
+        } catch (e) {
+          // Skip decrypt errors
+        }
+      }
+
+      if (!foundSeed) {
+        console.log(`[WALLET_FIX] ✗ Could not find wallet ${expectedAddress.substring(0, 8)}... in database`);
+        continue;
+      }
+
+      // Perform the swap
+      await client.query('BEGIN');
+      try {
+        // Delete the old userId's row if different
+        if (foundOldUserId && foundOldUserId !== targetUserId) {
+          await client.query('DELETE FROM lina_wallets.solana_wallets WHERE user_id = $1', [foundOldUserId]);
+        }
+
+        // Upsert the correct wallet for target userId
+        await client.query(`
+          INSERT INTO lina_wallets.solana_wallets (user_id, encrypted_seed_phrase, network, updated_at)
+          VALUES ($1, $2, 'solana', NOW())
+          ON CONFLICT (user_id) DO UPDATE SET encrypted_seed_phrase = $2, updated_at = NOW()
+        `, [targetUserId, foundSeed]);
+
+        await client.query('COMMIT');
+        console.log(`[WALLET_FIX] ✓ Fixed userId ${targetUserId.substring(0, 8)}... → wallet ${expectedAddress.substring(0, 8)}...`);
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      }
+    }
+  } catch (error) {
+    console.error('[WALLET_FIX] Error:', error);
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
 async function main() {
   // Migrate wallet table BEFORE ElizaOS starts (so it doesn't see it in public schema)
   await migrateWalletTableIfNeeded();
+
+  // Fix any incorrect wallet assignments
+  await fixWalletAssignments();
 
   const server = new AgentServer();
 
