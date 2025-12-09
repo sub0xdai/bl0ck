@@ -519,32 +519,53 @@ export class DriftService extends Service {
     }
     const oraclePrice = marketAccount.amm.historicalOracleData.lastOraclePrice;
 
-    // Calculate entry price (QUOTE_PRECISION = 6, BASE_PRECISION = 9)
-    const entryPriceBn = position.quoteAssetAmount.abs()
-      .mul(new BN(1_000_000)) // QUOTE_PRECISION (6 decimals)
-      .div(position.baseAssetAmount.abs())
-      .div(new BN(1_000_000_000)); // BASE_PRECISION (9 decimals)
+    // Precision constants from Drift SDK
+    const BASE_PRECISION = 1_000_000_000;  // 10^9 for base asset amounts
+    const QUOTE_PRECISION = 1_000_000;     // 10^6 for USD amounts
+    const PRICE_PRECISION = 1_000_000;     // 10^6 for prices
 
     // Calculate position side and leverage
     const side: PositionSide = position.baseAssetAmount.gt(new BN(0)) ? 'long' : 'short';
     const leverage = user.getLeverage() / 10000;
-    const entryPriceNum = Number(entryPriceBn.toString());
 
-    // Calculate liquidation price using existing function
-    const liquidationPrice = this.calculateLiquidationPrice(entryPriceNum, leverage, side);
+    // Get values directly from Drift SDK where possible
+    const sizeNormalized = Number(position.baseAssetAmount.abs().toString()) / BASE_PRECISION;
+    const markPriceNormalized = Number(oraclePrice.toString()) / PRICE_PRECISION;
+    const notionalNormalized = sizeNormalized * markPriceNormalized;
+
+    // Entry price: cost basis / position size
+    // quoteAssetAmount (6 decimals) / baseAssetAmount (9 decimals) = price
+    const quoteAbs = Number(position.quoteAssetAmount.abs().toString());
+    const baseAbs = Number(position.baseAssetAmount.abs().toString());
+    const entryPriceNormalized = baseAbs > 0 ? (quoteAbs / QUOTE_PRECISION) / (baseAbs / BASE_PRECISION) : 0;
+
+    // Use Drift SDK's liquidation price calculation if available, otherwise fallback
+    let liquidationPriceNormalized: number;
+    try {
+      // Try SDK method first (returns BN in PRICE_PRECISION)
+      const liqPriceBn = user.liquidationPrice(marketIndex);
+      liquidationPriceNormalized = liqPriceBn ? Number(liqPriceBn.toString()) / PRICE_PRECISION : 0;
+    } catch {
+      // Fallback to estimate if SDK method fails
+      liquidationPriceNormalized = this.calculateLiquidationPrice(entryPriceNormalized, leverage, side);
+    }
+
+    // Normalize PnL and margin (both in QUOTE_PRECISION)
+    const unrealizedPnlNormalized = Number(user.getUnrealizedPNL().toString()) / QUOTE_PRECISION;
+    const marginUsedNormalized = quoteAbs / QUOTE_PRECISION;
 
     return {
       marketIndex,
       marketSymbol,
       side,
-      size: position.baseAssetAmount.abs().toString(),
-      notionalValue: position.baseAssetAmount.abs().mul(new BN(oraclePrice.toString())).div(new BN(1_000_000_000)).toString(),
-      entryPrice: entryPriceBn.toString(),
-      markPrice: oraclePrice.toString(),
-      liquidationPrice: liquidationPrice.toFixed(2),
-      unrealizedPnl: user.getUnrealizedPNL().toString(),
+      size: sizeNormalized.toString(),
+      notionalValue: notionalNormalized.toFixed(2),
+      entryPrice: entryPriceNormalized.toFixed(2),
+      markPrice: markPriceNormalized.toFixed(2),
+      liquidationPrice: liquidationPriceNormalized.toFixed(2),
+      unrealizedPnl: unrealizedPnlNormalized.toFixed(2),
       leverage,
-      marginUsed: position.quoteAssetAmount.abs().toString(),
+      marginUsed: marginUsedNormalized.toFixed(2),
     };
   }
 

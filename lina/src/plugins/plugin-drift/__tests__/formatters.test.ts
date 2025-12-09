@@ -186,12 +186,13 @@ describe('Formatters - formatPositions', () => {
   });
 
   it('should format single long position', () => {
+    // Position data is now normalized (service divides by precision constants)
     const positions: DriftPosition[] = [
       {
         marketSymbol: 'SOL-PERP',
         marketIndex: 0,
         side: 'long',
-        size: '100000000',
+        size: '100', // 100 SOL (normalized from 100_000_000_000 raw)
         notionalValue: '15000.00',
         entryPrice: '150.00',
         markPrice: '155.00',
@@ -215,12 +216,13 @@ describe('Formatters - formatPositions', () => {
   });
 
   it('should format single short position', () => {
+    // Position data is now normalized (service divides by precision constants)
     const positions: DriftPosition[] = [
       {
         marketSymbol: 'BTC-PERP',
         marketIndex: 1,
         side: 'short',
-        size: '50000000',
+        size: '1', // 1 BTC (normalized)
         notionalValue: '67000.00',
         entryPrice: '67000.00',
         markPrice: '66000.00',
@@ -240,12 +242,13 @@ describe('Formatters - formatPositions', () => {
   });
 
   it('should format multiple positions', () => {
+    // Position data is now normalized (service divides by precision constants)
     const positions: DriftPosition[] = [
       {
         marketSymbol: 'SOL-PERP',
         marketIndex: 0,
         side: 'long',
-        size: '100000000',
+        size: '100', // 100 SOL (normalized)
         notionalValue: '15000.00',
         entryPrice: '150.00',
         markPrice: '155.00',
@@ -258,7 +261,7 @@ describe('Formatters - formatPositions', () => {
         marketSymbol: 'ETH-PERP',
         marketIndex: 2,
         side: 'short',
-        size: '25000000',
+        size: '1', // 1 ETH (normalized)
         notionalValue: '3500.00',
         entryPrice: '3500.00',
         markPrice: '3450.00',
@@ -277,12 +280,13 @@ describe('Formatters - formatPositions', () => {
   });
 
   it('should show long position emoji', () => {
+    // Position data is now normalized (service divides by precision constants)
     const positions: DriftPosition[] = [
       {
         marketSymbol: 'SOL-PERP',
         marketIndex: 0,
         side: 'long',
-        size: '100000000',
+        size: '100', // 100 SOL (normalized)
         notionalValue: '15000.00',
         entryPrice: '150.00',
         markPrice: '155.00',
@@ -356,6 +360,7 @@ describe('Formatters - formatMarkets', () => {
 });
 
 describe('Formatters - formatPositionResult', () => {
+  // Position data is now normalized (service divides by precision constants)
   it('should format long position result with normal leverage', () => {
     const positionResult: PositionResult = {
       success: true,
@@ -363,7 +368,7 @@ describe('Formatters - formatPositionResult', () => {
         marketSymbol: 'SOL-PERP',
         marketIndex: 0,
         side: 'long',
-        size: '100000000',
+        size: '100', // 100 SOL (normalized)
         notionalValue: '15000.00',
         entryPrice: '150.00',
         markPrice: '150.00',
@@ -391,7 +396,7 @@ describe('Formatters - formatPositionResult', () => {
         marketSymbol: 'BTC-PERP',
         marketIndex: 1,
         side: 'short',
-        size: '50000000',
+        size: '1', // 1 BTC (normalized)
         notionalValue: '67000.00',
         entryPrice: '67000.00',
         markPrice: '67000.00',
@@ -416,7 +421,7 @@ describe('Formatters - formatPositionResult', () => {
         marketSymbol: 'SOL-PERP',
         marketIndex: 0,
         side: 'long',
-        size: '100000000',
+        size: '100', // 100 SOL (normalized)
         notionalValue: '15000.00',
         entryPrice: '150.00',
         markPrice: '150.00',
