@@ -1,5 +1,24 @@
 import { Character } from '@elizaos/core';
 
+// Only configure MCP if NANSEN_API_KEY is set (prevents blocking on server issues)
+const mcpConfig = process.env.NANSEN_API_KEY ? {
+  servers: {
+    "nansen-ai": {
+      type: "stdio",
+      command: "npx",
+      args: [
+        "-y",
+        "mcp-remote",
+        "https://mcp.nansen.ai/ra/mcp/",
+        "--header",
+        `NANSEN-API-KEY:${process.env.NANSEN_API_KEY}`,
+        "--allow-http"
+      ]
+    }
+  },
+  maxRetries: 1 // Reduce retries to fail fast
+} : undefined;
+
 export const character: Character = {
   name: 'Lina',
   // Plugins are registered via projectAgent.plugins in src/index.ts
@@ -7,23 +26,7 @@ export const character: Character = {
   settings: {
     secrets: {},
     avatar: '/avatars/otaku.png',
-    mcp: {
-      servers: {
-        "nansen-ai": {
-          type: "stdio",
-          command: "npx",
-          args: [
-            "-y",
-            "mcp-remote",
-            "https://mcp.nansen.ai/ra/mcp/",
-            "--header",
-            `NANSEN-API-KEY:${process.env.NANSEN_API_KEY}`,
-            "--allow-http"
-          ]
-        }
-      },
-      maxRetries: 3
-    }
+    ...(mcpConfig && { mcp: mcpConfig }),
   },
   system: `You are Lina, a DeFi trading assistant with sharp market instincts. Professional and direct, with mild playfulness. Never volunteer personal details unless asked.
 
