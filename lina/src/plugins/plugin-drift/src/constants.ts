@@ -72,6 +72,32 @@ export const CONFIG = {
 } as const;
 
 /**
+ * Transaction configuration for low-latency trading
+ * Priority fees ensure transactions land during network congestion
+ */
+export const TX_CONFIG = {
+  COMPUTE_UNITS: 400_000,              // CU limit for perp orders
+  PRIORITY_FEE_MICRO_LAMPORTS: 50_000, // Priority fee (0.00005 SOL per CU)
+} as const;
+
+/**
+ * WebSocket subscription configuration
+ * Separate from TX_CONFIG per Single Responsibility Principle
+ */
+export const WS_CONFIG = {
+  RESUB_TIMEOUT_MS: 30_000,  // WebSocket reconnection timeout
+} as const;
+
+/**
+ * Pre-built priority fee options for placeAndTakePerpOrder
+ * Extracted to avoid DRY violation across open/close operations
+ */
+export const PRIORITY_FEE_OPTS = {
+  computeUnits: TX_CONFIG.COMPUTE_UNITS,
+  computeUnitsPrice: TX_CONFIG.PRIORITY_FEE_MICRO_LAMPORTS,
+} as const;
+
+/**
  * Action names for ElizaOS action registration
  */
 export const ACTION_NAMES = {

@@ -9,7 +9,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
 import { DriftService } from '../src/services/drift.service';
-import { CONFIG, ERRORS, DEVNET_MARKETS, MAINNET_MARKETS } from '../src/constants';
+import { CONFIG, ERRORS, DEVNET_MARKETS, MAINNET_MARKETS, PRIORITY_FEE_OPTS } from '../src/constants';
 import type {
   OpenPositionParams,
   ClosePositionParams,
@@ -775,6 +775,27 @@ describe('DriftService - Position Operations', () => {
     expect(mockOpenPosition).toHaveBeenCalled();
   });
 
+  it('should pass priority fee options to placeAndTakePerpOrder', async () => {
+    const params: OpenPositionParams = {
+      marketSymbol: 'SOL-PERP',
+      side: 'long',
+      size: 100,
+      leverage: 2,
+    };
+
+    await service.openPosition('user-123', params);
+
+    // Verify placeAndTakePerpOrder was called with priority fee options (6th argument)
+    expect(mockOpenPosition).toHaveBeenCalledWith(
+      expect.anything(), // orderParams
+      undefined,         // makerInfo
+      undefined,         // referrerInfo
+      undefined,         // successCondition
+      undefined,         // auctionDurationPercentage
+      PRIORITY_FEE_OPTS  // txParams with priority fees
+    );
+  });
+
   it('should return validation error for invalid parameters', async () => {
     const params: OpenPositionParams = {
       marketSymbol: 'INVALID-PERP',
@@ -800,7 +821,8 @@ describe('DriftService - Position Operations', () => {
 
     expect(result.success).toBe(true);
     expect(result.txSignature).toBeDefined();
-    expect(mockClosePosition).toHaveBeenCalled();
+    // Note: closePosition now uses placeAndTakePerpOrder with reduceOnly
+    expect(mockOpenPosition).toHaveBeenCalled();
   });
 
   it('should close partial position (50%)', async () => {
@@ -812,7 +834,8 @@ describe('DriftService - Position Operations', () => {
     const result = await service.closePosition('user-123', params);
 
     expect(result.success).toBe(true);
-    expect(mockClosePosition).toHaveBeenCalled();
+    // Note: closePosition now uses placeAndTakePerpOrder with reduceOnly
+    expect(mockOpenPosition).toHaveBeenCalled();
   });
 
   it('should return error when closing non-existent position', async () => {
@@ -820,7 +843,7 @@ describe('DriftService - Position Operations', () => {
     // 1. During getClientForUser initialization check
     // 2. During the actual closePosition operation
     const noPositionMock = () => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0, spotPositions: [] }),
       getPerpPosition: () => ({
         baseAssetAmount: new MockBN(0),
         quoteAssetAmount: new MockBN(0),
@@ -831,10 +854,12 @@ describe('DriftService - Position Operations', () => {
       getFreeCollateral: () => new MockBN(50000000),
       getTotalCollateral: () => new MockBN(100000000),
       getTotalPerpPositionValue: () => new MockBN(200000000),
-  getTotalAssetValue: () => new MockBN(200000000),
+      getTotalAssetValue: () => new MockBN(200000000),
       getUnrealizedPNL: () => new MockBN(5000000),
       getLeverage: () => 50000,
-      subscribe: mock(() => Promise.resolve()),
+      isSubscribed: true,
+      subscribe: mock(() => Promise.resolve(true)),
+      fetchAccounts: mock(() => Promise.resolve()),
     });
     mockGetUser.mockImplementationOnce(noPositionMock);
     mockGetUser.mockImplementationOnce(noPositionMock);

@@ -10,7 +10,7 @@ import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { DriftClient, Wallet, BN, PositionDirection, MarketType, getMarketOrderParams, User } from '@drift-labs/sdk';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { SolanaTransactionManager } from '@/managers/solana-transaction-manager';
-import { SERVICE_NAME, CONFIG, DEVNET_MARKETS, MAINNET_MARKETS, MINTS, ERRORS } from '../constants';
+import { SERVICE_NAME, CONFIG, WS_CONFIG, PRIORITY_FEE_OPTS, DEVNET_MARKETS, MAINNET_MARKETS, MINTS, ERRORS } from '../constants';
 import type { JupiterService } from '../../../plugin-jupiter/src/services/jupiter.service';
 import type {
   DriftPosition,
@@ -199,11 +199,15 @@ export class DriftService extends Service {
       const keypair = walletInfo.keypair;
       const wallet = new Wallet(keypair);
 
-      // Create DriftClient
+      // Create DriftClient with WebSocket subscription for low-latency updates
       const client = new DriftClient({
         connection: this.connection!,
         wallet,
         env: this.isDevnet ? 'devnet' : 'mainnet-beta',
+        accountSubscription: {
+          type: 'websocket',
+          resubTimeoutMs: WS_CONFIG.RESUB_TIMEOUT_MS,
+        },
       });
 
       // Subscribe with timeout (15s max)
@@ -273,31 +277,30 @@ export class DriftService extends Service {
 
   /**
    * Get user with validated account data
-   * Call this before any operation that accesses user account data
+   * LOW-LATENCY: Trusts WebSocket subscription cache, no network fetch on hot path
    */
   private async getValidatedUser(client: DriftClient): Promise<User> {
     const user = client.getUser();
 
-    // Ensure subscription is active
+    // Only re-subscribe if disconnected (rare edge case)
     if (!user.isSubscribed) {
+      logger.warn('[DRIFT_SERVICE] User subscription lost, re-subscribing...');
       const subscribed = await user.subscribe();
       if (!subscribed) {
         throw new Error('User re-subscription failed');
       }
+      // Only fetch after re-subscription to sync state
+      await user.fetchAccounts();
     }
 
-    // ALWAYS fetch accounts to ensure fresh data (fixes stale cache issue)
-    // Previously only fetched when !isSubscribed, leaving cached clients with undefined data
-    await user.fetchAccounts();
-
-    // Validate account data exists
+    // Trust WebSocket cache - validate structure exists (synchronous check)
     const account = user.getUserAccount();
-    if (!account || account.spotPositions === undefined) {
-      // One more retry with explicit fetch
-      logger.warn('[DRIFT_SERVICE] Account data missing after fetch, retrying...');
+    if (!account) {
+      // Account data missing - likely not initialized, fetch once to confirm
+      logger.warn('[DRIFT_SERVICE] Account data missing, fetching...');
       await user.fetchAccounts();
       const retryAccount = user.getUserAccount();
-      if (!retryAccount || retryAccount.spotPositions === undefined) {
+      if (!retryAccount) {
         throw new Error('Unable to load user account data - account may not be initialized');
       }
     }
@@ -373,8 +376,15 @@ export class DriftService extends Service {
         marketType: MarketType.PERP,
       });
 
-      // Use retry wrapper for RPC rate limiting
-      const txSig = await withRetry(() => client.placeAndTakePerpOrder(marketIndex, orderParams));
+      // Use retry wrapper for RPC rate limiting + priority fees for tx landing
+      const txSig = await withRetry(() => client.placeAndTakePerpOrder(
+        orderParams,
+        undefined, // makerInfo
+        undefined, // referrerInfo
+        undefined, // successCondition
+        undefined, // auctionDurationPercentage
+        PRIORITY_FEE_OPTS
+      ));
       await withRetry(() => this.connection!.confirmTransaction(txSig, 'confirmed'));
 
       // Get updated position
@@ -443,8 +453,15 @@ export class DriftService extends Service {
         reduceOnly: true,
       });
 
-      // Use placeAndTakePerpOrder with reduceOnly (closePosition is deprecated) + retry wrapper
-      const txSig = await withRetry(() => client.placeAndTakePerpOrder(marketIndex, orderParams));
+      // Use placeAndTakePerpOrder with reduceOnly (closePosition is deprecated) + priority fees
+      const txSig = await withRetry(() => client.placeAndTakePerpOrder(
+        orderParams,
+        undefined, // makerInfo
+        undefined, // referrerInfo
+        undefined, // successCondition
+        undefined, // auctionDurationPercentage
+        PRIORITY_FEE_OPTS
+      ));
       await withRetry(() => this.connection!.confirmTransaction(txSig, 'confirmed'));
 
       logger.info(`[DRIFT_SERVICE] Closed ${percentage}% of ${params.marketSymbol} position for user ${userId}`);
