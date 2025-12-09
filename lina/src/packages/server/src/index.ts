@@ -1436,8 +1436,18 @@ export class AgentServer {
     const createdMessage = await (this.database as any).createMessage(data);
 
     // Get the channel details to find the server ID
-    const channel = await this.getChannelDetails(createdMessage.channelId);
-    if (channel) {
+    let channel = await this.getChannelDetails(createdMessage.channelId);
+
+    // Fallback if channel lookup fails - use metadata or default server
+    if (!channel) {
+      logger.warn(`[AgentServer] getChannelDetails returned null for channel ${createdMessage.channelId}, using fallback`);
+      const fallbackServerId = (data.metadata as any)?.serverId || (data.metadata as any)?.messageServerId || DEFAULT_SERVER_ID;
+      if (fallbackServerId) {
+        channel = { messageServerId: fallbackServerId } as any;
+      }
+    }
+
+    if (channel?.messageServerId) {
       // Emit to internal message bus for agent consumption
       const messageForBus: MessageServiceStructure = {
         id: createdMessage.id,
@@ -1454,7 +1464,9 @@ export class AgentServer {
       };
 
       internalMessageBus.emit('new_message', messageForBus);
-      logger.info(`[AgentServer] Published message ${createdMessage.id} to internal message bus`);
+      logger.info(`[AgentServer] Published message ${createdMessage.id} to internal message bus (server: ${channel.messageServerId})`);
+    } else {
+      logger.error(`[AgentServer] FAILED to publish message ${createdMessage.id} - no channel/serverId found. Channel: ${createdMessage.channelId}`);
     }
 
     return createdMessage;
