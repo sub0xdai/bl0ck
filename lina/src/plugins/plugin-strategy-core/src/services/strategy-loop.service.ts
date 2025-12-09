@@ -16,7 +16,17 @@ export class StrategyLoop extends Service {
     // Observable state for market context (to be expanded)
     public marketContext$ = new BehaviorSubject<any>(null);
 
-    async initialize(runtime: IAgentRuntime): Promise<void> {
+    constructor(runtime: IAgentRuntime) {
+        super(runtime);
+    }
+
+    static async start(runtime: IAgentRuntime): Promise<StrategyLoop> {
+        const svc = new StrategyLoop(runtime);
+        await svc.initialize();
+        return svc;
+    }
+
+    async initialize(_runtime?: IAgentRuntime): Promise<void> {
         logger.info('[STRATEGY_LOOP] Initializing Strategy Core...');
 
         // Start the loop
