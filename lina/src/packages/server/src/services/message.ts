@@ -355,8 +355,17 @@ export class MessageBusService extends Service {
     } catch (error: any) {
       if (error.message && error.message.includes('rooms_pkey')) {
         logger.debug(
-          `[${this.runtime.character.name}] MessageBusService: Room ${agentRoomId} already exists, continuing with message processing`
+          `[${this.runtime.character.name}] MessageBusService: Room ${agentRoomId} already exists, updating with channelId`
         );
+        // Room exists but may not have channelId - update it
+        const existingRoom = await this.runtime.getRoom(agentRoomId);
+        if (existingRoom && !existingRoom.channelId) {
+          await this.runtime.updateRoom({
+            ...existingRoom,
+            channelId: message.channel_id,
+            serverId: message.server_id,
+          });
+        }
       } else {
         throw error;
       }

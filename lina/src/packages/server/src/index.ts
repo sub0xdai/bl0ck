@@ -1383,6 +1383,10 @@ export class AgentServer {
   }
 
   async getChannelsForServer(serverId: UUID): Promise<MessageChannel[]> {
+    // Fallback if database adapter doesn't implement this method
+    if (typeof (this.database as any).getChannelsForServer !== 'function') {
+      return [];
+    }
     return (this.database as any).getChannelsForServer(serverId);
   }
 
