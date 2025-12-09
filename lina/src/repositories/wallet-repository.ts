@@ -114,19 +114,59 @@ export class WalletRepository {
         connectionTimeoutMillis: 10000,
       });
 
-      // Test connection and create table
+      // Test connection and create table in separate schema (isolate from ElizaOS migrations)
       const client = await this.pool.connect();
       try {
+        // Create separate schema so ElizaOS doesn't try to drop our tables
+        await client.query(`CREATE SCHEMA IF NOT EXISTS lina_wallets`);
+
+        // Migrate existing data if table exists in public schema
+        const existingTable = await client.query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'solana_wallets'
+          )
+        `);
+
+        if (existingTable.rows[0].exists) {
+          logger.info('[WalletRepository] Migrating wallets from public to lina_wallets schema...');
+          // Create new table in lina_wallets schema
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS lina_wallets.solana_wallets (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              user_id TEXT NOT NULL UNIQUE,
+              encrypted_seed_phrase TEXT NOT NULL,
+              network TEXT NOT NULL DEFAULT 'solana',
+              created_at TIMESTAMPTZ DEFAULT NOW(),
+              updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+          `);
+          // Copy data
+          await client.query(`
+            INSERT INTO lina_wallets.solana_wallets (id, user_id, encrypted_seed_phrase, network, created_at, updated_at)
+            SELECT id, user_id, encrypted_seed_phrase, network, created_at, updated_at
+            FROM public.solana_wallets
+            ON CONFLICT (user_id) DO NOTHING
+          `);
+          // Drop old table so ElizaOS doesn't complain
+          await client.query(`DROP TABLE IF EXISTS public.solana_wallets`);
+          logger.info('[WalletRepository] Migration complete - wallets moved to lina_wallets schema');
+        } else {
+          // Fresh install - just create in lina_wallets schema
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS lina_wallets.solana_wallets (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              user_id TEXT NOT NULL UNIQUE,
+              encrypted_seed_phrase TEXT NOT NULL,
+              network TEXT NOT NULL DEFAULT 'solana',
+              created_at TIMESTAMPTZ DEFAULT NOW(),
+              updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+          `);
+        }
+
         await client.query(`
-          CREATE TABLE IF NOT EXISTS solana_wallets (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            user_id TEXT NOT NULL UNIQUE,
-            encrypted_seed_phrase TEXT NOT NULL,
-            network TEXT NOT NULL DEFAULT 'solana',
-            created_at TIMESTAMPTZ DEFAULT NOW(),
-            updated_at TIMESTAMPTZ DEFAULT NOW()
-          );
-          CREATE INDEX IF NOT EXISTS idx_solana_wallets_user_id ON solana_wallets(user_id);
+          CREATE INDEX IF NOT EXISTS idx_solana_wallets_user_id ON lina_wallets.solana_wallets(user_id)
         `);
       } finally {
         client.release();
@@ -174,7 +214,7 @@ export class WalletRepository {
     try {
       return await this.withClient(async (client) => {
         const result = await client.query<WalletRow>(
-          'SELECT * FROM solana_wallets WHERE user_id = $1',
+          'SELECT * FROM lina_wallets.solana_wallets WHERE user_id = $1',
           [userId]
         );
 
@@ -218,7 +258,7 @@ export class WalletRepository {
         // UPSERT is atomic at database level - no transaction wrapper needed
         // ON CONFLICT handles race conditions automatically
         await client.query(
-          `INSERT INTO solana_wallets (user_id, encrypted_seed_phrase, network, created_at, updated_at)
+          `INSERT INTO lina_wallets.solana_wallets (user_id, encrypted_seed_phrase, network, created_at, updated_at)
            VALUES ($1, $2, $3, to_timestamp($4 / 1000.0), NOW())
            ON CONFLICT (user_id)
            DO UPDATE SET
@@ -252,7 +292,7 @@ export class WalletRepository {
     try {
       return await this.withClient(async (client) => {
         const result = await client.query(
-          'SELECT 1 FROM solana_wallets WHERE user_id = $1',
+          'SELECT 1 FROM lina_wallets.solana_wallets WHERE user_id = $1',
           [userId]
         );
         return result.rows.length > 0;
@@ -279,7 +319,7 @@ export class WalletRepository {
     try {
       await this.withClient(async (client) => {
         await client.query(
-          'UPDATE solana_wallets SET network = $1, updated_at = NOW() WHERE user_id = $2',
+          'UPDATE lina_wallets.solana_wallets SET network = $1, updated_at = NOW() WHERE user_id = $2',
           [network, userId]
         );
       });
