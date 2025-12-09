@@ -1,12 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { elizaClient } from '../../../lib/elizaClient';
 import { formatUsdValue } from '../../../lib/number-format';
 import { cn } from '../../../lib/utils';
 import type { DriftPosition, DriftAccountInfo, DriftPositionsResponse, DriftAccountResponse } from '@elizaos/api-client';
 
+// Auto-refresh interval in milliseconds (10 seconds)
+const REFRESH_INTERVAL = 10_000;
+
 interface DriftTabProps {
   userId: string;
-  onRefresh?: () => void;
+  isActive?: boolean; // Whether this tab is currently visible
 }
 
 // ASCII art for empty perps state
@@ -71,17 +74,21 @@ function formatPnl(value: string): { text: string; isPositive: boolean } {
   return { text, isPositive };
 }
 
-export function DriftTab({ userId }: DriftTabProps) {
+export function DriftTab({ userId, isActive = true }: DriftTabProps) {
   const [positions, setPositions] = useState<DriftPosition[]>([]);
   const [account, setAccount] = useState<DriftAccountInfo | null>(null);
   const [hasAccount, setHasAccount] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchDriftData = useCallback(async () => {
+  const fetchDriftData = useCallback(async (showLoading = true) => {
     if (!userId) return;
 
-    setIsLoading(true);
+    if (showLoading) {
+      setIsLoading(true);
+    }
     setError(null);
 
     try {
@@ -94,6 +101,7 @@ export function DriftTab({ userId }: DriftTabProps) {
       setPositions(positionsRes.positions || []);
       setAccount(accountRes.account);
       setHasAccount(positionsRes.hasAccount || accountRes.hasAccount);
+      setLastUpdated(new Date());
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       console.error('[DriftTab] Error fetching data:', errorMsg);
@@ -103,9 +111,33 @@ export function DriftTab({ userId }: DriftTabProps) {
     }
   }, [userId]);
 
+  // Initial fetch on mount
   useEffect(() => {
-    fetchDriftData();
+    fetchDriftData(true);
   }, [fetchDriftData]);
+
+  // Auto-refresh when tab is active
+  useEffect(() => {
+    if (isActive && hasAccount) {
+      // Start periodic refresh
+      intervalRef.current = setInterval(() => {
+        fetchDriftData(false); // Don't show loading spinner on auto-refresh
+      }, REFRESH_INTERVAL);
+
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      };
+    } else {
+      // Clear interval when tab is inactive or no account
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+  }, [isActive, hasAccount, fetchDriftData]);
 
   // Loading state
   if (isLoading) {
@@ -165,8 +197,15 @@ export function DriftTab({ userId }: DriftTabProps) {
       {/* Account Info Card */}
       {account && (
         <div className="p-3 rounded-lg bg-muted/30 border border-border/30">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-medium">
-            Drift Account
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+              Drift Account
+            </span>
+            {lastUpdated && (
+              <span className="text-[9px] text-muted-foreground/50 font-mono">
+                {lastUpdated.toLocaleTimeString()}
+              </span>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
             <div className="flex justify-between">

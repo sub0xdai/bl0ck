@@ -580,7 +580,7 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
                 )
               ) : activeTab === 'perps' ? (
                 // Drift Perpetuals
-                <DriftTab userId={userId} />
+                <DriftTab userId={userId} isActive={activeTab === 'perps'} />
               ) : null}
             </div>
           </div>
