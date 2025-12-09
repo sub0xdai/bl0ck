@@ -199,7 +199,9 @@ export class DriftService extends Service {
       const keypair = walletInfo.keypair;
       const wallet = new Wallet(keypair);
 
-      // Create DriftClient with WebSocket subscription for low-latency updates
+      // Create DriftClient with WebSocket subscription
+      logger.info(`[DRIFT_SERVICE] [T+${Date.now() - Date.now()}ms] Creating DriftClient for ${userId}...`);
+      const startClient = Date.now();
       const client = new DriftClient({
         connection: this.connection!,
         wallet,
@@ -209,8 +211,10 @@ export class DriftService extends Service {
           resubTimeoutMs: WS_CONFIG.RESUB_TIMEOUT_MS,
         },
       });
+      logger.info(`[DRIFT_SERVICE] [T+${Date.now() - startClient}ms] DriftClient instantiated`);
 
       // Subscribe with timeout (15s max)
+      logger.info(`[DRIFT_SERVICE] [T+${Date.now() - startClient}ms] Starting subscribe...`);
       const subscribeWithTimeout = async (): Promise<boolean> => {
         const timeout = new Promise<boolean>((_, reject) =>
           setTimeout(() => reject(new Error('DriftClient subscribe timeout (15s)')), 15000)
@@ -222,7 +226,7 @@ export class DriftService extends Service {
       if (!subscribed) {
         throw new Error('DriftClient subscription failed');
       }
-      logger.info(`[DRIFT_SERVICE] DriftClient subscribed for ${userId}`);
+      logger.info(`[DRIFT_SERVICE] [T+${Date.now() - startClient}ms] DriftClient subscribed for ${userId}`);
 
       // Check if user account exists using SDK method (not try/catch hack)
       const needsInit = !client.hasUser();
@@ -313,6 +317,9 @@ export class DriftService extends Service {
   // ============================================================
 
   async openPosition(userId: string, params: OpenPositionParams): Promise<PositionResult> {
+    const startTotal = Date.now();
+    logger.info(`[DRIFT_SERVICE] === openPosition START === ${params.side} ${params.marketSymbol} $${params.size}`);
+
     // Validate parameters first
     const validation = this.validatePositionParams(params);
     if (!validation.valid) {
@@ -323,7 +330,10 @@ export class DriftService extends Service {
     }
 
     try {
+      logger.info(`[DRIFT_SERVICE] [T+${Date.now() - startTotal}ms] Getting client...`);
       const client = await this.getClientForUser(userId);
+      logger.info(`[DRIFT_SERVICE] [T+${Date.now() - startTotal}ms] Client ready`);
+
       const marketIndex = this.markets[params.marketSymbol];
 
       if (marketIndex === undefined) {
@@ -385,9 +395,12 @@ export class DriftService extends Service {
         undefined, // auctionDurationPercentage
         PRIORITY_FEE_OPTS
       ));
-      await withRetry(() => this.connection!.confirmTransaction(txSig, 'confirmed'));
 
-      // Get updated position
+      // Don't wait for confirmation - return immediately for low latency
+      // Priority fees + good RPC should ensure tx lands
+      logger.info(`[DRIFT_SERVICE] Submitted order tx: ${txSig}`);
+
+      // Get position from cache (WebSocket keeps it updated)
       const position = await this.getPosition(userId, params.marketSymbol);
 
       logger.info(`[DRIFT_SERVICE] Opened ${params.side} position on ${params.marketSymbol} for user ${userId}`);

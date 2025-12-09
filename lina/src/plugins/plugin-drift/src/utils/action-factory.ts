@@ -118,8 +118,9 @@ export function createOpenPositionAction(config: OpenPositionConfig): Action {
       _options?: Record<string, unknown>,
       callback?: HandlerCallback
     ) => {
+      const handlerStart = Date.now();
       try {
-        logger.info(`[${actionName}] Processing ${side} position request`);
+        logger.info(`[${actionName}] === HANDLER START === Processing ${side} position request`);
 
         const service = runtime.getService(SERVICE_NAME) as DriftService;
 
@@ -127,8 +128,11 @@ export function createOpenPositionAction(config: OpenPositionConfig): Action {
           throw new Error('Drift service not initialized');
         }
 
+        logger.info(`[${actionName}] [T+${Date.now() - handlerStart}ms] Extracting userId...`);
         const userId = await extractUserId(runtime, message);
+        logger.info(`[${actionName}] [T+${Date.now() - handlerStart}ms] Extracting params...`);
         const params = await extractActionParams(runtime, message);
+        logger.info(`[${actionName}] [T+${Date.now() - handlerStart}ms] Params extracted`);
 
         const marketSymbol = (params?.marketSymbol as string)?.trim()?.toUpperCase();
         const size = params?.size ? Number(params.size) : undefined;
@@ -168,7 +172,7 @@ export function createOpenPositionAction(config: OpenPositionConfig): Action {
         }
 
         logger.info(
-          `[${actionName}] Opening ${marketSymbol} ${side}: $${size} @ ${leverage}x (${orderType})`
+          `[${actionName}] [T+${Date.now() - handlerStart}ms] Opening ${marketSymbol} ${side}: $${size} @ ${leverage}x (${orderType})`
         );
 
         // Execute position opening
@@ -180,12 +184,14 @@ export function createOpenPositionAction(config: OpenPositionConfig): Action {
           orderType,
           limitPrice,
         });
+        logger.info(`[${actionName}] [T+${Date.now() - handlerStart}ms] openPosition returned`);
 
         if (!result.success) {
           throw new Error(result.error || 'Failed to open position');
         }
 
         const text = formatPositionResult(result, marketSymbol, side, leverage, isHighRisk);
+        logger.info(`[${actionName}] === HANDLER COMPLETE === Total: ${Date.now() - handlerStart}ms`);
 
         callback?.({ text, content: result });
 
@@ -196,7 +202,7 @@ export function createOpenPositionAction(config: OpenPositionConfig): Action {
         };
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        logger.error(`[${actionName}] Failed:`, errorMsg);
+        logger.error(`[${actionName}] [T+${Date.now() - handlerStart}ms] Failed:`, errorMsg);
 
         const errorText = `Failed to open ${side} position: ${errorMsg}`;
 
