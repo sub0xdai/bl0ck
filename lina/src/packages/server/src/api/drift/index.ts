@@ -47,15 +47,18 @@ interface DriftAccountInfo {
  */
 function getDriftService(elizaOS: ElizaOS): DriftServiceInterface | null {
   const agents = elizaOS.getAgents();
+  logger.debug(`[Drift API] Looking for DRIFT_SERVICE, found ${agents.length} agent(s)`);
 
   for (const agent of agents) {
     const service = agent.getService(DRIFT_SERVICE_NAME);
+    logger.debug(`[Drift API] Agent ${agent.character?.name || 'unknown'}: service=${service ? 'found' : 'not found'}`);
     if (service) {
       // Cast via unknown to satisfy TypeScript (Service is a generic base type)
       return service as unknown as DriftServiceInterface;
     }
   }
 
+  logger.warn('[Drift API] DRIFT_SERVICE not found in any agent');
   return null;
 }
 
