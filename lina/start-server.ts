@@ -18,6 +18,7 @@ async function migrateWalletTableIfNeeded() {
 
   try {
     const { Pool } = await import('pg');
+    const fs = await import('fs');
     const pool = new Pool({ connectionString: walletDbUrl, max: 1 });
     const client = await pool.connect();
 
@@ -32,13 +33,44 @@ async function migrateWalletTableIfNeeded() {
 
       if (result.rows[0].exists) {
         console.log('[STARTUP] Migrating wallet table from public to lina_wallets schema...');
-
-        // Create new schema and move table atomically
         await client.query(`CREATE SCHEMA IF NOT EXISTS lina_wallets`);
         await client.query(`ALTER TABLE public.solana_wallets SET SCHEMA lina_wallets`);
-
         console.log('[STARTUP] Wallet table migration complete');
       }
+
+      // Ensure schema and table exist
+      await client.query(`CREATE SCHEMA IF NOT EXISTS lina_wallets`);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS lina_wallets.solana_wallets (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id TEXT NOT NULL UNIQUE,
+          encrypted_seed_phrase TEXT NOT NULL,
+          network TEXT NOT NULL DEFAULT 'solana',
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+
+      // Restore from JSON backup if exists
+      const jsonPath = './data/solana-wallets.json';
+      if (fs.existsSync(jsonPath)) {
+        const backup = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+        const wallets = Object.values(backup.wallets) as any[];
+        console.log(`[STARTUP] Found ${wallets.length} wallets in JSON backup, restoring missing...`);
+
+        let restored = 0;
+        for (const wallet of wallets) {
+          const res = await client.query(`
+            INSERT INTO lina_wallets.solana_wallets (user_id, encrypted_seed_phrase, network, created_at, updated_at)
+            VALUES ($1, $2, $3, to_timestamp($4 / 1000.0), NOW())
+            ON CONFLICT (user_id) DO NOTHING
+            RETURNING user_id
+          `, [wallet.userId, wallet.encryptedSeedPhrase, wallet.network, wallet.createdAt]);
+          if (res.rows.length > 0) restored++;
+        }
+        console.log(`[STARTUP] Restored ${restored} wallets from backup`);
+      }
+
     } finally {
       client.release();
       await pool.end();
