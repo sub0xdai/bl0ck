@@ -198,11 +198,12 @@ export class UnifiedWalletProvider implements IWalletProvider {
         connectionTimeoutMillis: 10000,
       });
 
-      // Create table if not exists
+      // Create schema and table if not exists
       const client = await this.pool.connect();
       try {
+        await client.query(`CREATE SCHEMA IF NOT EXISTS lina_wallets`);
         await client.query(`
-          CREATE TABLE IF NOT EXISTS solana_wallets (
+          CREATE TABLE IF NOT EXISTS lina_wallets.solana_wallets (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             user_id TEXT NOT NULL UNIQUE,
             encrypted_seed_phrase TEXT NOT NULL,
@@ -210,7 +211,7 @@ export class UnifiedWalletProvider implements IWalletProvider {
             created_at TIMESTAMPTZ DEFAULT NOW(),
             updated_at TIMESTAMPTZ DEFAULT NOW()
           );
-          CREATE INDEX IF NOT EXISTS idx_solana_wallets_user_id ON solana_wallets(user_id);
+          CREATE INDEX IF NOT EXISTS idx_solana_wallets_user_id ON lina_wallets.solana_wallets(user_id);
         `);
       } finally {
         client.release();
@@ -324,7 +325,7 @@ export class UnifiedWalletProvider implements IWalletProvider {
     return this.withTransaction(async (client) => {
       // Try to get existing wallet with row lock
       const result = await client.query(
-        'SELECT * FROM solana_wallets WHERE user_id = $1 FOR UPDATE',
+        'SELECT * FROM lina_wallets.solana_wallets WHERE user_id = $1 FOR UPDATE',
         [userId]
       );
 
@@ -353,7 +354,7 @@ export class UnifiedWalletProvider implements IWalletProvider {
       const encryptedSeed = this.encryption!.encrypt(keypair.secretKey);
 
       await client.query(
-        `INSERT INTO solana_wallets (user_id, encrypted_seed_phrase, network, created_at, updated_at)
+        `INSERT INTO lina_wallets.solana_wallets (user_id, encrypted_seed_phrase, network, created_at, updated_at)
          VALUES ($1, $2, $3, NOW(), NOW())`,
         [userId, encryptedSeed, this.network]
       );
@@ -385,7 +386,7 @@ export class UnifiedWalletProvider implements IWalletProvider {
 
     return this.withClient(async (client) => {
       const result = await client.query(
-        'SELECT * FROM solana_wallets WHERE user_id = $1',
+        'SELECT * FROM lina_wallets.solana_wallets WHERE user_id = $1',
         [userId]
       );
 
@@ -415,7 +416,7 @@ export class UnifiedWalletProvider implements IWalletProvider {
 
     await this.withTransaction(async (client) => {
       await client.query(
-        'UPDATE solana_wallets SET network = $1, updated_at = NOW() WHERE user_id = $2',
+        'UPDATE lina_wallets.solana_wallets SET network = $1, updated_at = NOW() WHERE user_id = $2',
         [network, userId]
       );
     });
