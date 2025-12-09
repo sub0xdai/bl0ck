@@ -12,7 +12,46 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+async function migrateWalletTableIfNeeded() {
+  const walletDbUrl = process.env.WALLET_DB_URL;
+  if (!walletDbUrl) return;
+
+  try {
+    const { Pool } = await import('pg');
+    const pool = new Pool({ connectionString: walletDbUrl, max: 1 });
+    const client = await pool.connect();
+
+    try {
+      // Check if old table exists in public schema
+      const result = await client.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = 'solana_wallets'
+        )
+      `);
+
+      if (result.rows[0].exists) {
+        console.log('[STARTUP] Migrating wallet table from public to lina_wallets schema...');
+
+        // Create new schema and move table atomically
+        await client.query(`CREATE SCHEMA IF NOT EXISTS lina_wallets`);
+        await client.query(`ALTER TABLE public.solana_wallets SET SCHEMA lina_wallets`);
+
+        console.log('[STARTUP] Wallet table migration complete');
+      }
+    } finally {
+      client.release();
+      await pool.end();
+    }
+  } catch (error) {
+    console.error('[STARTUP] Wallet migration error (non-fatal):', error);
+  }
+}
+
 async function main() {
+  // Migrate wallet table BEFORE ElizaOS starts (so it doesn't see it in public schema)
+  await migrateWalletTableIfNeeded();
+
   const server = new AgentServer();
 
   // Debug: Log database configuration
