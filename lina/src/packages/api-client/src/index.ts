@@ -43,6 +43,8 @@ export type {
 } from './services/cdp';
 export { WalletService } from './services/wallet';
 export type { WalletAddressResponse } from './services/wallet';
+export { DriftService } from './services/drift';
+export * from './types/drift';
 
 // Base client and error
 export { BaseApiClient, ApiError } from './lib/base-client';

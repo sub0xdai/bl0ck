@@ -20,6 +20,7 @@ import { entitiesRouter } from './entities';
 import { cdpRouter } from './cdp';
 import { solanaRouter } from './solana';
 import { walletRouter } from './wallet';
+import { driftRouter } from './drift';
 import { createAuthRouter } from './auth';
 // NOTE: world router has been removed - functionality moved to messaging/spaces
 import { SocketIORouter } from '../socketio';
@@ -401,6 +402,9 @@ export function createApiRouter(
 
   // Mount unified Wallet router at /wallet - handles tokens across all chains (EVM + Solana)
   router.use('/wallet', walletRouter(serverInstance));
+
+  // Mount Drift router at /drift - handles Drift Protocol perpetual trading data
+  router.use('/drift', driftRouter(elizaOS, serverInstance));
 
   // Mount audio router at /audio - handles audio processing, transcription, and voice operations
   router.use('/audio', audioRouter(elizaOS));

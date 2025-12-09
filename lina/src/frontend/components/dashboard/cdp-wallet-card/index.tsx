@@ -11,6 +11,7 @@ import { SwapModalContent } from './SwapModal';
 import { TokenDetailModalContent } from './TokenDetailModal';
 import { NFTDetailModalContent } from './NFTDetailModal';
 import { FundModalContent } from './FundModal';
+import { DriftTab } from './DriftTab';
 import { formatTokenBalance, formatUsdValue } from '../../../lib/number-format';
 import { cn } from '../../../lib/utils';
 import { SUPPORTED_CHAINS, getChainWalletIcon, isSolanaChain } from '../../../constants/chains';
@@ -58,7 +59,7 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
 
   // Local UI state
   const [isCopied, setIsCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<'tokens' | 'collections' | 'history'>('tokens');
+  const [activeTab, setActiveTab] = useState<'tokens' | 'collections' | 'history' | 'perps'>('tokens');
 
   // Notify parent of balance changes
   useEffect(() => {
@@ -66,6 +67,13 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
       onBalanceChange(totalUsdValue);
     }
   }, [totalUsdValue, onBalanceChange]);
+
+  // Reset to tokens tab when switching away from Solana (perps is Solana-only)
+  useEffect(() => {
+    if (walletView !== 'solana' && activeTab === 'perps') {
+      setActiveTab('tokens');
+    }
+  }, [walletView, activeTab]);
 
   // Load data based on active tab (lazy loading)
   useEffect(() => {
@@ -360,6 +368,18 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
               >
                 History
               </button>
+              {/* Perps tab - only visible for Solana wallet */}
+              {walletView === 'solana' && (
+                <button
+                  onClick={() => setActiveTab('perps')}
+                  className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'perps'
+                      ? 'text-foreground border-b-2 border-green-500'
+                      : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                  Perps
+                </button>
+              )}
             </div>
 
             {/* Content */}
@@ -484,7 +504,7 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
                     </button>
                   ))
                 )
-              ) : (
+              ) : activeTab === 'history' ? (
                 // Transaction History
                 isLoadingHistory ? (
                   <div className="flex items-center justify-center py-8">
@@ -558,7 +578,10 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
                     })}
                   </div>
                 )
-              )}
+              ) : activeTab === 'perps' ? (
+                // Drift Perpetuals
+                <DriftTab userId={userId} />
+              ) : null}
             </div>
           </div>
         </CardContent>

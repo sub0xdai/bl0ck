@@ -48,6 +48,9 @@ export { ServerService } from './services/server';
 export { SystemService } from './services/system';
 export { SessionsService } from './services/sessions';
 export { RunsService } from './services/runs';
+export { WalletService } from './services/wallet';
+export { DriftService } from './services/drift';
+export * from './types/drift';
 
 // Base client and error
 export { BaseApiClient, ApiError } from './lib/base-client';
