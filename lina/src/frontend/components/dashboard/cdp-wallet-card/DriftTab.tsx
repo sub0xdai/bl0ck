@@ -38,16 +38,26 @@ function formatCompactNumber(value: string | number): string {
   return usd.toFixed(2);
 }
 
-// Format price from raw BN string (assuming PRICE_PRECISION = 6)
-function formatPrice(value: string): string {
+// Format oracle price from raw BN string (PRICE_PRECISION = 6)
+function formatOraclePrice(value: string): string {
   const num = parseFloat(value);
   if (!Number.isFinite(num)) return '0.00';
-  // Raw price values from Drift are in 6 decimals
+  // Raw oracle price values from Drift are scaled by 1e6
   const price = num / 1_000_000;
   if (price >= 1000) {
     return price.toLocaleString('en-US', { maximumFractionDigits: 0 });
   }
   return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Format USD price that's already in human-readable form (entry, liq)
+function formatUsdPrice(value: string): string {
+  const num = parseFloat(value);
+  if (!Number.isFinite(num) || num === 0) return '0.00';
+  if (num >= 1000) {
+    return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  }
+  return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 // Format position size from base asset amount (9 decimals)
@@ -267,15 +277,15 @@ export function DriftTab({ userId, isActive = true }: DriftTabProps) {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Entry</span>
-                  <span className="font-mono">${formatPrice(position.entryPrice)}</span>
+                  <span className="font-mono">${formatUsdPrice(position.entryPrice)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Mark</span>
-                  <span className="font-mono">${formatPrice(position.markPrice)}</span>
+                  <span className="font-mono">${formatOraclePrice(position.markPrice)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Liq</span>
-                  <span className="font-mono text-red-400/80">${position.liquidationPrice}</span>
+                  <span className="font-mono text-red-400/80">${formatUsdPrice(position.liquidationPrice)}</span>
                 </div>
               </div>
 
