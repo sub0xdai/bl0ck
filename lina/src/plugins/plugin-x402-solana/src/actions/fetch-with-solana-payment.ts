@@ -81,26 +81,34 @@ export const fetchWithSolanaPayment: Action = {
       logger.info('[X402] User ID:', userId);
 
       // Get Solana transaction manager and wallet
+      logger.info('[X402] Step 1: Getting SolanaTransactionManager...');
       const solanaManager = SolanaTransactionManager.getInstance();
-      logger.info('[X402] Got SolanaTransactionManager');
+      logger.info('[X402] Step 2: Got SolanaTransactionManager, calling getOrCreateWallet...');
 
       // Use getOrCreateWallet which returns { publicKey, keypair }
       const { keypair, publicKey } = await solanaManager.getOrCreateWallet(userId);
-      logger.info('[X402] Got wallet:', publicKey.substring(0, 8) + '...');
+      logger.info('[X402] Step 3: Got wallet:', publicKey.substring(0, 8) + '...');
 
       // Get network settings from existing config
       const networkSetting = runtime.getSetting('SOLANA_NETWORK') || 'solana-devnet';
       const network = networkSetting === 'solana' ? 'mainnet-beta' : 'devnet';
-      const rpcEndpoint = runtime.getSetting('HELIUS_API_KEY')
-        ? `https://${network === 'mainnet-beta' ? 'mainnet' : 'devnet'}.helius-rpc.com/?api-key=${runtime.getSetting('HELIUS_API_KEY')}`
+      logger.info('[X402] Step 4: Network setting:', networkSetting, '-> network:', network);
+
+      const heliusKey = runtime.getSetting('HELIUS_API_KEY');
+      const rpcEndpoint = heliusKey
+        ? `https://${network === 'mainnet-beta' ? 'mainnet' : 'devnet'}.helius-rpc.com/?api-key=${heliusKey}`
         : RPC_ENDPOINTS[network];
+      logger.info('[X402] Step 5: RPC endpoint:', rpcEndpoint.substring(0, 50) + '...');
+
       const maxPaymentUSDC = parseFloat(runtime.getSetting('X402_MAX_PAYMENT_USDC') || '1.0');
+      logger.info('[X402] Step 6: Max payment:', maxPaymentUSDC, 'USDC');
 
       callback?.({
-        text: `Making paid request to ${url} using Solana ${network}...\nWallet: ${keypair.publicKey.toBase58()}`,
+        text: `[X402] Making paid request to ${url}\nNetwork: ${network}\nWallet: ${keypair.publicKey.toBase58()}`,
       });
 
       // Create payment-wrapped fetch
+      logger.info('[X402] Step 7: Creating wrapped fetch...');
       const paidFetch = wrapFetchWithSolanaPayment(fetch, {
         keypair,
         maxPayment: BigInt(Math.floor(maxPaymentUSDC * 1_000_000)), // Convert to USDC base units
@@ -109,7 +117,9 @@ export const fetchWithSolanaPayment: Action = {
       });
 
       // Make the request
+      logger.info('[X402] Step 8: Making fetch request to', url);
       const response = await paidFetch(url);
+      logger.info('[X402] Step 9: Got response, status:', response.status);
 
       let data: unknown;
       const contentType = response.headers.get('content-type');
