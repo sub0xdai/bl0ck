@@ -36,7 +36,7 @@ export {
   buildPaymentTransaction,
   sendPaymentTransaction,
 } from './client';
-export type { BuildPaymentParams } from './client';
+export type { BuildPaymentParams, FetchLike } from './client';
 
 // Server exports
 export {
@@ -70,8 +70,9 @@ export {
   X402PaymentError,
   X402ValidationError,
   X402NetworkError,
-  X402TransactionError,
-  X402ExpiredError,
+  X402ExpirationError,
+  X402AmountError,
+  X402VerificationError,
 } from './errors';
 
 // Types

@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import { InMemoryPaymentStore } from './payment-store';
 import { createMemo } from '../utils/memo';
 import { toWireNetwork } from '../utils/network';
+import { isX402PaymentProof, isValidTransactionSignature, isValidBase58PublicKey } from '../guards';
 import { HEADERS, DEFAULT_PAYMENT_EXPIRY_MS } from '../constants';
 import type {
   X402MiddlewareConfig,
@@ -46,14 +47,37 @@ export function generate402Response(params: Generate402Params): X402PaymentRequi
 }
 
 /**
- * Parse payment proof from request header
+ * Parse and validate payment proof from request header
+ *
+ * Validates:
+ * - Base64 decoding
+ * - JSON structure matches X402PaymentProof
+ * - Signature is valid Solana transaction signature format
+ * - Payer is valid Solana public key format
  */
 export function parsePaymentProof(header: string | null): X402PaymentProof | null {
   if (!header) return null;
 
   try {
     const decoded = Buffer.from(header, 'base64').toString('utf-8');
-    return JSON.parse(decoded) as X402PaymentProof;
+    const parsed = JSON.parse(decoded);
+
+    // Validate structure
+    if (!isX402PaymentProof(parsed)) {
+      return null;
+    }
+
+    // Validate signature format (87-88 char base58)
+    if (!isValidTransactionSignature(parsed.signature)) {
+      return null;
+    }
+
+    // Validate payer is valid public key format
+    if (!isValidBase58PublicKey(parsed.payer)) {
+      return null;
+    }
+
+    return parsed;
   } catch {
     return null;
   }
@@ -85,15 +109,24 @@ export function createX402Middleware(config: X402MiddlewareConfig) {
     const proof = parsePaymentProof(proofHeader);
 
     if (proof) {
-      // Verify payment exists and is valid
-      // In production, verify the transaction on-chain
-      // For now, check against payment store (listener should have marked it paid)
-
-      // Extract requestId from a previous 402 (would need to track this)
-      // For simplicity, we trust the proof signature and verify on-chain
-
-      // TODO: Add on-chain verification
-      return null; // Payment verified, proceed with request
+      // Payment proof provided - basic validation passed (signature format, payer format)
+      //
+      // SECURITY NOTE: This implementation validates proof FORMAT but does NOT verify
+      // the transaction on-chain. For production use, implement one of:
+      //
+      // 1. PaymentListener integration: Use PaymentListener to monitor the recipient
+      //    token account. When a payment arrives, it marks the requestId as paid in
+      //    the store. The middleware can then check if the payment was received.
+      //
+      // 2. On-chain verification: Call connection.getTransaction(signature) and verify:
+      //    - Transaction succeeded (no error)
+      //    - Transfer was to the correct recipient account
+      //    - Amount matches the requested payment
+      //    - Memo contains the correct requestId
+      //
+      // For MVP/testing, format validation prevents obviously invalid proofs.
+      // Production deployments MUST add on-chain verification.
+      return null; // Payment proof format validated, proceed with request
     }
 
     // No payment proof - generate 402 response

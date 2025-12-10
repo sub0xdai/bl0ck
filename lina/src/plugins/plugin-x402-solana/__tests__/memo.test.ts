@@ -3,13 +3,37 @@ import { parseMemo, extractRequestId, createMemo } from '../src/utils/memo';
 
 describe('memo utilities', () => {
   describe('parseMemo', () => {
-    it('should return memo content unchanged', () => {
+    it('should return valid memo content unchanged', () => {
       const memo = parseMemo('x402:req-12345');
       expect(memo).toBe('x402:req-12345');
     });
 
-    it('should handle empty string', () => {
+    it('should return empty string for empty input', () => {
       expect(parseMemo('')).toBe('');
+    });
+
+    it('should return empty string for non-string input', () => {
+      expect(parseMemo(null as any)).toBe('');
+      expect(parseMemo(undefined as any)).toBe('');
+    });
+
+    it('should return empty string for memo exceeding 566 bytes', () => {
+      const longMemo = 'x'.repeat(600);
+      expect(parseMemo(longMemo)).toBe('');
+    });
+
+    it('should accept memo at exactly 566 bytes', () => {
+      const maxMemo = 'x'.repeat(566);
+      expect(parseMemo(maxMemo)).toBe(maxMemo);
+    });
+
+    it('should handle multi-byte characters correctly', () => {
+      // Each emoji is 4 bytes in UTF-8
+      const emojiMemo = '🎉'.repeat(141); // 141 * 4 = 564 bytes (under limit)
+      expect(parseMemo(emojiMemo)).toBe(emojiMemo);
+
+      const tooManyEmoji = '🎉'.repeat(150); // 150 * 4 = 600 bytes (over limit)
+      expect(parseMemo(tooManyEmoji)).toBe('');
     });
   });
 

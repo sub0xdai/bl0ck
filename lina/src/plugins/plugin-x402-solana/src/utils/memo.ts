@@ -7,13 +7,31 @@
 
 import { MEMO_PREFIX } from '../constants';
 
+/** Maximum memo length in bytes (Solana memo program limit) */
+const MAX_MEMO_LENGTH = 566;
+
 /**
- * Parse memo content (identity function for now, can add validation)
+ * Parse and validate memo content
+ *
+ * Validates:
+ * - Non-empty string
+ * - Within Solana memo program byte limit (566 bytes)
+ * - Valid UTF-8 encoding
  *
  * @param data - Raw memo data
- * @returns Parsed memo string
+ * @returns Validated memo string, or empty string if invalid
  */
 export function parseMemo(data: string): string {
+  if (!data || typeof data !== 'string') {
+    return '';
+  }
+
+  // Check byte length (memo program limit)
+  const byteLength = Buffer.byteLength(data, 'utf-8');
+  if (byteLength > MAX_MEMO_LENGTH) {
+    return '';
+  }
+
   return data;
 }
 

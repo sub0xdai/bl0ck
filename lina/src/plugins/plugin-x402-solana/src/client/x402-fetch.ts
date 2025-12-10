@@ -17,15 +17,26 @@ import {
 import type { X402FetchOptions, X402PaymentRequired, X402PaymentProof } from '../types';
 import { toWireNetwork } from '../utils/network';
 
-type FetchFunction = typeof fetch;
+/**
+ * Function type compatible with fetch() for wrapping
+ * Uses a narrower type than `typeof fetch` to avoid platform-specific properties like `preconnect`
+ */
+export type FetchLike = (
+  input: RequestInfo | URL,
+  init?: RequestInit
+) => Promise<Response>;
 
 /**
  * Wrap fetch with automatic Solana USDC payment handling
+ *
+ * @param fetchFn - The fetch function to wrap (e.g., global fetch, node-fetch)
+ * @param options - Payment configuration options
+ * @returns A wrapped fetch function that handles 402 Payment Required responses
  */
 export function wrapFetchWithSolanaPayment(
-  fetchFn: FetchFunction,
+  fetchFn: FetchLike,
   options: X402FetchOptions
-): FetchFunction {
+): FetchLike {
   const { keypair, maxPayment, rpcEndpoint, network = 'mainnet-beta' } = options;
 
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
