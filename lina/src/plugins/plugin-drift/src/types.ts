@@ -93,6 +93,17 @@ export interface DepositResult {
 }
 
 /**
+ * Result of a withdrawal operation
+ */
+export interface WithdrawResult {
+  success: boolean;
+  txSignature?: string;
+  amount?: number;
+  newFreeCollateral?: number;
+  error?: string;
+}
+
+/**
  * Validation result for position parameters
  */
 export interface ValidationResult {
