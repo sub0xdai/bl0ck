@@ -20,6 +20,7 @@ import type {
   ClosePositionParams,
   PositionResult,
   DepositResult,
+  WithdrawResult,
   ValidationResult,
   PositionSide,
 } from '../types';
@@ -676,6 +677,71 @@ export class DriftService extends Service {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       logger.error(`[DRIFT_SERVICE] Failed to deposit: ${errorMsg}`);
+      return {
+        success: false,
+        error: errorMsg,
+      };
+    }
+  }
+
+  /**
+   * Withdraw USDC from Drift to user's wallet
+   * @param userId User identifier
+   * @param amount Amount in USD to withdraw
+   * @returns WithdrawResult with success status and tx signature
+   */
+  async withdraw(userId: string, amount: number): Promise<WithdrawResult> {
+    // Validate minimum amount
+    if (amount < CONFIG.MIN_COLLATERAL) {
+      return {
+        success: false,
+        error: `Withdrawal amount must be at least $${CONFIG.MIN_COLLATERAL} (minimum)`,
+      };
+    }
+
+    try {
+      const client = await this.getClientForUser(userId);
+      const user = await this.getValidatedUser(client);
+
+      // Check free collateral
+      const freeCollateral = Number(user.getFreeCollateral().toString()) / 1_000_000;
+
+      if (amount > freeCollateral) {
+        return {
+          success: false,
+          error: `Insufficient free collateral. Requested: $${amount.toFixed(2)}, Available: $${freeCollateral.toFixed(2)}`,
+        };
+      }
+
+      // Get user's USDC ATA for withdrawal destination
+      const walletInfo = await this.solanaManager.getOrCreateWallet(userId);
+      const usdcAta = getAssociatedTokenAddressSync(
+        new PublicKey(MINTS.USDC),
+        walletInfo.keypair.publicKey
+      );
+
+      // Withdraw USDC from Drift to wallet (amount in base units - 6 decimals)
+      // marketIndex 0 = USDC spot market
+      const withdrawAmount = new BN(amount * 1_000_000);
+      const txSig = await withRetry(() => client.withdraw(withdrawAmount, 0, usdcAta));
+
+      await withRetry(() => this.connection!.confirmTransaction(txSig, 'confirmed'));
+
+      // Get updated free collateral
+      await user.fetchAccounts();
+      const newFreeCollateral = Number(user.getFreeCollateral().toString()) / 1_000_000;
+
+      logger.info(`[DRIFT_SERVICE] Withdrew $${amount} USDC from Drift to wallet for user ${userId}`);
+
+      return {
+        success: true,
+        txSignature: txSig,
+        amount,
+        newFreeCollateral,
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error(`[DRIFT_SERVICE] Failed to withdraw: ${errorMsg}`);
       return {
         success: false,
         error: errorMsg,

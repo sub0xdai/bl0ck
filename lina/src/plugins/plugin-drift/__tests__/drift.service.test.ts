@@ -86,6 +86,7 @@ const mockGetUser = mock(() => ({
 
 const mockInitializeUserAccount = mock(() => Promise.resolve('mockTxSig123'));
 const mockDeposit = mock(() => Promise.resolve('mockDepositTx'));
+const mockWithdraw = mock(() => Promise.resolve('mockWithdrawTx'));
 const mockOpenPosition = mock(() => Promise.resolve('mockPositionTx'));
 const mockClosePosition = mock(() => Promise.resolve('mockCloseTx'));
 const mockGetPerpMarketAccount = mock(() => ({
@@ -107,6 +108,7 @@ mock.module('@drift-labs/sdk', () => ({
     getUser = mockGetUser;
     initializeUserAccount = mockInitializeUserAccount;
     deposit = mockDeposit;
+    withdraw = mockWithdraw;
     placeAndTakePerpOrder = mockOpenPosition;
     closePosition = mockClosePosition;
     getPerpMarketAccount = mockGetPerpMarketAccount;
@@ -1456,5 +1458,118 @@ describe('DriftService - Deposit/Collateral Management', () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('Insufficient');
+  });
+});
+
+// ============================================================
+// WITHDRAW TESTS
+// ============================================================
+
+describe('DriftService - withdraw', () => {
+  let service: DriftService;
+
+  beforeEach(async () => {
+    // Reset mocks
+    mockWithdraw.mockClear();
+    mockGetUser.mockClear();
+    mockConfirmTransaction.mockClear();
+
+    // Reset to default mock behavior (sufficient free collateral)
+    mockGetUser.mockImplementation(() => ({
+      getUserAccount: () => ({
+        authority: new MockPublicKey('mockAuth'),
+        subAccountId: 0,
+        spotPositions: [],
+      }),
+      getFreeCollateral: () => new MockBN(100_000_000), // $100 free
+      getTotalCollateral: () => new MockBN(150_000_000),
+      getTotalAssetValue: () => new MockBN(50_000_000),
+      getUnrealizedPNL: () => new MockBN(0),
+      getLeverage: () => 10000,
+      isSubscribed: true,
+      subscribe: mock(() => Promise.resolve(true)),
+      fetchAccounts: mock(() => Promise.resolve()),
+    }));
+
+    const mockRuntime = {
+      getSetting: (key: string) => {
+        if (key === 'SOLANA_NETWORK') return 'devnet';
+        return undefined;
+      },
+      getService: () => null,
+    };
+
+    service = new DriftService(mockRuntime as any);
+    await (service as any).initialize();
+  });
+
+  it('should withdraw USDC successfully', async () => {
+    const result = await service.withdraw('user-123', 50);
+
+    expect(result.success).toBe(true);
+    expect(result.amount).toBe(50);
+    expect(result.txSignature).toBe('mockWithdrawTx');
+    expect(result.newFreeCollateral).toBeDefined();
+    expect(mockWithdraw).toHaveBeenCalled();
+  });
+
+  it('should reject withdrawal exceeding free collateral', async () => {
+    // Mock: only $30 free collateral
+    mockGetUser.mockImplementation(() => ({
+      getUserAccount: () => ({
+        authority: new MockPublicKey('mockAuth'),
+        subAccountId: 0,
+        spotPositions: [],
+      }),
+      getFreeCollateral: () => new MockBN(30_000_000), // $30 free
+      getTotalCollateral: () => new MockBN(100_000_000),
+      getTotalAssetValue: () => new MockBN(70_000_000),
+      getUnrealizedPNL: () => new MockBN(0),
+      getLeverage: () => 50000,
+      isSubscribed: true,
+      subscribe: mock(() => Promise.resolve(true)),
+      fetchAccounts: mock(() => Promise.resolve()),
+    }));
+
+    const result = await service.withdraw('user-123', 50);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Insufficient free collateral');
+  });
+
+  it('should reject withdrawal below minimum', async () => {
+    const result = await service.withdraw('user-123', 5); // Below $10 min
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('minimum');
+  });
+
+  it('should return updated free collateral after withdrawal', async () => {
+    // Mock: starts with $100 free, should have ~$50 after withdrawing $50
+    let callCount = 0;
+    mockGetUser.mockImplementation(() => ({
+      getUserAccount: () => ({
+        authority: new MockPublicKey('mockAuth'),
+        subAccountId: 0,
+        spotPositions: [],
+      }),
+      getFreeCollateral: () => {
+        // Return different values based on call count to simulate post-withdrawal balance
+        callCount++;
+        return new MockBN(callCount <= 1 ? 100_000_000 : 50_000_000);
+      },
+      getTotalCollateral: () => new MockBN(100_000_000),
+      getTotalAssetValue: () => new MockBN(0),
+      getUnrealizedPNL: () => new MockBN(0),
+      getLeverage: () => 10000,
+      isSubscribed: true,
+      subscribe: mock(() => Promise.resolve(true)),
+      fetchAccounts: mock(() => Promise.resolve()),
+    }));
+
+    const result = await service.withdraw('user-123', 50);
+
+    expect(result.success).toBe(true);
+    expect(result.newFreeCollateral).toBe(50); // $50 remaining
   });
 });
