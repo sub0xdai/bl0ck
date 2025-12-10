@@ -10,3 +10,5 @@ export {
   type InternalNetwork,
   type WireNetwork,
 } from './network';
+
+export { parseMemo, extractRequestId, createMemo } from './memo';
