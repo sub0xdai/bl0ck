@@ -58,6 +58,18 @@ describe('InMemoryPaymentStore', () => {
     expect(payment).toBeNull();
   });
 
+  it('should throw when marking non-existent payment as paid', async () => {
+    await expect(
+      store.markPaid('non-existent', 'sig', 'payer')
+    ).rejects.toThrow('Payment not found: non-existent');
+  });
+
+  it('should throw when marking non-existent payment as expired', async () => {
+    await expect(
+      store.markExpired('non-existent')
+    ).rejects.toThrow('Payment not found: non-existent');
+  });
+
   it('should cleanup expired payments', async () => {
     await store.create({
       requestId: 'expired-1',

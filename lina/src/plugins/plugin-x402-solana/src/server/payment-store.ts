@@ -36,18 +36,20 @@ export class InMemoryPaymentStore implements PendingPaymentStore {
     payer: string
   ): Promise<void> {
     const payment = this.payments.get(requestId);
-    if (payment) {
-      payment.status = 'paid';
-      payment.signature = signature;
-      payment.payer = payer;
+    if (!payment) {
+      throw new Error(`Payment not found: ${requestId}`);
     }
+    payment.status = 'paid';
+    payment.signature = signature;
+    payment.payer = payer;
   }
 
   async markExpired(requestId: string): Promise<void> {
     const payment = this.payments.get(requestId);
-    if (payment) {
-      payment.status = 'expired';
+    if (!payment) {
+      throw new Error(`Payment not found: ${requestId}`);
     }
+    payment.status = 'expired';
   }
 
   async cleanup(): Promise<number> {

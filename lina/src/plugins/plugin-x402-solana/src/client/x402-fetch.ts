@@ -8,7 +8,7 @@
 import { Keypair, PublicKey } from '@solana/web3.js';
 import { buildPaymentTransaction, sendPaymentTransaction } from './payment-builder';
 import { HEADERS } from '../constants';
-import { isX402PaymentRequired } from '../guards';
+import { isX402PaymentRequired, isValidBase58PublicKey } from '../guards';
 import {
   X402ValidationError,
   X402ExpirationError,
@@ -65,6 +65,13 @@ export function wrapFetchWithSolanaPayment(
     // Check expiry
     if (Date.now() > paymentRequired.accepts.expiresAt) {
       throw new X402ExpirationError('Payment request has expired');
+    }
+
+    // Validate payTo is a valid public key
+    if (!isValidBase58PublicKey(paymentRequired.accepts.payTo)) {
+      throw new X402ValidationError(
+        `Invalid recipient address: ${paymentRequired.accepts.payTo}`
+      );
     }
 
     // Build payment transaction

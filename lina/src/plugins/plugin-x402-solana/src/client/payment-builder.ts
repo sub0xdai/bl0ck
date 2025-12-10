@@ -103,14 +103,19 @@ export async function sendPaymentTransaction(
   // Sign transaction
   transaction.sign(payer);
 
-  // Send and confirm
+  // Send transaction
   const signature = await connection.sendRawTransaction(transaction.serialize(), {
     skipPreflight: false,
     preflightCommitment: 'confirmed',
   });
 
-  // Wait for confirmation
-  await connection.confirmTransaction(signature, 'confirmed');
+  // Wait for confirmation using non-deprecated API
+  const confirmationStrategy = {
+    signature,
+    blockhash: transaction.recentBlockhash!,
+    lastValidBlockHeight: transaction.lastValidBlockHeight!,
+  };
+  await connection.confirmTransaction(confirmationStrategy, 'confirmed');
 
   return signature;
 }

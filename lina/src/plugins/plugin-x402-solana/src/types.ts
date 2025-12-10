@@ -97,8 +97,8 @@ export interface X402FetchOptions {
   keypair: Keypair;
   /** Maximum payment willing to make (base units) */
   maxPayment: bigint;
-  /** RPC endpoint (defaults to mainnet) */
-  rpcEndpoint?: string;
+  /** RPC endpoint (required - use RPC_ENDPOINTS constant for defaults) */
+  rpcEndpoint: string;
   /** Network (defaults to mainnet-beta) */
   network?: 'mainnet-beta' | 'devnet';
 }

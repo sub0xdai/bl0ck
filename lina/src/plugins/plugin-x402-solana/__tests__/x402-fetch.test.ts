@@ -123,4 +123,35 @@ describe('wrapFetchWithSolanaPayment', () => {
       'Invalid 402 response'
     );
   });
+
+  it('should reject invalid payTo address', async () => {
+    const paymentRequired = {
+      status: 402,
+      error: 'Payment required',
+      requestId: 'req-123',
+      accepts: {
+        network: 'solana-devnet',
+        token: 'USDC',
+        amount: '15000',
+        payTo: 'invalid-not-base58!!!', // Invalid public key
+        memo: 'x402:req-123',
+        expiresAt: Date.now() + 300000,
+      },
+    };
+
+    const mockFetch = mock(() =>
+      Promise.resolve(new Response(JSON.stringify(paymentRequired), { status: 402 }))
+    );
+
+    const wrappedFetch = wrapFetchWithSolanaPayment(mockFetch as unknown as typeof fetch, {
+      keypair,
+      maxPayment: BigInt(100000),
+      rpcEndpoint: 'https://api.devnet.solana.com',
+      network: 'devnet',
+    });
+
+    await expect(wrappedFetch('https://example.com/api')).rejects.toThrow(
+      'Invalid recipient address'
+    );
+  });
 });
