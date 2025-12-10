@@ -1575,3 +1575,89 @@ describe('DriftService - withdraw', () => {
     expect(result.newFreeCollateral).toBe(50); // $50 remaining
   });
 });
+
+describe('DriftService - closeAllPositions', () => {
+  let service: DriftService;
+
+  beforeEach(async () => {
+    // Reset mocks
+    mockClosePosition.mockClear();
+    mockGetUser.mockClear();
+
+    const mockRuntime = {
+      getSetting: (key: string) => {
+        if (key === 'SOLANA_NETWORK') return 'devnet';
+        return undefined;
+      },
+      getService: () => null,
+    };
+
+    service = new DriftService(mockRuntime as any);
+    await (service as any).initialize();
+  });
+
+  it('should close all positions successfully', async () => {
+    // Mock: user has 2 open positions
+    mockGetUser.mockImplementation(() => ({
+      getUserAccount: () => ({
+        authority: new MockPublicKey('mockAuth'),
+        subAccountId: 0,
+        spotPositions: [],
+        settledPerpPnl: new MockBN(0),
+        cumulativePerpFunding: new MockBN(0),
+      }),
+      getPerpPosition: (idx: number) => ({
+        baseAssetAmount: idx === 0 ? new MockBN(100000000) : new MockBN(50000000),
+        quoteAssetAmount: new MockBN(-67000000000),
+        lastCumulativeFundingRate: new MockBN(0),
+        marketIndex: idx,
+      }),
+      getFreeCollateral: () => new MockBN(100000000),
+      getTotalCollateral: () => new MockBN(200000000),
+      getTotalAssetValue: () => new MockBN(200000000),
+      getUnrealizedPNL: () => new MockBN(5000000),
+      getLeverage: () => 20000,
+      isSubscribed: true,
+      subscribe: mock(() => Promise.resolve(true)),
+      fetchAccounts: mock(() => Promise.resolve()),
+    }));
+
+    const result = await service.closeAllPositions('user-123');
+
+    expect(result.success).toBe(true);
+    expect(result.closedCount).toBeGreaterThan(0);
+  });
+
+  it('should handle no open positions', async () => {
+    // Mock: user has no positions
+    mockGetUser.mockImplementation(() => ({
+      getUserAccount: () => ({
+        authority: new MockPublicKey('mockAuth'),
+        subAccountId: 0,
+        spotPositions: [],
+        settledPerpPnl: new MockBN(0),
+        cumulativePerpFunding: new MockBN(0),
+      }),
+      getPerpPosition: () => ({
+        baseAssetAmount: new MockBN(0), // No position
+        quoteAssetAmount: new MockBN(0),
+        lastCumulativeFundingRate: new MockBN(0),
+        marketIndex: 0,
+      }),
+      getFreeCollateral: () => new MockBN(100000000),
+      getTotalCollateral: () => new MockBN(100000000),
+      getTotalAssetValue: () => new MockBN(0),
+      getUnrealizedPNL: () => new MockBN(0),
+      getLeverage: () => 0,
+      isSubscribed: true,
+      subscribe: mock(() => Promise.resolve(true)),
+      fetchAccounts: mock(() => Promise.resolve()),
+    }));
+
+    const result = await service.closeAllPositions('user-123');
+
+    expect(result.success).toBe(true);
+    expect(result.closedCount).toBe(0);
+    expect(result.results).toHaveLength(0);
+  });
+});

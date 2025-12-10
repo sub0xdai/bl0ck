@@ -21,6 +21,7 @@ import type {
   PositionResult,
   DepositResult,
   WithdrawResult,
+  CloseAllResult,
   ValidationResult,
   PositionSide,
 } from '../types';
@@ -489,6 +490,83 @@ export class DriftService extends Service {
       logger.error(`[DRIFT_SERVICE] Failed to close position: ${errorMsg}`);
       return {
         success: false,
+        error: errorMsg,
+      };
+    }
+  }
+
+  /**
+   * Close all open positions
+   * @param userId User identifier
+   * @returns CloseAllResult with aggregate results
+   */
+  async closeAllPositions(userId: string): Promise<CloseAllResult> {
+    try {
+      // Get all open positions
+      const positions = await this.getPositions(userId);
+
+      if (positions.length === 0) {
+        return {
+          success: true,
+          closedCount: 0,
+          failedCount: 0,
+          results: [],
+        };
+      }
+
+      const results: CloseAllResult['results'] = [];
+      let closedCount = 0;
+      let failedCount = 0;
+
+      // Close each position
+      for (const position of positions) {
+        try {
+          const closeResult = await this.closePosition(userId, {
+            marketSymbol: position.marketSymbol,
+            percentage: 100,
+          });
+
+          if (closeResult.success) {
+            closedCount++;
+            results.push({
+              marketSymbol: position.marketSymbol,
+              success: true,
+              txSignature: closeResult.txSignature,
+            });
+          } else {
+            failedCount++;
+            results.push({
+              marketSymbol: position.marketSymbol,
+              success: false,
+              error: closeResult.error,
+            });
+          }
+        } catch (error) {
+          failedCount++;
+          results.push({
+            marketSymbol: position.marketSymbol,
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      logger.info(`[DRIFT_SERVICE] Closed ${closedCount}/${positions.length} positions for user ${userId}`);
+
+      return {
+        success: failedCount === 0,
+        closedCount,
+        failedCount,
+        results,
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error(`[DRIFT_SERVICE] Failed to close all positions: ${errorMsg}`);
+      return {
+        success: false,
+        closedCount: 0,
+        failedCount: 0,
+        results: [],
         error: errorMsg,
       };
     }
