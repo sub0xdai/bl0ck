@@ -2,6 +2,7 @@
  * FETCH_WITH_SOLANA_PAYMENT Action
  *
  * Makes HTTP requests to x402-enabled paid APIs with automatic Solana USDC payment.
+ * Uses the existing Solana wallet configured for the agent (same as Jupiter/Drift).
  *
  * Usage in chat:
  *   "fetch https://api.example.com/paid-endpoint with solana payment"
@@ -12,6 +13,8 @@ import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '@eli
 import { Keypair } from '@solana/web3.js';
 import { wrapFetchWithSolanaPayment } from '../client/x402-fetch';
 import { RPC_ENDPOINTS } from '../constants';
+// Import from root src - will be available at runtime when loaded by agent
+import { SolanaTransactionManager } from '../../../../managers/solana-transaction-manager';
 
 export const fetchWithSolanaPayment: Action = {
   name: 'FETCH_WITH_SOLANA_PAYMENT',
@@ -38,14 +41,15 @@ export const fetchWithSolanaPayment: Action = {
     ],
   ],
 
-  validate: async (runtime: IAgentRuntime, _message: Memory): Promise<boolean> => {
-    // Check if Solana wallet is configured
-    const solanaPrivateKey = runtime.getSetting('SOLANA_PRIVATE_KEY');
-    if (!solanaPrivateKey) {
-      console.log('[X402] SOLANA_PRIVATE_KEY not configured');
+  validate: async (_runtime: IAgentRuntime, _message: Memory): Promise<boolean> => {
+    // Check if Solana transaction manager is available
+    try {
+      const manager = SolanaTransactionManager.getInstance();
+      return manager !== null;
+    } catch {
+      console.log('[X402] SolanaTransactionManager not available');
       return false;
     }
-    return true;
   },
 
   handler: async (
@@ -67,42 +71,35 @@ export const fetchWithSolanaPayment: Action = {
 
       const url = urlMatch[0];
 
-      // Get Solana keypair from settings
-      const solanaPrivateKey = runtime.getSetting('SOLANA_PRIVATE_KEY');
-      if (!solanaPrivateKey) {
+      // Get user ID for wallet lookup
+      const userId = message.userId || 'default';
+
+      // Get Solana transaction manager and wallet
+      const solanaManager = SolanaTransactionManager.getInstance();
+      const walletData = await solanaManager.getWalletForUser(userId);
+
+      if (!walletData || !walletData.privateKey) {
         callback?.({
-          text: 'Solana wallet not configured. Please set SOLANA_PRIVATE_KEY in your environment.',
+          text: 'Solana wallet not configured. The agent needs SOLANA_WALLET_SECRET or WALLET_DB_URL configured.',
         });
         return false;
       }
 
-      // Parse keypair (support both base58 and JSON array formats)
-      let keypair: Keypair;
-      try {
-        if (solanaPrivateKey.startsWith('[')) {
-          // JSON array format
-          const secretKey = new Uint8Array(JSON.parse(solanaPrivateKey));
-          keypair = Keypair.fromSecretKey(secretKey);
-        } else {
-          // Base58 format - decode
-          const bs58 = await import('bs58');
-          const secretKey = bs58.default.decode(solanaPrivateKey);
-          keypair = Keypair.fromSecretKey(secretKey);
-        }
-      } catch (e) {
-        callback?.({
-          text: 'Invalid SOLANA_PRIVATE_KEY format. Use base58 or JSON array.',
-        });
-        return false;
-      }
+      // Create keypair from wallet data
+      const keypair = Keypair.fromSecretKey(
+        Buffer.from(walletData.privateKey, 'hex')
+      );
 
-      // Get network settings
-      const network = (runtime.getSetting('SOLANA_NETWORK') as 'mainnet-beta' | 'devnet') || 'devnet';
-      const rpcEndpoint = runtime.getSetting('SOLANA_RPC_URL') || RPC_ENDPOINTS[network];
+      // Get network settings from existing config
+      const networkSetting = runtime.getSetting('SOLANA_NETWORK') || 'solana-devnet';
+      const network = networkSetting === 'solana' ? 'mainnet-beta' : 'devnet';
+      const rpcEndpoint = runtime.getSetting('HELIUS_API_KEY')
+        ? `https://${network === 'mainnet-beta' ? 'mainnet' : 'devnet'}.helius-rpc.com/?api-key=${runtime.getSetting('HELIUS_API_KEY')}`
+        : RPC_ENDPOINTS[network];
       const maxPaymentUSDC = parseFloat(runtime.getSetting('X402_MAX_PAYMENT_USDC') || '1.0');
 
       callback?.({
-        text: `Making paid request to ${url} using Solana ${network}...`,
+        text: `Making paid request to ${url} using Solana ${network}...\nWallet: ${keypair.publicKey.toBase58()}`,
       });
 
       // Create payment-wrapped fetch
@@ -115,7 +112,14 @@ export const fetchWithSolanaPayment: Action = {
 
       // Make the request
       const response = await paidFetch(url);
-      const data = await response.json();
+
+      let data: unknown;
+      const contentType = response.headers.get('content-type');
+      if (contentType?.includes('application/json')) {
+        data = await response.json();
+      } else {
+        data = await response.text();
+      }
 
       callback?.({
         text: `Successfully fetched data from ${url}`,
@@ -134,15 +138,19 @@ export const fetchWithSolanaPayment: Action = {
       // Provide helpful error messages
       if (errorMessage.includes('exceeds maximum')) {
         callback?.({
-          text: `Payment amount exceeds your configured maximum. Increase X402_MAX_PAYMENT_USDC or use a cheaper API.`,
+          text: `Payment amount exceeds your configured maximum ($${runtime.getSetting('X402_MAX_PAYMENT_USDC') || '1.0'}). Increase X402_MAX_PAYMENT_USDC or use a cheaper API.`,
         });
       } else if (errorMessage.includes('expired')) {
         callback?.({
           text: `Payment request expired. Please try again.`,
         });
-      } else if (errorMessage.includes('insufficient')) {
+      } else if (errorMessage.includes('insufficient') || errorMessage.includes('Insufficient')) {
         callback?.({
           text: `Insufficient USDC balance. Please fund your Solana wallet with USDC.`,
+        });
+      } else if (errorMessage.includes('Invalid 402')) {
+        callback?.({
+          text: `The API returned a 402 status but not in x402 format. This endpoint may not support x402 payments.`,
         });
       } else {
         callback?.({
