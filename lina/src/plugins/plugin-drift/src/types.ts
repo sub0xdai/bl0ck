@@ -106,6 +106,22 @@ export interface WithdrawResult {
 }
 
 /**
+ * Result of closing all positions
+ */
+export interface CloseAllResult {
+  success: boolean;
+  closedCount: number;
+  failedCount: number;
+  results: Array<{
+    marketSymbol: string;
+    success: boolean;
+    txSignature?: string;
+    error?: string;
+  }>;
+  error?: string;
+}
+
+/**
  * Validation result for position parameters
  */
 export interface ValidationResult {
