@@ -183,3 +183,18 @@ export function formatDepositResult(amount: number, txSignature?: string): strin
 
   return text;
 }
+
+/**
+ * Format withdrawal result for display
+ */
+export function formatWithdrawResult(amount: number, newFreeCollateral: number, txSignature?: string): string {
+  let text = `**USDC Withdrawn from Drift**\n\n`;
+  text += `**Amount:** ${formatUsd(amount)}\n`;
+  text += `**Remaining Free Collateral:** ${formatUsd(newFreeCollateral)}\n\n`;
+
+  if (txSignature) {
+    text += `Transaction: \`${txSignature}\``;
+  }
+
+  return text;
+}

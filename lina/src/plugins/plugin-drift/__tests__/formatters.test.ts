@@ -15,6 +15,7 @@ import {
   formatPositionResult,
   formatCloseResult,
   formatDepositResult,
+  formatWithdrawResult,
 } from '../src/utils/formatters';
 import type { DriftPosition, DriftAccountInfo, DriftMarket, PositionResult } from '../src/types';
 
@@ -508,5 +509,28 @@ describe('Formatters - formatDepositResult', () => {
     const result = formatDepositResult(50000);
 
     expect(result).toContain('$50,000.00');
+  });
+});
+
+describe('Formatters - formatWithdrawResult', () => {
+  it('should format successful withdrawal', () => {
+    const result = formatWithdrawResult(100, 500, 'txSig123');
+    expect(result).toContain('USDC Withdrawn from Drift');
+    expect(result).toContain('$100.00');
+    expect(result).toContain('$500.00');
+    expect(result).toContain('txSig123');
+  });
+
+  it('should format withdrawal without tx signature', () => {
+    const result = formatWithdrawResult(50, 200);
+    expect(result).toContain('$50.00');
+    expect(result).toContain('$200.00');
+    expect(result).not.toContain('Transaction:');
+  });
+
+  it('should handle large withdrawal amounts', () => {
+    const result = formatWithdrawResult(25000, 75000, 'largeTx');
+    expect(result).toContain('$25,000.00');
+    expect(result).toContain('$75,000.00');
   });
 });
