@@ -9,7 +9,7 @@
  *   "make a paid request to https://api.example.com/data"
  */
 
-import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '@elizaos/core';
+import { logger, type Action, type IAgentRuntime, type Memory, type State, type HandlerCallback } from '@elizaos/core';
 import { Keypair } from '@solana/web3.js';
 import { wrapFetchWithSolanaPayment } from '../client/x402-fetch';
 import { RPC_ENDPOINTS } from '../constants';
@@ -45,9 +45,11 @@ export const fetchWithSolanaPayment: Action = {
     // Check if Solana transaction manager is available
     try {
       const manager = SolanaTransactionManager.getInstance();
-      return manager !== null;
-    } catch {
-      console.log('[X402] SolanaTransactionManager not available');
+      const isValid = manager !== null;
+      logger.info('[X402] Validate called, manager available:', isValid);
+      return isValid;
+    } catch (error) {
+      logger.error('[X402] SolanaTransactionManager not available:', error);
       return false;
     }
   },
@@ -59,10 +61,13 @@ export const fetchWithSolanaPayment: Action = {
     _options: Record<string, unknown>,
     callback?: HandlerCallback
   ): Promise<boolean> => {
+    logger.info('[X402] Handler called with message:', message.content.text);
+
     try {
       // Extract URL from message
       const urlMatch = message.content.text?.match(/https?:\/\/[^\s]+/);
       if (!urlMatch) {
+        logger.warn('[X402] No URL found in message');
         callback?.({
           text: 'Please provide a URL to fetch. Example: "fetch https://api.example.com/paid with solana payment"',
         });
@@ -70,15 +75,21 @@ export const fetchWithSolanaPayment: Action = {
       }
 
       const url = urlMatch[0];
+      logger.info('[X402] Extracted URL:', url);
 
       // Get user ID for wallet lookup
       const userId = message.userId || 'default';
+      logger.info('[X402] User ID:', userId);
 
       // Get Solana transaction manager and wallet
       const solanaManager = SolanaTransactionManager.getInstance();
+      logger.info('[X402] Got SolanaTransactionManager');
+
       const walletData = await solanaManager.getWalletForUser(userId);
+      logger.info('[X402] Wallet data:', walletData ? 'found' : 'not found');
 
       if (!walletData || !walletData.privateKey) {
+        logger.error('[X402] No wallet configured for user:', userId);
         callback?.({
           text: 'Solana wallet not configured. The agent needs SOLANA_WALLET_SECRET or WALLET_DB_URL configured.',
         });
@@ -134,6 +145,8 @@ export const fetchWithSolanaPayment: Action = {
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : '';
+      logger.error('[X402] Handler error:', errorMessage, errorStack);
 
       // Provide helpful error messages
       if (errorMessage.includes('exceeds maximum')) {
@@ -154,7 +167,7 @@ export const fetchWithSolanaPayment: Action = {
         });
       } else {
         callback?.({
-          text: `Request failed: ${errorMessage}`,
+          text: `[X402] Request failed: ${errorMessage}`,
         });
       }
 
