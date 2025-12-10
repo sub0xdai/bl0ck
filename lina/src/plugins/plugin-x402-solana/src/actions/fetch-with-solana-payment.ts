@@ -59,7 +59,7 @@ export const fetchWithSolanaPayment: Action = {
     _state: State | undefined,
     _options: Record<string, unknown>,
     callback?: HandlerCallback
-  ): Promise<boolean> => {
+  ) => {
     logger.info('[X402] Handler called with message:', message.content.text);
 
     try {
@@ -67,10 +67,9 @@ export const fetchWithSolanaPayment: Action = {
       const urlMatch = message.content.text?.match(/https?:\/\/[^\s]+/);
       if (!urlMatch) {
         logger.warn('[X402] No URL found in message');
-        callback?.({
-          text: 'Please provide a URL to fetch. Example: "fetch https://api.example.com/paid with solana payment"',
-        });
-        return false;
+        const errorText = 'Please provide a URL to fetch. Example: "fetch https://api.example.com/paid with solana payment"';
+        callback?.({ text: errorText, content: null });
+        return { text: errorText, success: false, error: 'No URL provided' };
       }
 
       const url = urlMatch[0];
@@ -129,46 +128,47 @@ export const fetchWithSolanaPayment: Action = {
         data = await response.text();
       }
 
-      callback?.({
-        text: `Successfully fetched data from ${url}`,
-        content: {
-          status: response.status,
-          data,
-          network,
-          wallet: keypair.publicKey.toBase58(),
-        },
-      });
+      const responseText = `Successfully fetched data from ${url}`;
+      const responseData = {
+        status: response.status,
+        data,
+        network,
+        wallet: keypair.publicKey.toBase58(),
+      };
 
-      return true;
+      callback?.({ text: responseText, content: responseData });
+
+      return {
+        text: responseText,
+        success: true,
+        data: responseData,
+      };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : '';
       logger.error('[X402] Handler error:', errorMessage, errorStack);
 
-      // Provide helpful error messages
+      // Provide helpful error messages based on error type
+      let errorText: string;
       if (errorMessage.includes('exceeds maximum')) {
-        callback?.({
-          text: `Payment amount exceeds your configured maximum ($${runtime.getSetting('X402_MAX_PAYMENT_USDC') || '1.0'}). Increase X402_MAX_PAYMENT_USDC or use a cheaper API.`,
-        });
+        errorText = `Payment amount exceeds your configured maximum ($${runtime.getSetting('X402_MAX_PAYMENT_USDC') || '1.0'}). Increase X402_MAX_PAYMENT_USDC or use a cheaper API.`;
       } else if (errorMessage.includes('expired')) {
-        callback?.({
-          text: `Payment request expired. Please try again.`,
-        });
+        errorText = 'Payment request expired. Please try again.';
       } else if (errorMessage.includes('insufficient') || errorMessage.includes('Insufficient')) {
-        callback?.({
-          text: `Insufficient USDC balance. Please fund your Solana wallet with USDC.`,
-        });
+        errorText = 'Insufficient USDC balance. Please fund your Solana wallet with USDC.';
       } else if (errorMessage.includes('Invalid 402')) {
-        callback?.({
-          text: `The API returned a 402 status but not in x402 format. This endpoint may not support x402 payments.`,
-        });
+        errorText = 'The API returned a 402 status but not in x402 format. This endpoint may not support x402 payments.';
       } else {
-        callback?.({
-          text: `[X402] Request failed: ${errorMessage}`,
-        });
+        errorText = `[X402] Request failed: ${errorMessage}`;
       }
 
-      return false;
+      callback?.({ text: errorText, content: null });
+
+      return {
+        text: errorText,
+        success: false,
+        error: errorMessage,
+      };
     }
   },
 };
