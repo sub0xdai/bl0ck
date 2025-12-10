@@ -10,7 +10,6 @@
  */
 
 import { logger, type Action, type IAgentRuntime, type Memory, type State, type HandlerCallback } from '@elizaos/core';
-import { Keypair } from '@solana/web3.js';
 import { wrapFetchWithSolanaPayment } from '../client/x402-fetch';
 import { RPC_ENDPOINTS } from '../constants';
 // Import from root src - will be available at runtime when loaded by agent
@@ -85,21 +84,9 @@ export const fetchWithSolanaPayment: Action = {
       const solanaManager = SolanaTransactionManager.getInstance();
       logger.info('[X402] Got SolanaTransactionManager');
 
-      const walletData = await solanaManager.getWalletForUser(userId);
-      logger.info('[X402] Wallet data:', walletData ? 'found' : 'not found');
-
-      if (!walletData || !walletData.privateKey) {
-        logger.error('[X402] No wallet configured for user:', userId);
-        callback?.({
-          text: 'Solana wallet not configured. The agent needs SOLANA_WALLET_SECRET or WALLET_DB_URL configured.',
-        });
-        return false;
-      }
-
-      // Create keypair from wallet data
-      const keypair = Keypair.fromSecretKey(
-        Buffer.from(walletData.privateKey, 'hex')
-      );
+      // Use getOrCreateWallet which returns { publicKey, keypair }
+      const { keypair, publicKey } = await solanaManager.getOrCreateWallet(userId);
+      logger.info('[X402] Got wallet:', publicKey.substring(0, 8) + '...');
 
       // Get network settings from existing config
       const networkSetting = runtime.getSetting('SOLANA_NETWORK') || 'solana-devnet';
