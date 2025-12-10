@@ -47,6 +47,8 @@ export interface DriftAccountInfo {
   freeCollateral: string;         // Available for new positions
   totalPositionValue: string;
   unrealizedPnl: string;
+  settledPnl: string;             // Realized/settled PnL
+  cumulativeFunding: string;      // Cumulative funding payments
   marginRatio: string;            // Current margin ratio
   leverage: number;               // Account-level leverage
 }
