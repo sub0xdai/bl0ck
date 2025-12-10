@@ -62,6 +62,8 @@ const mockGetUser = mock(() => ({
     authority: new MockPublicKey('mockAuthority123'),
     subAccountId: 0,
     spotPositions: [], // Required for validation
+    settledPerpPnl: new MockBN(25000000),      // $25 settled PnL
+    cumulativePerpFunding: new MockBN(-2000000), // -$2 funding paid
   }),
   getSpotPosition: (index: number) => ({
     scaledBalance: BigInt(1000000000), // 1000 USDC (6 decimals)
