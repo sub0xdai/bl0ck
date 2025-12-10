@@ -7,7 +7,11 @@ import { PublicKey } from '@solana/web3.js';
 /** USDC-SPL mint address on Solana mainnet */
 export const USDC_MINT_MAINNET = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
 
-/** USDC-SPL mint address on Solana devnet */
+/**
+ * USDC-SPL mint address on Solana devnet
+ * Note: This is Circle's "official" devnet USDC mint. It may change occasionally.
+ * Verify at: https://developers.circle.com/stablecoins/docs/usdc-on-test-networks
+ */
 export const USDC_MINT_DEVNET = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
 
 /** SPL Memo program ID */
