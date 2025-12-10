@@ -11,20 +11,24 @@
 | Task 1: Initialize Plugin Structure | ✅ DONE | `cde7a4d` |
 | Task 2: Define Types | ✅ DONE | `386713c` |
 | Task 3: Add Constants | ✅ DONE | `585b42e` |
-| Code Review Fixes (P1-P3) | ✅ DONE | `663d221` |
-| Task 4: Implement Payment Builder | ⏳ NEXT | |
-| Task 5: Implement x402 Fetch Wrapper | ⏳ PENDING | |
-| Task 6: Implement Payment Store | ⏳ PENDING | |
-| Task 7: Implement Payment Listener | ⏳ PENDING | |
+| Code Review Fixes (Batch 1) | ✅ DONE | `663d221` |
+| Task 4: Implement Payment Builder | ✅ DONE | `8f1d135` |
+| Task 5: Implement x402 Fetch Wrapper | ✅ DONE | `777f405` |
+| Task 6: Implement Payment Store | ✅ DONE | `eab6369` |
+| Code Review Fixes (Batch 2) | ✅ DONE | `f7ef672` |
+| Task 7: Implement Payment Listener | ⏳ NEXT | |
 | Task 8: Implement Server Middleware | ⏳ PENDING | |
 | Task 9: Finalize Plugin Exports | ⏳ PENDING | |
 | Task 10: Integration Test & Docs | ⏳ PENDING | |
 
-**Additional files created during code review:**
+**Files created:**
 - `src/guards.ts` - Runtime type guards (isX402PaymentRequired, isX402PaymentProof, etc)
 - `src/errors.ts` - Custom error types (X402PaymentError hierarchy)
 - `src/utils/network.ts` - Network conversion utilities (toWireNetwork, fromWireNetwork)
-- `__tests__/*.test.ts` - 74 tests passing
+- `src/client/payment-builder.ts` - Build USDC+memo transactions
+- `src/client/x402-fetch.ts` - Auto-pay fetch wrapper
+- `src/server/payment-store.ts` - In-memory pending payment store
+- `__tests__/*.test.ts` - 94 tests passing
 
 ---
 
