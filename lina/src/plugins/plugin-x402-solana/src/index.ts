@@ -29,6 +29,7 @@
  */
 
 import type { Plugin } from '@elizaos/core';
+import { fetchWithSolanaPayment } from './actions';
 
 // Client exports
 export {
@@ -108,8 +109,11 @@ export const x402SolanaPlugin: Plugin = {
   description: 'Solana-native x402 payment protocol for API micropayments',
   evaluators: [],
   providers: [],
-  actions: [],
+  actions: [fetchWithSolanaPayment],
   services: [],
 };
+
+// Export actions for direct import
+export { fetchWithSolanaPayment } from './actions';
 
 export default x402SolanaPlugin;

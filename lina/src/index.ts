@@ -20,6 +20,7 @@ import openrouterPlugin from '@elizaos/plugin-openrouter';
 import mcpPlugin from '@elizaos/plugin-mcp';
 import morphoPlugin from './plugins/plugin-morpho/src/index.ts';
 import strategyCorePlugin from './plugins/plugin-strategy-core/src/index.ts';
+import x402SolanaPlugin from './plugins/plugin-x402-solana/src/index.ts';
 
 // Skip MCP if NANSEN_API_KEY not set (prevents hanging on connection)
 const shouldLoadMcp = !!process.env.NANSEN_API_KEY;
@@ -56,6 +57,7 @@ export const projectAgent: ProjectAgent = {
     clankerPlugin,
     morphoPlugin,
     strategyCorePlugin,
+    x402SolanaPlugin,
   ],
 };
 
