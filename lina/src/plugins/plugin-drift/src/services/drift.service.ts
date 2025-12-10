@@ -595,6 +595,11 @@ export class DriftService extends Service {
       ? Number(totalCollateral.mul(new BN(10000)).div(totalPositionValue)) / 100
       : 100; // 100% if no positions
 
+    // Extract settled PnL and funding from user account
+    // These are stored in the account and updated on settlement
+    const settledPnl = userAccount.settledPerpPnl || new BN(0);
+    const cumulativeFunding = userAccount.cumulativePerpFunding || new BN(0);
+
     return {
       authority: userAccount.authority.toBase58(),
       subAccountId: userAccount.subAccountId,
@@ -602,6 +607,8 @@ export class DriftService extends Service {
       freeCollateral: user.getFreeCollateral().toString(),
       totalPositionValue: totalPositionValue.toString(),
       unrealizedPnl: user.getUnrealizedPNL().toString(),
+      settledPnl: settledPnl.toString(),
+      cumulativeFunding: cumulativeFunding.toString(),
       marginRatio: marginRatio.toFixed(2),
       leverage: user.getLeverage() / 10000,
     };
