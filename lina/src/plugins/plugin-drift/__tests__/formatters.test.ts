@@ -125,6 +125,8 @@ describe('Formatters - formatAccountInfo', () => {
       freeCollateral: '50000000', // $50
       totalPositionValue: '200000000', // $200
       unrealizedPnl: '5000000', // $5
+      settledPnl: '0',
+      cumulativeFunding: '0',
       marginRatio: '25.5',
       leverage: 3.5,
     };
@@ -150,6 +152,8 @@ describe('Formatters - formatAccountInfo', () => {
       freeCollateral: '50000000',
       totalPositionValue: '0',
       unrealizedPnl: '-3000000', // -$3
+      settledPnl: '0',
+      cumulativeFunding: '0',
       marginRatio: '0',
       leverage: 1,
     };
@@ -167,6 +171,8 @@ describe('Formatters - formatAccountInfo', () => {
       freeCollateral: '0',
       totalPositionValue: '0',
       unrealizedPnl: '0',
+      settledPnl: '0',
+      cumulativeFunding: '0',
       marginRatio: '0',
       leverage: 0,
     };
@@ -175,6 +181,28 @@ describe('Formatters - formatAccountInfo', () => {
 
     expect(result).toContain('$0.00');
     expect(result).toContain('0.00x');
+  });
+
+  it('should display settled PnL and cumulative funding', () => {
+    const accountInfo: DriftAccountInfo = {
+      authority: 'mockAuth123',
+      subAccountId: 0,
+      collateral: '100000000',        // $100
+      freeCollateral: '50000000',     // $50
+      totalPositionValue: '150000000', // $150
+      unrealizedPnl: '5000000',       // +$5
+      settledPnl: '25000000',         // +$25 realized
+      cumulativeFunding: '-2000000',  // -$2 funding paid
+      marginRatio: '66.67',
+      leverage: 1.5,
+    };
+
+    const result = formatAccountInfo(accountInfo);
+
+    expect(result).toContain('Settled PnL');
+    expect(result).toContain('+$25.00');
+    expect(result).toContain('Cumulative Funding');
+    expect(result).toContain('-$2.00');
   });
 });
 

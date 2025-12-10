@@ -49,10 +49,18 @@ export function formatAccountInfo(info: DriftAccountInfo): string {
   let text = `**Drift Account**\n\n`;
   text += `**Authority:** \`${info.authority}\`\n`;
   text += `**Subaccount ID:** ${info.subAccountId}\n\n`;
+
+  // Collateral section
   text += `**Collateral:** ${formatUsd(parseFloat(info.collateral) / 1_000_000)}\n`;
   text += `**Free Collateral:** ${formatUsd(parseFloat(info.freeCollateral) / 1_000_000)}\n`;
   text += `**Position Value:** ${formatUsd(parseFloat(info.totalPositionValue) / 1_000_000)}\n\n`;
+
+  // PnL section
   text += `**Unrealized PnL:** ${formatPnl((parseFloat(info.unrealizedPnl) / 1_000_000).toString())}\n`;
+  text += `**Settled PnL:** ${formatPnl((parseFloat(info.settledPnl) / 1_000_000).toString())}\n`;
+  text += `**Cumulative Funding:** ${formatPnl((parseFloat(info.cumulativeFunding) / 1_000_000).toString())}\n\n`;
+
+  // Risk metrics
   text += `**Leverage:** ${info.leverage.toFixed(2)}x\n`;
   text += `**Margin Ratio:** ${info.marginRatio}%`;
 
