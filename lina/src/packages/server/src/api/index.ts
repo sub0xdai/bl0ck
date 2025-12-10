@@ -21,6 +21,7 @@ import { cdpRouter } from './cdp';
 import { solanaRouter } from './solana';
 import { walletRouter } from './wallet';
 import { driftRouter } from './drift';
+import { autotradeRouter } from './autotrade';
 import { createAuthRouter } from './auth';
 // NOTE: world router has been removed - functionality moved to messaging/spaces
 import { SocketIORouter } from '../socketio';
@@ -405,6 +406,11 @@ export function createApiRouter(
 
   // Mount Drift router at /drift - handles Drift Protocol perpetual trading data
   router.use('/drift', driftRouter(elizaOS, serverInstance));
+
+  // Mount Autotrade router at /autotrade - handles subscription payments via x402
+  // NOTE: autotradeService must be initialized in server startup and passed here
+  // See Task 6 in autotrade implementation plan for wiring
+  // router.use('/autotrade', autotradeRouter(serverInstance, autotradeService));
 
   // Mount audio router at /audio - handles audio processing, transcription, and voice operations
   router.use('/audio', audioRouter(elizaOS));
