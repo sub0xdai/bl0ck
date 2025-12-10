@@ -5,7 +5,7 @@ import { Bullet } from '../../ui/bullet';
 import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip';
 import { AssetIcon, NFTImage, formatAddress } from '../../ui/asset-icon';
 import { EmptyState } from '../../ui/empty-state';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Construction } from 'lucide-react';
 import { SendModalContent } from './SendModal';
 import { SwapModalContent } from './SwapModal';
 import { TokenDetailModalContent } from './TokenDetailModal';
@@ -17,6 +17,9 @@ import { cn } from '../../../lib/utils';
 import { SUPPORTED_CHAINS, getChainWalletIcon, isSolanaChain } from '../../../constants/chains';
 import { useModal } from '../../../contexts/ModalContext';
 import { useAgentWallet, type Token, type Transaction } from '../../../contexts/AgentWalletContext';
+
+// Maintenance mode - set to true to block wallet access during development
+const WALLET_MAINTENANCE_MODE = true;
 
 interface CDPWalletCardProps {
   userId: string;
@@ -150,6 +153,27 @@ export function CDPWalletCard({ userId, onBalanceChange, onActionClick }: CDPWal
   const renderTransactionIcon = (tx: Transaction) => (
     <AssetIcon iconUrl={tx.icon} symbol={tx.asset} alt={tx.asset} />
   );
+
+  // Maintenance mode banner
+  if (WALLET_MAINTENANCE_MODE) {
+    return (
+      <Card className="max-h-[calc(100vh-2rem)] w-full flex flex-col relative">
+        <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+          <Construction className="w-16 h-16 text-yellow-500 mb-4" />
+          <h3 className="text-lg font-semibold text-foreground mb-2">
+            Wallet Under Construction
+          </h3>
+          <p className="text-sm text-muted-foreground max-w-sm mb-4">
+            We're building the Autotrade feature. Wallet functions are temporarily disabled to protect your funds.
+          </p>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted px-3 py-2 rounded-md">
+            <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+            Coming soon
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <>
