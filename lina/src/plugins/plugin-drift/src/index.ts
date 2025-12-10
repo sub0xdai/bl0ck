@@ -14,6 +14,7 @@ import driftGetPositions from './actions/drift-get-positions';
 import driftGetMarkets from './actions/drift-get-markets';
 import driftAccountInfo from './actions/drift-account-info';
 import driftDeposit from './actions/drift-deposit';
+import driftWithdraw from './actions/drift-withdraw';
 
 export const driftPlugin: Plugin = {
   name: 'drift',
@@ -28,6 +29,7 @@ export const driftPlugin: Plugin = {
     driftGetMarkets,
     driftAccountInfo,
     driftDeposit,
+    driftWithdraw,
   ],
   services: [DriftService],
 };
