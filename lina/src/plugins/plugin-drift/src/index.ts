@@ -10,6 +10,7 @@ import { DriftService } from './services/drift.service';
 import driftOpenLong from './actions/drift-open-long';
 import driftOpenShort from './actions/drift-open-short';
 import driftClosePosition from './actions/drift-close-position';
+import driftCloseAllPositions from './actions/drift-close-all-positions';
 import driftGetPositions from './actions/drift-get-positions';
 import driftGetMarkets from './actions/drift-get-markets';
 import driftAccountInfo from './actions/drift-account-info';
@@ -25,6 +26,7 @@ export const driftPlugin: Plugin = {
     driftOpenLong,
     driftOpenShort,
     driftClosePosition,
+    driftCloseAllPositions,
     driftGetPositions,
     driftGetMarkets,
     driftAccountInfo,
