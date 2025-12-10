@@ -4,7 +4,7 @@
  * Shared formatting utilities for action responses.
  */
 
-import type { DriftPosition, DriftAccountInfo, DriftMarket, PositionResult, PositionSide } from '../types';
+import type { DriftPosition, DriftAccountInfo, DriftMarket, PositionResult, PositionSide, CloseAllResult } from '../types';
 
 /**
  * Format large numbers for display (K, M, B)
@@ -205,4 +205,36 @@ export function formatWithdrawResult(amount: number, newFreeCollateral: number, 
   }
 
   return text;
+}
+
+/**
+ * Format close all positions result for display
+ */
+export function formatCloseAllResult(result: CloseAllResult): string {
+  if (result.results.length === 0) {
+    return '**No open positions to close**';
+  }
+
+  let text = '';
+
+  if (result.closedCount > 0 && result.failedCount === 0) {
+    text += `**Closed ${result.closedCount} position${result.closedCount > 1 ? 's' : ''}**\n\n`;
+  } else if (result.closedCount > 0 && result.failedCount > 0) {
+    text += `**Closed ${result.closedCount}, Failed ${result.failedCount}**\n\n`;
+  } else if (result.failedCount > 0) {
+    text += `**Failed to close ${result.failedCount} position${result.failedCount > 1 ? 's' : ''}**\n\n`;
+  }
+
+  for (const r of result.results) {
+    const icon = r.success ? '✅' : '❌';
+    text += `${icon} **${r.marketSymbol}**`;
+    if (r.success && r.txSignature) {
+      text += ` - \`${r.txSignature}\``;
+    } else if (!r.success && r.error) {
+      text += ` - ${r.error}`;
+    }
+    text += '\n';
+  }
+
+  return text.trim();
 }

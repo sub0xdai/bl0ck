@@ -16,6 +16,7 @@ import {
   formatCloseResult,
   formatDepositResult,
   formatWithdrawResult,
+  formatCloseAllResult,
 } from '../src/utils/formatters';
 import type { DriftPosition, DriftAccountInfo, DriftMarket, PositionResult } from '../src/types';
 
@@ -560,5 +561,47 @@ describe('Formatters - formatWithdrawResult', () => {
     const result = formatWithdrawResult(25000, 75000, 'largeTx');
     expect(result).toContain('$25,000.00');
     expect(result).toContain('$75,000.00');
+  });
+});
+
+describe('Formatters - formatCloseAllResult', () => {
+  it('should format successful close all', () => {
+    const result = formatCloseAllResult({
+      success: true,
+      closedCount: 2,
+      failedCount: 0,
+      results: [
+        { marketSymbol: 'SOL-PERP', success: true, txSignature: 'tx1' },
+        { marketSymbol: 'BTC-PERP', success: true, txSignature: 'tx2' },
+      ],
+    });
+    expect(result).toContain('Closed 2 positions');
+    expect(result).toContain('SOL-PERP');
+    expect(result).toContain('BTC-PERP');
+  });
+
+  it('should format partial failure', () => {
+    const result = formatCloseAllResult({
+      success: false,
+      closedCount: 1,
+      failedCount: 1,
+      results: [
+        { marketSymbol: 'SOL-PERP', success: true, txSignature: 'tx1' },
+        { marketSymbol: 'BTC-PERP', success: false, error: 'Insufficient margin' },
+      ],
+    });
+    expect(result).toContain('Closed 1');
+    expect(result).toContain('Failed 1');
+    expect(result).toContain('Insufficient margin');
+  });
+
+  it('should format no positions', () => {
+    const result = formatCloseAllResult({
+      success: true,
+      closedCount: 0,
+      failedCount: 0,
+      results: [],
+    });
+    expect(result).toContain('No open positions');
   });
 });
