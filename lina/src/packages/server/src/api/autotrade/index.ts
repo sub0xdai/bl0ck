@@ -5,6 +5,8 @@ import type { AgentServer } from '../../index';
 import { sendError, sendSuccess } from '../shared/response-utils';
 import { requireAuth, type AuthenticatedRequest } from '../../middleware';
 import type { AutotradeService, PaymentVerifier } from '@/services/autotrade';
+import { SolanaTransactionManager } from '@/managers/solana-transaction-manager';
+import { USDC_MINT_DEVNET, USDC_MINT_MAINNET } from '@/plugins/plugin-x402-solana/src/constants';
 
 export interface AutotradeRouterConfig {
   autotradeService: AutotradeService;
@@ -127,6 +129,86 @@ export function autotradeRouter(
       const msg = error instanceof Error ? error.message : String(error);
       logger.error('[Autotrade API] /status error:', msg);
       return sendError(res, 500, 'STATUS_FAILED', 'Failed to get autotrade status', msg);
+    }
+  });
+
+  /**
+   * POST /api/autotrade/pay-and-activate
+   * Server-side payment flow for users with agent-managed wallets
+   * 1. Checks USDC balance
+   * 2. Transfers USDC from user's wallet to treasury
+   * 3. Activates subscription
+   */
+  router.post('/pay-and-activate', async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.userId!;
+
+      // Check if already active
+      const existingStatus = await autotradeService.getStatus(userId);
+      if (existingStatus?.status === 'active' && Date.now() < existingStatus.expiresAt) {
+        return sendError(res, 400, 'ALREADY_ACTIVE', 'Autotrade subscription is already active');
+      }
+
+      // Get Solana manager and determine network
+      const solanaManager = SolanaTransactionManager.getInstance();
+      const network = process.env.SOLANA_NETWORK === 'solana' ? 'mainnet-beta' : 'devnet';
+      const usdcMint = network === 'mainnet-beta'
+        ? USDC_MINT_MAINNET.toBase58()
+        : USDC_MINT_DEVNET.toBase58();
+
+      // Check USDC balance
+      const priceAmount = BigInt(priceBaseUnits);
+      let balance: bigint;
+      try {
+        const balanceResult = await solanaManager.getTokenBalance(userId, usdcMint);
+        balance = balanceResult.balance;
+      } catch (balanceError) {
+        const msg = balanceError instanceof Error ? balanceError.message : String(balanceError);
+        logger.error('[Autotrade API] Failed to get USDC balance:', msg);
+        return sendError(res, 400, 'BALANCE_CHECK_FAILED', 'Failed to check USDC balance', msg);
+      }
+
+      if (balance < priceAmount) {
+        const needed = Number(priceAmount) / 1_000_000;
+        const have = Number(balance) / 1_000_000;
+        return sendError(
+          res,
+          400,
+          'INSUFFICIENT_BALANCE',
+          `Insufficient USDC balance. Need $${needed.toFixed(2)}, have $${have.toFixed(2)}`
+        );
+      }
+
+      // Transfer USDC to treasury
+      let txSignature: string;
+      try {
+        txSignature = await solanaManager.transferToken({
+          userId,
+          to: treasuryWallet,
+          amount: priceBaseUnits,
+          mint: usdcMint,
+        });
+        logger.info(`[Autotrade API] Payment sent: ${txSignature}`);
+      } catch (transferError) {
+        const msg = transferError instanceof Error ? transferError.message : String(transferError);
+        logger.error('[Autotrade API] Payment transfer failed:', msg);
+        return sendError(res, 500, 'PAYMENT_FAILED', 'Failed to send payment', msg);
+      }
+
+      // Activate subscription
+      await autotradeService.activateSubscription(userId, txSignature);
+
+      const status = await autotradeService.getStatus(userId);
+      return sendSuccess(res, {
+        message: 'Autotrade activated',
+        txSignature,
+        subscription: status,
+      });
+
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.error('[Autotrade API] /pay-and-activate error:', msg);
+      return sendError(res, 500, 'ACTIVATION_FAILED', 'Failed to activate autotrade', msg);
     }
   });
 

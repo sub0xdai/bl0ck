@@ -114,7 +114,7 @@ export class SolanaPaymentVerifier implements PaymentVerifier {
 
       // Parse instructions to find token transfers
       const instructions = tx.transaction.message.instructions;
-      const tokenTransfers = this.findTokenTransfers(instructions, tx.meta?.innerInstructions);
+      const tokenTransfers = this.findTokenTransfers(instructions, tx.meta?.innerInstructions ?? undefined);
 
       // Look for a transfer to the expected recipient with correct amount and mint
       const expectedAmountBigInt = BigInt(expectedAmount);

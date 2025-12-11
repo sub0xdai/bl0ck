@@ -144,7 +144,7 @@ export function AutotradeTab({ userId, isActive = true }: AutotradeTabProps) {
     }
   }, [userId, getAuthToken]);
 
-  // Start autotrade
+  // Start autotrade - uses server-side payment flow
   const handleStart = async () => {
     const token = getAuthToken();
     if (!token) {
@@ -154,10 +154,11 @@ export function AutotradeTab({ userId, isActive = true }: AutotradeTabProps) {
 
     setIsActionLoading(true);
     const panelId = 'autotrade-start-panel';
+    showLoading('Activating Autotrade', 'Processing payment...', panelId);
 
     try {
-      // First request - will return 402 with payment details
-      const response = await fetch(`${API_BASE}/api/autotrade/start`, {
+      // Use pay-and-activate endpoint - handles payment + activation in one step
+      const response = await fetch(`${API_BASE}/api/autotrade/pay-and-activate`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -165,31 +166,22 @@ export function AutotradeTab({ userId, isActive = true }: AutotradeTabProps) {
         },
       });
 
-      if (response.status === 402) {
-        // Payment required - show payment info
-        const paymentData: AutotradeStartResponse = await response.json();
-        const amount = paymentData.accepts ?
-          (parseInt(paymentData.accepts.amount) / 1_000_000).toFixed(2) : '1.00';
+      const data = await response.json();
 
-        showError(
-          'Payment Required',
-          `Autotrade requires $${amount} USDC/day. Please make payment to activate.`,
-          panelId
-        );
-
-        // TODO: Integrate with x402 payment flow
-        // For now, show the payment requirement
+      if (!response.ok) {
+        // Handle specific error codes
+        if (data.error?.code === 'INSUFFICIENT_BALANCE') {
+          showError('Insufficient Balance', data.error.message, panelId);
+        } else if (data.error?.code === 'ALREADY_ACTIVE') {
+          showError('Already Active', 'Your autotrade subscription is already active', panelId);
+          await fetchStatus(false);
+        } else {
+          throw new Error(data.error?.message || 'Failed to start autotrade');
+        }
         return;
       }
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to start autotrade');
-      }
-
-      const data: AutotradeStartResponse = await response.json();
-
-      showSuccess('Autotrade Activated', data.data?.message || 'Autotrade is now running', panelId);
+      showSuccess('Autotrade Activated', data.data?.message || 'Autotrade is now running!', panelId);
       await fetchStatus(false);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
