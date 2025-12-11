@@ -21,7 +21,12 @@ import { cdpRouter } from './cdp';
 import { solanaRouter } from './solana';
 import { walletRouter } from './wallet';
 import { driftRouter } from './drift';
+import { autotradeRouter } from './autotrade';
 import { createAuthRouter } from './auth';
+// Autotrade service imports
+import { AutotradeService, AutotradeRepository, createPaymentVerifier } from '@/services/autotrade';
+import { USDC_MINT_DEVNET, USDC_MINT_MAINNET } from '@/plugins/plugin-x402-solana/src/constants';
+import { SolanaTransactionManager } from '@/managers/solana-transaction-manager';
 // NOTE: world router has been removed - functionality moved to messaging/spaces
 import { SocketIORouter } from '../socketio';
 import {
@@ -329,6 +334,86 @@ export function createPluginRouteHandler(elizaOS: ElizaOS): express.RequestHandl
   };
 }
 
+import type { AutotradeRouterConfig } from './autotrade';
+
+/**
+ * Singleton autotrade config instance
+ * Initialized once when environment is configured
+ */
+let autotradeConfigInstance: AutotradeRouterConfig | null = null;
+
+/**
+ * Initialize the autotrade service and payment verifier if environment is configured
+ * Returns the router config or null if not configured
+ */
+function initializeAutotradeService(): AutotradeRouterConfig | null {
+  // Return existing instance if already initialized
+  if (autotradeConfigInstance) {
+    return autotradeConfigInstance;
+  }
+
+  // Check required environment variables
+  const treasuryWallet = process.env.AUTOTRADE_TREASURY_WALLET;
+  const walletDbUrl = process.env.WALLET_DB_URL;
+
+  if (!treasuryWallet || !walletDbUrl) {
+    return null;
+  }
+
+  try {
+    // Parse optional configuration
+    const network = (process.env.SOLANA_NETWORK === 'solana' ? 'mainnet-beta' : 'devnet') as 'mainnet-beta' | 'devnet';
+    const priceUsdc = parseFloat(process.env.AUTOTRADE_PRICE_USDC || '1.0');
+    const durationHours = parseInt(process.env.AUTOTRADE_DURATION_HOURS || '24', 10);
+    const durationMs = durationHours * 60 * 60 * 1000;
+    const priceBaseUnits = Math.floor(priceUsdc * 1_000_000).toString();
+
+    // Get USDC mint for the network
+    const usdcMint = network === 'mainnet-beta'
+      ? USDC_MINT_MAINNET.toBase58()
+      : USDC_MINT_DEVNET.toBase58();
+
+    // Initialize repository
+    const repository = new AutotradeRepository(walletDbUrl);
+    repository.initialize().catch(err => {
+      logger.error('[Autotrade] Failed to initialize repository:', err);
+    });
+
+    // Get Solana manager instance
+    const solanaManager = SolanaTransactionManager.getInstance();
+
+    // Create the payment verifier - uses NoOp for devnet, on-chain for mainnet
+    const connection = network === 'mainnet-beta' ? solanaManager.getConnection() : undefined;
+    const paymentVerifier = createPaymentVerifier(network, connection, usdcMint);
+
+    // Create the service
+    const autotradeService = new AutotradeService({
+      repository,
+      solanaManager,
+      treasuryWallet,
+      priceUsdc,
+      durationMs,
+      network,
+      usdcMint,
+    });
+
+    autotradeConfigInstance = {
+      autotradeService,
+      paymentVerifier,
+      treasuryWallet,
+      priceBaseUnits,
+    };
+
+    logger.info(`[Autotrade] Service initialized - network: ${network}, price: $${priceUsdc}/day, treasury: ${treasuryWallet.substring(0, 8)}...`);
+
+    return autotradeConfigInstance;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.error('[Autotrade] Failed to initialize service:', msg);
+    return null;
+  }
+}
+
 /**
  * Creates an API router with various endpoints and middleware.
  * @param {ElizaOS} elizaOS - ElizaOS instance containing all agents and their runtimes.
@@ -405,6 +490,16 @@ export function createApiRouter(
 
   // Mount Drift router at /drift - handles Drift Protocol perpetual trading data
   router.use('/drift', driftRouter(elizaOS, serverInstance));
+
+  // Mount Autotrade router at /autotrade - handles subscription payments via x402
+  // Initialize autotrade service if environment is configured
+  const autotradeConfig = initializeAutotradeService();
+  if (autotradeConfig) {
+    router.use('/autotrade', autotradeRouter(serverInstance, autotradeConfig));
+    logger.info('[API] Autotrade routes enabled');
+  } else {
+    logger.warn('[API] Autotrade routes disabled - missing configuration (AUTOTRADE_TREASURY_WALLET, WALLET_DB_URL)');
+  }
 
   // Mount audio router at /audio - handles audio processing, transcription, and voice operations
   router.use('/audio', audioRouter(elizaOS));
