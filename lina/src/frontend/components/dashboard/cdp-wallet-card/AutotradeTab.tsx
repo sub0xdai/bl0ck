@@ -322,6 +322,7 @@ export function AutotradeTab({ userId, isActive = true }: AutotradeTabProps) {
         </div>
 
         <Button
+          type="button"
           onClick={handleStart}
           disabled={isActionLoading}
           className="w-full bg-green-600 hover:bg-green-700"
@@ -401,6 +402,7 @@ export function AutotradeTab({ userId, isActive = true }: AutotradeTabProps) {
 
       {/* Stop Button */}
       <Button
+        type="button"
         onClick={handleStop}
         disabled={isActionLoading}
         variant="destructive"
