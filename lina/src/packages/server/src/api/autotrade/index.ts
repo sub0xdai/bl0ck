@@ -1,12 +1,16 @@
 // src/packages/server/src/api/autotrade/index.ts
 import express from 'express';
 import { logger } from '@elizaos/core';
+import { PublicKey } from '@solana/web3.js';
 import type { AgentServer } from '../../index';
 import { sendError, sendSuccess } from '../shared/response-utils';
 import { requireAuth, type AuthenticatedRequest } from '../../middleware';
-import type { AutotradeService, PaymentVerifier } from '@/services/autotrade';
-import { SolanaTransactionManager } from '@/managers/solana-transaction-manager';
-import { USDC_MINT_DEVNET, USDC_MINT_MAINNET } from '@/plugins/plugin-x402-solana/src/constants';
+import type { AutotradeService, PaymentVerifier } from '../../../../../services/autotrade';
+import { SolanaTransactionManager } from '../../../../../managers/solana-transaction-manager';
+
+// USDC mint addresses
+const USDC_MINT_MAINNET = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
+const USDC_MINT_DEVNET = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
 
 export interface AutotradeRouterConfig {
   autotradeService: AutotradeService;
@@ -156,11 +160,11 @@ export function autotradeRouter(
         ? USDC_MINT_MAINNET.toBase58()
         : USDC_MINT_DEVNET.toBase58();
 
-      // Check USDC balance
+      // Check USDC balance using getSplTokenBalance
       const priceAmount = BigInt(priceBaseUnits);
       let balance: bigint;
       try {
-        const balanceResult = await solanaManager.getTokenBalance(userId, usdcMint);
+        const balanceResult = await solanaManager.getSplTokenBalance(userId, usdcMint);
         balance = balanceResult.balance;
       } catch (balanceError) {
         const msg = balanceError instanceof Error ? balanceError.message : String(balanceError);
@@ -179,15 +183,16 @@ export function autotradeRouter(
         );
       }
 
-      // Transfer USDC to treasury
+      // Transfer USDC to treasury using sendToken
       let txSignature: string;
       try {
-        txSignature = await solanaManager.transferToken({
+        const result = await solanaManager.sendToken({
           userId,
           to: treasuryWallet,
           amount: priceBaseUnits,
           mint: usdcMint,
         });
+        txSignature = result.transactionHash;
         logger.info(`[Autotrade API] Payment sent: ${txSignature}`);
       } catch (transferError) {
         const msg = transferError instanceof Error ? transferError.message : String(transferError);

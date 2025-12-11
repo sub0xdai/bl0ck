@@ -25,7 +25,9 @@
     "paths": {
       "@/managers/*": ["managers/*"],
       "@/constants/*": ["constants/*"],
-      "@/repositories/*": ["repositories/*"]
+      "@/repositories/*": ["repositories/*"],
+      "@/services/*": ["services/*"],
+      "@/plugins/*": ["plugins/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "../../**/*.ts", "../../**/*.tsx"],

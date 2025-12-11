@@ -24,9 +24,12 @@ import { driftRouter } from './drift';
 import { autotradeRouter } from './autotrade';
 import { createAuthRouter } from './auth';
 // Autotrade service imports
-import { AutotradeService, AutotradeRepository, createPaymentVerifier } from '@/services/autotrade';
-import { USDC_MINT_DEVNET, USDC_MINT_MAINNET } from '@/plugins/plugin-x402-solana/src/constants';
-import { SolanaTransactionManager } from '@/managers/solana-transaction-manager';
+import { AutotradeService, AutotradeRepository, createPaymentVerifier } from '../../../../services/autotrade';
+import { SolanaTransactionManager } from '../../../../managers/solana-transaction-manager';
+import { PublicKey } from '@solana/web3.js';
+// USDC mint addresses
+const USDC_MINT_MAINNET = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
+const USDC_MINT_DEVNET = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
 // NOTE: world router has been removed - functionality moved to messaging/spaces
 import { SocketIORouter } from '../socketio';
 import {

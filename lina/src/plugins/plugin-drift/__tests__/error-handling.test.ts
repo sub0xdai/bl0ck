@@ -365,7 +365,8 @@ describe('Error Handling - Network Failures', () => {
   });
 
   it('should handle close position failure', async () => {
-    mockClosePosition.mockImplementationOnce(() =>
+    // Mock placeAndTakePerpOrder to reject (used for closing positions)
+    mockOpenPosition.mockImplementationOnce(() =>
       Promise.reject(new Error('Close transaction failed'))
     );
 
@@ -377,6 +378,7 @@ describe('Error Handling - Network Failures', () => {
     const result = await service.closePosition('user-close-fail', params);
 
     expect(result.success).toBe(false);
+    expect(result.error).toContain('Close transaction failed');
   });
 });
 
@@ -506,16 +508,22 @@ describe('Error Handling - Edge Cases', () => {
 
   it('should handle closing non-existent position', async () => {
     const noPositionMock = () => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getUserAccount: () => ({
+        authority: new MockPublicKey('mockAuth'),
+        subAccountId: 0,
+        spotPositions: [], // Required for validation
+      }),
       getPerpPosition: () => ({ baseAssetAmount: new MockBN(0) }), // No position
-      getSpotPosition: () => ({ scaledBalance: BigInt(1000000000) }),
+      getSpotPosition: () => ({ scaledBalance: BigInt(1000000000), marketIndex: 0 }),
       getFreeCollateral: () => new MockBN(50000000),
       getTotalCollateral: () => new MockBN(100000000),
       getTotalPerpPositionValue: () => new MockBN(0),
-  getTotalAssetValue: () => new MockBN(0),
+      getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+      isSubscribed: true, // Required for cache validation
+      subscribe: mock(() => Promise.resolve(true)),
+      fetchAccounts: mock(() => Promise.resolve()), // Required for getValidatedUser
     });
     mockGetUser.mockImplementationOnce(noPositionMock);
     mockGetUser.mockImplementationOnce(noPositionMock);

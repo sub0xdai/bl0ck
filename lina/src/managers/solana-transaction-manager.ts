@@ -297,6 +297,40 @@ export class SolanaTransactionManager {
   // ============================================================================
 
   /**
+   * Get SPL token balance for a user (simple version without runtime)
+   * Used by API endpoints that don't have access to agent runtime.
+   *
+   * @param userId User identifier
+   * @param mint SPL token mint address (Base58)
+   * @returns Balance in raw units (bigint)
+   */
+  public async getSplTokenBalance(
+    userId: string,
+    mint: string
+  ): Promise<{ balance: bigint; decimals: number }> {
+    const { keypair } = await this.getOrCreateWallet(userId);
+    const connection = this.getConnection();
+    const mintPubkey = new PublicKey(mint);
+
+    try {
+      const ata = await getOrCreateAssociatedTokenAccount(
+        connection,
+        keypair,
+        mintPubkey,
+        keypair.publicKey
+      );
+      return {
+        balance: ata.amount,
+        decimals: (await getMint(connection, mintPubkey)).decimals,
+      };
+    } catch (error) {
+      // Token account doesn't exist = 0 balance
+      logger.warn(`[SolanaTransactionManager] Token account not found for ${mint.substring(0, 8)}...`);
+      return { balance: 0n, decimals: 6 };
+    }
+  }
+
+  /**
    * Get token balances for a user (SOL + SPL tokens)
    * - Checks cache first (5-min TTL)
    * - Fetches SOL balance + SPL token accounts
