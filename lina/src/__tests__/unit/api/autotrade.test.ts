@@ -12,7 +12,7 @@
 import { describe, it, expect, mock } from 'bun:test';
 import express from 'express';
 import request from 'supertest';
-import type { AutotradeService } from '../../../services/autotrade';
+import type { AutotradeService, PaymentVerifier, PaymentVerificationResult } from '../../../services/autotrade';
 import { sendError, sendSuccess } from '../../../packages/server/src/api/shared/response-utils';
 
 /**
@@ -40,6 +40,22 @@ function createMockAutotradeService(overrides: Partial<AutotradeService> = {}): 
 }
 
 /**
+ * Creates a mock PaymentVerifier for testing
+ */
+function createMockPaymentVerifier(result: PaymentVerificationResult = { valid: true }): PaymentVerifier {
+  return {
+    verify: mock(() => Promise.resolve(result)),
+  };
+}
+
+interface TestRouterConfig {
+  autotradeService: AutotradeService;
+  paymentVerifier: PaymentVerifier;
+  treasuryWallet?: string;
+  priceBaseUnits?: string;
+}
+
+/**
  * Creates autotrade routes WITHOUT the requireAuth middleware for testing.
  *
  * IMPORTANT: This must stay in sync with the production router in
@@ -48,7 +64,13 @@ function createMockAutotradeService(overrides: Partial<AutotradeService> = {}): 
  * The only difference is that this router does not use requireAuth middleware,
  * allowing us to test the endpoint logic in isolation.
  */
-function createTestAutotradeRouter(autotradeService: AutotradeService): express.Router {
+function createTestAutotradeRouter(config: TestRouterConfig): express.Router {
+  const {
+    autotradeService,
+    paymentVerifier,
+    treasuryWallet = 'TreasuryWallet123',
+    priceBaseUnits = '1000000',
+  } = config;
   const router = express.Router();
 
   // POST /api/autotrade/start - mirrors production implementation
@@ -71,6 +93,17 @@ function createTestAutotradeRouter(autotradeService: AutotradeService): express.
 
       if (!proof.signature) {
         return sendError(res, 400, 'MISSING_SIGNATURE', 'Payment proof missing signature');
+      }
+
+      // Verify the payment on-chain
+      const verification = await paymentVerifier.verify({
+        signature: proof.signature,
+        expectedAmount: priceBaseUnits,
+        expectedRecipient: treasuryWallet,
+      });
+
+      if (!verification.valid) {
+        return sendError(res, 402, 'PAYMENT_INVALID', verification.error || 'Payment verification failed');
       }
 
       await autotradeService.activateSubscription(userId, proof.signature);
@@ -133,11 +166,22 @@ function createTestAutotradeRouter(autotradeService: AutotradeService): express.
   return router;
 }
 
+interface TestAppConfig {
+  autotradeService: AutotradeService;
+  paymentVerifier?: PaymentVerifier;
+  userId?: string;
+}
+
 /**
  * Creates a test Express app with auth middleware bypassed
  * Injects userId directly to simulate authenticated requests
  */
-function createTestApp(autotradeService: AutotradeService, userId: string = 'test-user-123') {
+function createTestApp(config: TestAppConfig) {
+  const {
+    autotradeService,
+    paymentVerifier = createMockPaymentVerifier(),
+    userId = 'test-user-123',
+  } = config;
   const app = express();
   app.use(express.json());
 
@@ -148,7 +192,10 @@ function createTestApp(autotradeService: AutotradeService, userId: string = 'tes
   });
 
   // Mount the test autotrade router (without requireAuth)
-  app.use('/api/autotrade', createTestAutotradeRouter(autotradeService));
+  app.use('/api/autotrade', createTestAutotradeRouter({
+    autotradeService,
+    paymentVerifier,
+  }));
 
   return app;
 }
@@ -172,7 +219,10 @@ function createUnauthenticatedApp(autotradeService: AutotradeService) {
     next();
   });
 
-  app.use('/api/autotrade', createTestAutotradeRouter(autotradeService));
+  app.use('/api/autotrade', createTestAutotradeRouter({
+    autotradeService,
+    paymentVerifier: createMockPaymentVerifier(),
+  }));
 
   return app;
 }
@@ -193,8 +243,8 @@ describe('Autotrade API', () => {
 
   describe('POST /api/autotrade/start', () => {
     it('returns 402 Payment Required when no payment proof provided', async () => {
-      const service = createMockAutotradeService();
-      const app = createTestApp(service);
+      const autotradeService = createMockAutotradeService();
+      const app = createTestApp({ autotradeService });
 
       const res = await request(app)
         .post('/api/autotrade/start')
@@ -220,15 +270,15 @@ describe('Autotrade API', () => {
           expiresAt: Date.now() + 300000,
         },
       }));
-      const service = createMockAutotradeService({ getPaymentRequired });
-      const app = createTestApp(service, 'specific-user-456');
+      const autotradeService = createMockAutotradeService({ getPaymentRequired });
+      const app = createTestApp({ autotradeService, userId: 'specific-user-456' });
 
       await request(app).post('/api/autotrade/start').send({});
 
       expect(getPaymentRequired).toHaveBeenCalledWith('specific-user-456');
     });
 
-    it('activates subscription when valid payment proof provided', async () => {
+    it('activates subscription when valid payment proof and verification passes', async () => {
       const activateSubscription = mock(() => Promise.resolve());
       const getStatus = mock(() => Promise.resolve({
         userId: 'test-user-123',
@@ -239,8 +289,9 @@ describe('Autotrade API', () => {
         totalPaid: 1.0,
         txSignatures: ['payment-sig-xyz'],
       }));
-      const service = createMockAutotradeService({ activateSubscription, getStatus });
-      const app = createTestApp(service);
+      const autotradeService = createMockAutotradeService({ activateSubscription, getStatus });
+      const paymentVerifier = createMockPaymentVerifier({ valid: true });
+      const app = createTestApp({ autotradeService, paymentVerifier });
 
       const paymentProof = Buffer.from(JSON.stringify({
         signature: 'payment-sig-xyz',
@@ -256,11 +307,39 @@ describe('Autotrade API', () => {
       expect(res.body.data.message).toBe('Autotrade activated');
       expect(res.body.data.subscription).toBeDefined();
       expect(activateSubscription).toHaveBeenCalledWith('test-user-123', 'payment-sig-xyz');
+      expect(paymentVerifier.verify).toHaveBeenCalledWith({
+        signature: 'payment-sig-xyz',
+        expectedAmount: '1000000',
+        expectedRecipient: 'TreasuryWallet123',
+      });
+    });
+
+    it('returns 402 when payment verification fails', async () => {
+      const autotradeService = createMockAutotradeService();
+      const paymentVerifier = createMockPaymentVerifier({
+        valid: false,
+        error: 'Transaction not found',
+      });
+      const app = createTestApp({ autotradeService, paymentVerifier });
+
+      const paymentProof = Buffer.from(JSON.stringify({
+        signature: 'invalid-sig-xyz',
+      })).toString('base64');
+
+      const res = await request(app)
+        .post('/api/autotrade/start')
+        .set('x-payment-proof', paymentProof)
+        .send({});
+
+      expect(res.status).toBe(402);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.code).toBe('PAYMENT_INVALID');
+      expect(res.body.error.message).toBe('Transaction not found');
     });
 
     it('returns 400 for malformed base64 payment proof', async () => {
-      const service = createMockAutotradeService();
-      const app = createTestApp(service);
+      const autotradeService = createMockAutotradeService();
+      const app = createTestApp({ autotradeService });
 
       const res = await request(app)
         .post('/api/autotrade/start')
@@ -273,8 +352,8 @@ describe('Autotrade API', () => {
     });
 
     it('returns 400 for payment proof with invalid JSON', async () => {
-      const service = createMockAutotradeService();
-      const app = createTestApp(service);
+      const autotradeService = createMockAutotradeService();
+      const app = createTestApp({ autotradeService });
 
       const invalidJson = Buffer.from('not valid json').toString('base64');
 
@@ -289,8 +368,8 @@ describe('Autotrade API', () => {
     });
 
     it('returns 400 for payment proof missing signature', async () => {
-      const service = createMockAutotradeService();
-      const app = createTestApp(service);
+      const autotradeService = createMockAutotradeService();
+      const app = createTestApp({ autotradeService });
 
       const missingSignature = Buffer.from(JSON.stringify({
         payer: 'some-payer-address',
@@ -309,8 +388,8 @@ describe('Autotrade API', () => {
 
     it('returns 500 when activateSubscription throws', async () => {
       const activateSubscription = mock(() => Promise.reject(new Error('Database connection failed')));
-      const service = createMockAutotradeService({ activateSubscription });
-      const app = createTestApp(service);
+      const autotradeService = createMockAutotradeService({ activateSubscription });
+      const app = createTestApp({ autotradeService });
 
       const paymentProof = Buffer.from(JSON.stringify({
         signature: 'valid-sig',
@@ -330,8 +409,8 @@ describe('Autotrade API', () => {
   describe('POST /api/autotrade/stop', () => {
     it('stops autotrade for authenticated user', async () => {
       const stopAutotrade = mock(() => Promise.resolve());
-      const service = createMockAutotradeService({ stopAutotrade });
-      const app = createTestApp(service, 'user-to-stop');
+      const autotradeService = createMockAutotradeService({ stopAutotrade });
+      const app = createTestApp({ autotradeService, userId: 'user-to-stop' });
 
       const res = await request(app)
         .post('/api/autotrade/stop')
@@ -345,8 +424,8 @@ describe('Autotrade API', () => {
 
     it('returns 400 when no active subscription', async () => {
       const stopAutotrade = mock(() => Promise.reject(new Error('No active subscription')));
-      const service = createMockAutotradeService({ stopAutotrade });
-      const app = createTestApp(service);
+      const autotradeService = createMockAutotradeService({ stopAutotrade });
+      const app = createTestApp({ autotradeService });
 
       const res = await request(app)
         .post('/api/autotrade/stop')
@@ -359,8 +438,8 @@ describe('Autotrade API', () => {
 
     it('returns 500 for unexpected errors', async () => {
       const stopAutotrade = mock(() => Promise.reject(new Error('Unexpected database error')));
-      const service = createMockAutotradeService({ stopAutotrade });
-      const app = createTestApp(service);
+      const autotradeService = createMockAutotradeService({ stopAutotrade });
+      const app = createTestApp({ autotradeService });
 
       const res = await request(app)
         .post('/api/autotrade/stop')
@@ -382,8 +461,8 @@ describe('Autotrade API', () => {
         totalPaid: 1.0,
         txSignatures: ['sig-1'],
       }));
-      const service = createMockAutotradeService({ getStatus });
-      const app = createTestApp(service);
+      const autotradeService = createMockAutotradeService({ getStatus });
+      const app = createTestApp({ autotradeService });
 
       const res = await request(app).get('/api/autotrade/status');
 
@@ -404,8 +483,8 @@ describe('Autotrade API', () => {
         totalPaid: 1.0,
         txSignatures: ['sig-1'],
       }));
-      const service = createMockAutotradeService({ getStatus });
-      const app = createTestApp(service);
+      const autotradeService = createMockAutotradeService({ getStatus });
+      const app = createTestApp({ autotradeService });
 
       const res = await request(app).get('/api/autotrade/status');
 
@@ -416,8 +495,8 @@ describe('Autotrade API', () => {
 
     it('returns inactive when no subscription exists', async () => {
       const getStatus = mock(() => Promise.resolve(null));
-      const service = createMockAutotradeService({ getStatus });
-      const app = createTestApp(service);
+      const autotradeService = createMockAutotradeService({ getStatus });
+      const app = createTestApp({ autotradeService });
 
       const res = await request(app).get('/api/autotrade/status');
 
@@ -429,8 +508,8 @@ describe('Autotrade API', () => {
 
     it('returns 500 when getStatus throws', async () => {
       const getStatus = mock(() => Promise.reject(new Error('DB error')));
-      const service = createMockAutotradeService({ getStatus });
-      const app = createTestApp(service);
+      const autotradeService = createMockAutotradeService({ getStatus });
+      const app = createTestApp({ autotradeService });
 
       const res = await request(app).get('/api/autotrade/status');
 
@@ -455,8 +534,8 @@ describe('Autotrade API', () => {
         totalPaid: 2.0,
         txSignatures: ['sig-1', 'sig-2'],
       }));
-      const service = createMockAutotradeService({ checkAndRenew, getStatus });
-      const app = createTestApp(service);
+      const autotradeService = createMockAutotradeService({ checkAndRenew, getStatus });
+      const app = createTestApp({ autotradeService });
 
       const res = await request(app)
         .post('/api/autotrade/renew')
@@ -475,8 +554,8 @@ describe('Autotrade API', () => {
         stopped: true,
         reason: 'Insufficient USDC balance',
       }));
-      const service = createMockAutotradeService({ checkAndRenew });
-      const app = createTestApp(service);
+      const autotradeService = createMockAutotradeService({ checkAndRenew });
+      const app = createTestApp({ autotradeService });
 
       const res = await request(app)
         .post('/api/autotrade/renew')
@@ -494,8 +573,8 @@ describe('Autotrade API', () => {
         renewed: false,
         stopped: false,
       }));
-      const service = createMockAutotradeService({ checkAndRenew });
-      const app = createTestApp(service);
+      const autotradeService = createMockAutotradeService({ checkAndRenew });
+      const app = createTestApp({ autotradeService });
 
       const res = await request(app)
         .post('/api/autotrade/renew')
@@ -510,8 +589,8 @@ describe('Autotrade API', () => {
 
     it('returns 500 when checkAndRenew throws', async () => {
       const checkAndRenew = mock(() => Promise.reject(new Error('Network error')));
-      const service = createMockAutotradeService({ checkAndRenew });
-      const app = createTestApp(service);
+      const autotradeService = createMockAutotradeService({ checkAndRenew });
+      const app = createTestApp({ autotradeService });
 
       const res = await request(app)
         .post('/api/autotrade/renew')

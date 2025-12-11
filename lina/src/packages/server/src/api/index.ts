@@ -334,20 +334,22 @@ export function createPluginRouteHandler(elizaOS: ElizaOS): express.RequestHandl
   };
 }
 
-/**
- * Singleton autotrade service instance
- * Initialized once when environment is configured
- */
-let autotradeServiceInstance: AutotradeService | null = null;
+import type { AutotradeRouterConfig } from './autotrade';
 
 /**
- * Initialize the autotrade service if environment is configured
- * Returns the service instance or null if not configured
+ * Singleton autotrade config instance
+ * Initialized once when environment is configured
  */
-function initializeAutotradeService(): AutotradeService | null {
+let autotradeConfigInstance: AutotradeRouterConfig | null = null;
+
+/**
+ * Initialize the autotrade service and payment verifier if environment is configured
+ * Returns the router config or null if not configured
+ */
+function initializeAutotradeService(): AutotradeRouterConfig | null {
   // Return existing instance if already initialized
-  if (autotradeServiceInstance) {
-    return autotradeServiceInstance;
+  if (autotradeConfigInstance) {
+    return autotradeConfigInstance;
   }
 
   // Check required environment variables
@@ -364,6 +366,7 @@ function initializeAutotradeService(): AutotradeService | null {
     const priceUsdc = parseFloat(process.env.AUTOTRADE_PRICE_USDC || '1.0');
     const durationHours = parseInt(process.env.AUTOTRADE_DURATION_HOURS || '24', 10);
     const durationMs = durationHours * 60 * 60 * 1000;
+    const priceBaseUnits = Math.floor(priceUsdc * 1_000_000).toString();
 
     // Get USDC mint for the network
     const usdcMint = network === 'mainnet-beta'
@@ -379,8 +382,12 @@ function initializeAutotradeService(): AutotradeService | null {
     // Get Solana manager instance
     const solanaManager = SolanaTransactionManager.getInstance();
 
+    // Create the payment verifier - uses NoOp for devnet, on-chain for mainnet
+    const connection = network === 'mainnet-beta' ? solanaManager.getConnection() : undefined;
+    const paymentVerifier = createPaymentVerifier(network, connection, usdcMint);
+
     // Create the service
-    autotradeServiceInstance = new AutotradeService({
+    const autotradeService = new AutotradeService({
       repository,
       solanaManager,
       treasuryWallet,
@@ -390,9 +397,16 @@ function initializeAutotradeService(): AutotradeService | null {
       usdcMint,
     });
 
+    autotradeConfigInstance = {
+      autotradeService,
+      paymentVerifier,
+      treasuryWallet,
+      priceBaseUnits,
+    };
+
     logger.info(`[Autotrade] Service initialized - network: ${network}, price: $${priceUsdc}/day, treasury: ${treasuryWallet.substring(0, 8)}...`);
 
-    return autotradeServiceInstance;
+    return autotradeConfigInstance;
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     logger.error('[Autotrade] Failed to initialize service:', msg);

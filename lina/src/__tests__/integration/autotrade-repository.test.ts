@@ -1,6 +1,6 @@
-// src/__tests__/unit/services/autotrade-repository.test.ts
+// src/__tests__/integration/autotrade-repository.test.ts
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
-import { AutotradeRepository } from '../../../services/autotrade/repository';
+import { AutotradeRepository } from '../../services/autotrade/repository';
 
 describe('AutotradeRepository', () => {
   let repo: AutotradeRepository;

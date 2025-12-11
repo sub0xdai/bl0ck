@@ -8,7 +8,10 @@
  * - SolanaPaymentVerifier: For mainnet (verifies on-chain)
  */
 import { logger } from '@elizaos/core';
-import type { Connection } from '@solana/web3.js';
+import { PublicKey, type Connection, type ParsedInstruction, type PartiallyDecodedInstruction } from '@solana/web3.js';
+
+// SPL Token program ID
+const TOKEN_PROGRAM_ID = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 
 /**
  * Parameters for payment verification
@@ -69,23 +72,26 @@ export class NoOpPaymentVerifier implements PaymentVerifier {
  * Solana on-chain payment verifier for production.
  *
  * Verifies that the transaction:
- * 1. Exists on-chain
- * 2. Did not fail
- * 3. (Future) Transferred the correct amount to the correct recipient
+ * 1. Exists on-chain and didn't fail
+ * 2. Contains an SPL token transfer to the expected recipient
+ * 3. Transferred at least the expected amount
+ * 4. Transfer was in USDC (correct mint)
  */
 export class SolanaPaymentVerifier implements PaymentVerifier {
   private connection: Connection;
+  private usdcMint: string;
 
-  constructor(connection: Connection) {
+  constructor(connection: Connection, usdcMint: string) {
     this.connection = connection;
+    this.usdcMint = usdcMint;
   }
 
   async verify(params: PaymentVerificationParams): Promise<PaymentVerificationResult> {
     const { signature, expectedAmount, expectedRecipient } = params;
 
     try {
-      // Fetch the transaction from chain
-      const tx = await this.connection.getTransaction(signature, {
+      // Fetch the parsed transaction from chain
+      const tx = await this.connection.getParsedTransaction(signature, {
         maxSupportedTransactionVersion: 0,
       });
 
@@ -106,18 +112,54 @@ export class SolanaPaymentVerifier implements PaymentVerifier {
         };
       }
 
-      // TODO: Implement full verification:
-      // 1. Parse token transfer instructions
-      // 2. Verify recipient matches expectedRecipient
-      // 3. Verify amount matches expectedAmount
-      // 4. Verify token is USDC
-      //
-      // For now, if transaction exists and didn't fail, we accept it.
-      // This is a security improvement over the previous TODO comment
-      // but still needs the amount/recipient checks for production.
+      // Parse instructions to find token transfers
+      const instructions = tx.transaction.message.instructions;
+      const tokenTransfers = this.findTokenTransfers(instructions, tx.meta?.innerInstructions);
 
-      logger.info(`[SolanaPaymentVerifier] Verified transaction: ${signature}`);
-      return { valid: true };
+      // Look for a transfer to the expected recipient with correct amount and mint
+      const expectedAmountBigInt = BigInt(expectedAmount);
+      let totalTransferred = 0n;
+      let foundTransfer = false;
+
+      for (const transfer of tokenTransfers) {
+        // Check mint is USDC
+        if (transfer.mint !== this.usdcMint) {
+          continue;
+        }
+
+        // Check destination matches expected recipient's token account
+        // The recipient could be either the wallet address or its associated token account
+        if (this.isRecipientMatch(transfer.destination, expectedRecipient)) {
+          totalTransferred += BigInt(transfer.amount);
+          foundTransfer = true;
+        }
+      }
+
+      if (!foundTransfer) {
+        logger.warn(`[SolanaPaymentVerifier] No USDC transfer found to recipient ${expectedRecipient.substring(0, 8)}...`);
+        return {
+          valid: false,
+          error: 'No USDC transfer found to expected recipient',
+          actualRecipient: tokenTransfers[0]?.destination,
+        };
+      }
+
+      if (totalTransferred < expectedAmountBigInt) {
+        logger.warn(`[SolanaPaymentVerifier] Insufficient amount: expected ${expectedAmount}, got ${totalTransferred}`);
+        return {
+          valid: false,
+          error: `Insufficient payment: expected ${expectedAmount}, received ${totalTransferred}`,
+          actualAmount: totalTransferred.toString(),
+          actualRecipient: expectedRecipient,
+        };
+      }
+
+      logger.info(`[SolanaPaymentVerifier] Verified transaction: ${signature} (${totalTransferred} to ${expectedRecipient.substring(0, 8)}...)`);
+      return {
+        valid: true,
+        actualAmount: totalTransferred.toString(),
+        actualRecipient: expectedRecipient,
+      };
 
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -128,6 +170,77 @@ export class SolanaPaymentVerifier implements PaymentVerifier {
       };
     }
   }
+
+  /**
+   * Check if a destination address matches the expected recipient.
+   * The destination could be either the wallet address itself (for native SOL)
+   * or an associated token account for that wallet.
+   */
+  private isRecipientMatch(destination: string, expectedRecipient: string): boolean {
+    if (destination === expectedRecipient) {
+      return true;
+    }
+
+    // For SPL tokens, the destination is usually an ATA (Associated Token Account)
+    // We check if the destination derives from the expected recipient
+    try {
+      const destinationPubkey = new PublicKey(destination);
+      const recipientPubkey = new PublicKey(expectedRecipient);
+      const usdcMintPubkey = new PublicKey(this.usdcMint);
+
+      // Derive the ATA for the recipient and compare
+      const [expectedAta] = PublicKey.findProgramAddressSync(
+        [recipientPubkey.toBytes(), new PublicKey(TOKEN_PROGRAM_ID).toBytes(), usdcMintPubkey.toBytes()],
+        new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL') // Associated Token Program
+      );
+
+      return destinationPubkey.equals(expectedAta);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Find all token transfer instructions from parsed transaction
+   */
+  private findTokenTransfers(
+    instructions: (ParsedInstruction | PartiallyDecodedInstruction)[],
+    innerInstructions?: { instructions: (ParsedInstruction | PartiallyDecodedInstruction)[] }[]
+  ): { mint: string; destination: string; amount: string }[] {
+    const transfers: { mint: string; destination: string; amount: string }[] = [];
+
+    // Helper to extract transfer info from a parsed instruction
+    const extractTransfer = (ix: ParsedInstruction | PartiallyDecodedInstruction) => {
+      if (!('parsed' in ix)) return;
+      if (ix.program !== 'spl-token') return;
+
+      const parsed = ix.parsed;
+      if (parsed.type === 'transfer' || parsed.type === 'transferChecked') {
+        const info = parsed.info;
+        transfers.push({
+          mint: info.mint || '',
+          destination: info.destination,
+          amount: info.amount || info.tokenAmount?.amount || '0',
+        });
+      }
+    };
+
+    // Check top-level instructions
+    for (const ix of instructions) {
+      extractTransfer(ix);
+    }
+
+    // Check inner instructions (for CPI calls)
+    if (innerInstructions) {
+      for (const inner of innerInstructions) {
+        for (const ix of inner.instructions) {
+          extractTransfer(ix);
+        }
+      }
+    }
+
+    return transfers;
+  }
 }
 
 /**
@@ -135,7 +248,8 @@ export class SolanaPaymentVerifier implements PaymentVerifier {
  */
 export function createPaymentVerifier(
   network: 'mainnet-beta' | 'devnet',
-  connection?: Connection
+  connection?: Connection,
+  usdcMint?: string
 ): PaymentVerifier {
   if (network === 'devnet') {
     logger.info('[PaymentVerifier] Using NoOpPaymentVerifier for devnet');
@@ -146,6 +260,10 @@ export function createPaymentVerifier(
     throw new Error('Connection required for mainnet payment verification');
   }
 
+  if (!usdcMint) {
+    throw new Error('USDC mint address required for mainnet payment verification');
+  }
+
   logger.info('[PaymentVerifier] Using SolanaPaymentVerifier for mainnet');
-  return new SolanaPaymentVerifier(connection);
+  return new SolanaPaymentVerifier(connection, usdcMint);
 }

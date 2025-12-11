@@ -4,7 +4,14 @@ import { logger } from '@elizaos/core';
 import type { AgentServer } from '../../index';
 import { sendError, sendSuccess } from '../shared/response-utils';
 import { requireAuth, type AuthenticatedRequest } from '../../middleware';
-import type { AutotradeService } from '@/services/autotrade';
+import type { AutotradeService, PaymentVerifier } from '@/services/autotrade';
+
+export interface AutotradeRouterConfig {
+  autotradeService: AutotradeService;
+  paymentVerifier: PaymentVerifier;
+  treasuryWallet: string;
+  priceBaseUnits: string;
+}
 
 /**
  * Create autotrade API router
@@ -12,8 +19,9 @@ import type { AutotradeService } from '@/services/autotrade';
  */
 export function autotradeRouter(
   _serverInstance: AgentServer,
-  autotradeService: AutotradeService
+  config: AutotradeRouterConfig
 ): express.Router {
+  const { autotradeService, paymentVerifier, treasuryWallet, priceBaseUnits } = config;
   const router = express.Router();
 
   // SECURITY: Require authentication for all autotrade operations
@@ -48,8 +56,18 @@ export function autotradeRouter(
         return sendError(res, 400, 'MISSING_SIGNATURE', 'Payment proof missing signature');
       }
 
-      // TODO: Add on-chain verification in production
-      // For now, trust the payment proof (devnet only)
+      // Verify the payment on-chain
+      const verification = await paymentVerifier.verify({
+        signature: proof.signature,
+        expectedAmount: priceBaseUnits,
+        expectedRecipient: treasuryWallet,
+      });
+
+      if (!verification.valid) {
+        logger.warn(`[Autotrade API] Payment verification failed: ${verification.error}`);
+        return sendError(res, 402, 'PAYMENT_INVALID', verification.error || 'Payment verification failed');
+      }
+
       await autotradeService.activateSubscription(userId, proof.signature);
 
       const status = await autotradeService.getStatus(userId);
