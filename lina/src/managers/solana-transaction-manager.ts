@@ -299,6 +299,7 @@ export class SolanaTransactionManager {
   /**
    * Get SPL token balance for a user (simple version without runtime)
    * Used by API endpoints that don't have access to agent runtime.
+   * Does NOT create token account - just reads existing balance.
    *
    * @param userId User identifier
    * @param mint SPL token mint address (Base58)
@@ -313,15 +314,24 @@ export class SolanaTransactionManager {
     const mintPubkey = new PublicKey(mint);
 
     try {
-      const ata = await getOrCreateAssociatedTokenAccount(
-        connection,
-        keypair,
-        mintPubkey,
-        keypair.publicKey
-      );
+      // Get the ATA address (doesn't create it)
+      const { getAssociatedTokenAddress } = await import('@solana/spl-token');
+      const ataAddress = await getAssociatedTokenAddress(mintPubkey, keypair.publicKey);
+
+      // Try to get the account info
+      const accountInfo = await connection.getAccountInfo(ataAddress);
+      if (!accountInfo) {
+        // No token account = 0 balance
+        return { balance: 0n, decimals: 6 };
+      }
+
+      // Parse token account data
+      const { unpackAccount } = await import('@solana/spl-token');
+      const tokenAccount = unpackAccount(ataAddress, accountInfo);
+
       return {
-        balance: ata.amount,
-        decimals: (await getMint(connection, mintPubkey)).decimals,
+        balance: tokenAccount.amount,
+        decimals: 6, // USDC is always 6 decimals
       };
     } catch (error) {
       // Token account doesn't exist = 0 balance
