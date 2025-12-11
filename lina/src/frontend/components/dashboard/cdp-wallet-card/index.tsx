@@ -20,7 +20,7 @@ import { useModal } from '../../../contexts/ModalContext';
 import { useAgentWallet, type Token, type Transaction } from '../../../contexts/AgentWalletContext';
 
 // Maintenance mode - set to true to block wallet access during development
-const WALLET_MAINTENANCE_MODE = true;
+const WALLET_MAINTENANCE_MODE = false;
 
 interface CDPWalletCardProps {
   userId: string;
