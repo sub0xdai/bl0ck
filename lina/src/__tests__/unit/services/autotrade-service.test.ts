@@ -15,11 +15,8 @@ describe('AutotradeService', () => {
       extendSubscription: mock(() => Promise.resolve()),
     };
 
+    // Mock only methods defined in SolanaOperations interface
     mockSolanaManager = {
-      getOrCreateWallet: mock(() => Promise.resolve({
-        publicKey: 'TestPublicKey123',
-        keypair: { publicKey: { toBase58: () => 'TestPublicKey123' } },
-      })),
       getTokenBalance: mock(() => Promise.resolve({ balance: 10_000_000n })), // 10 USDC
       transferToken: mock(() => Promise.resolve('tx-signature-123')),
     };
@@ -30,6 +27,7 @@ describe('AutotradeService', () => {
       treasuryWallet: 'TreasuryWallet123',
       priceUsdc: 1.0,
       durationMs: 86400000, // 24 hours
+      usdcMint: 'TestUSDCMint123', // Injected via config (SOLID compliant)
     });
   });
 

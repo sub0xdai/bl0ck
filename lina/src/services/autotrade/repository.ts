@@ -38,16 +38,11 @@ export class AutotradeRepository {
     await this.pool.end();
   }
 
-  async getSubscription(userId: string): Promise<AutotradeSubscription | null> {
-    const result = await this.pool.query(
-      `SELECT user_id, status, expires_at, activated_at, last_renewal_at, total_paid, tx_signatures
-       FROM autotrade_subscriptions WHERE user_id = $1`,
-      [userId]
-    );
-
-    if (result.rows.length === 0) return null;
-
-    const row = result.rows[0];
+  /**
+   * Maps a database row to an AutotradeSubscription entity
+   * DRY helper - used by getSubscription and getActiveSubscriptions
+   */
+  private mapRowToSubscription(row: any): AutotradeSubscription {
     return {
       userId: row.user_id,
       status: row.status,
@@ -57,6 +52,18 @@ export class AutotradeRepository {
       totalPaid: parseFloat(row.total_paid),
       txSignatures: row.tx_signatures,
     };
+  }
+
+  async getSubscription(userId: string): Promise<AutotradeSubscription | null> {
+    const result = await this.pool.query(
+      `SELECT user_id, status, expires_at, activated_at, last_renewal_at, total_paid, tx_signatures
+       FROM autotrade_subscriptions WHERE user_id = $1`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) return null;
+
+    return this.mapRowToSubscription(result.rows[0]);
   }
 
   async createSubscription(params: CreateSubscriptionParams): Promise<void> {
@@ -102,14 +109,6 @@ export class AutotradeRepository {
        FROM autotrade_subscriptions WHERE status = 'active'`
     );
 
-    return result.rows.map(row => ({
-      userId: row.user_id,
-      status: row.status,
-      expiresAt: Number(row.expires_at),
-      activatedAt: Number(row.activated_at),
-      lastRenewalAt: Number(row.last_renewal_at),
-      totalPaid: parseFloat(row.total_paid),
-      txSignatures: row.tx_signatures,
-    }));
+    return result.rows.map(row => this.mapRowToSubscription(row));
   }
 }

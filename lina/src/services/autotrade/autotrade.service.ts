@@ -1,7 +1,6 @@
 // src/services/autotrade/autotrade.service.ts
 import { logger } from '@elizaos/core';
 import type { AutotradeRepository } from './repository';
-import { USDC_MINT_DEVNET, USDC_MINT_MAINNET } from '../../plugins/plugin-x402-solana/src/constants';
 
 export interface X402PaymentRequired {
   accepts: {
@@ -35,6 +34,8 @@ export interface AutotradeServiceConfig {
   priceUsdc: number;
   durationMs: number;
   network?: 'mainnet-beta' | 'devnet';
+  /** USDC mint address - injected to avoid coupling to x402 plugin */
+  usdcMint: string;
 }
 
 export interface CheckRenewResult {
@@ -59,9 +60,7 @@ export class AutotradeService {
     this.priceUsdc = config.priceUsdc;
     this.durationMs = config.durationMs;
     this.network = config.network === 'mainnet-beta' ? 'solana-mainnet' : 'solana-devnet';
-    this.usdcMint = config.network === 'mainnet-beta'
-      ? USDC_MINT_MAINNET.toBase58()
-      : USDC_MINT_DEVNET.toBase58();
+    this.usdcMint = config.usdcMint;
   }
 
   async getPaymentRequired(userId: string): Promise<X402PaymentRequired> {
