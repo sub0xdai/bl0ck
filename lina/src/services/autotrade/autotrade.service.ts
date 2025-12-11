@@ -27,6 +27,12 @@ export interface SolanaOperations {
   }): Promise<string>;
 }
 
+/**
+ * Callback invoked when autotrade stops (user-initiated or auto-renewal failure)
+ * Use to close open positions or clean up state
+ */
+export type OnStopCallback = (userId: string, reason: string) => Promise<void>;
+
 export interface AutotradeServiceConfig {
   repository: AutotradeRepository;
   solanaManager: SolanaOperations;
@@ -36,6 +42,8 @@ export interface AutotradeServiceConfig {
   network?: 'mainnet-beta' | 'devnet';
   /** USDC mint address - injected to avoid coupling to x402 plugin */
   usdcMint: string;
+  /** Optional callback invoked when autotrade stops - use to close positions */
+  onStop?: OnStopCallback;
 }
 
 export interface CheckRenewResult {
@@ -52,6 +60,7 @@ export class AutotradeService {
   private durationMs: number;
   private network: 'solana-mainnet' | 'solana-devnet';
   private usdcMint: string;
+  private onStop?: OnStopCallback;
 
   constructor(config: AutotradeServiceConfig) {
     this.repo = config.repository;
@@ -61,6 +70,7 @@ export class AutotradeService {
     this.durationMs = config.durationMs;
     this.network = config.network === 'mainnet-beta' ? 'solana-mainnet' : 'solana-devnet';
     this.usdcMint = config.usdcMint;
+    this.onStop = config.onStop;
   }
 
   async getPaymentRequired(userId: string): Promise<X402PaymentRequired> {
@@ -111,6 +121,18 @@ export class AutotradeService {
 
     await this.repo.deactivateSubscription(userId);
     logger.info(`[AutotradeService] Stopped autotrade for ${userId.substring(0, 8)}...`);
+
+    // Invoke onStop callback (e.g., to close positions)
+    if (this.onStop) {
+      try {
+        await this.onStop(userId, 'User requested stop');
+        logger.info(`[AutotradeService] onStop callback completed for ${userId.substring(0, 8)}...`);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        logger.error(`[AutotradeService] onStop callback failed for ${userId.substring(0, 8)}...: ${msg}`);
+        // Don't rethrow - stop was successful, callback failure is secondary
+      }
+    }
   }
 
   async checkAndRenew(userId: string): Promise<CheckRenewResult> {
@@ -137,6 +159,17 @@ export class AutotradeService {
         // Insufficient funds - stop autotrade
         await this.repo.deactivateSubscription(userId);
         logger.warn(`[AutotradeService] Insufficient USDC for renewal, stopping autotrade for ${userId.substring(0, 8)}...`);
+
+        // Invoke onStop callback
+        if (this.onStop) {
+          try {
+            await this.onStop(userId, 'Insufficient USDC balance');
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            logger.error(`[AutotradeService] onStop callback failed: ${msg}`);
+          }
+        }
+
         return { renewed: false, stopped: true, reason: 'Insufficient USDC balance' };
       }
 
@@ -161,6 +194,17 @@ export class AutotradeService {
 
       // Deactivate on failure
       await this.repo.deactivateSubscription(userId);
+
+      // Invoke onStop callback
+      if (this.onStop) {
+        try {
+          await this.onStop(userId, `Renewal failed: ${msg}`);
+        } catch (callbackError) {
+          const callbackMsg = callbackError instanceof Error ? callbackError.message : String(callbackError);
+          logger.error(`[AutotradeService] onStop callback failed: ${callbackMsg}`);
+        }
+      }
+
       return { renewed: false, stopped: true, reason: msg };
     }
   }
