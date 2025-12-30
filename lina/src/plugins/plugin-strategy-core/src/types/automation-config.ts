@@ -68,6 +68,9 @@ export interface AutomationState {
     /** Last trade timestamp per asset (for cooldown enforcement) */
     lastTradeTimestamps: Record<string, number>;
 
+    /** Position open timestamps per asset (for maxHoldMinutes enforcement) */
+    positionOpenTimes: Record<string, number>;
+
     /** Cumulative PnL for this session (for circuit breaker calculation) */
     sessionPnL: number;
 
@@ -118,6 +121,7 @@ export function createInitialState(
         circuitBreakerTripped: false,
         circuitBreakerTrippedAt: undefined,
         lastTradeTimestamps: {},
+        positionOpenTimes: {},
         sessionPnL: 0,
         cycleCount: 0,
         errors: [],

@@ -10,7 +10,9 @@
 
 1. **Automation Phase 1: COMPLETE** (`09a47d0`) - Types, state, safety utilities
 2. **Automation Phase 2: COMPLETE** (`9385445`) - SignalsService, RiskManager, StrategyLoop
-3. **Automation Phase 3: COMPLETE** - Execution safeguards, slippage, PnL tracking, PositionMonitor
+3. **Automation Phase 3: COMPLETE** (`2276695`) - Execution safeguards, slippage, PnL tracking
+4. **Automation Phase 3.1: COMPLETE** - USD-based PnL, persisted position times, fixes
+5. **Automation Phase 4: COMPLETE** - User control actions (STATUS, TOGGLE, UPDATE, CLOSE)
 
 ---
 
@@ -19,102 +21,98 @@
 | Component | Status |
 |-----------|--------|
 | Drift LONG/SHORT | Working |
-| Hyperliquid perps | Working |
-| Automation Phase 1 | Complete (types, state, utils) |
-| Automation Phase 2 | Complete (signals, risk, loop) |
-| Automation Phase 3 | Complete (execution, monitoring) |
-| MIN_COLLATERAL | $1 (testing) |
+| Automation Phase 1-4 | Complete |
+| User Actions | 4 actions ready |
 
 **Tests:** 104 passing
 
 ---
 
-## Architecture (plugin-strategy-core)
+## Architecture
 
 ```
 StrategyLoop (5-min cycles)
-    ├── SignalsService
-    │   ├── OpenBB (RSI/MACD) [optional]
-    │   ├── CoinGecko (7d trend fallback)
-    │   ├── CoinDesk (news sentiment)
-    │   └── DeFiLlama (TVL/volume)
-    │
-    ├── RiskManager
-    │   ├── Exposure tracking (% of equity)
-    │   ├── Position sizing (scaled by confidence)
-    │   ├── CircuitBreaker (mutex-protected)
-    │   └── TradeCooldown (per-asset)
-    │
-    ├── PositionMonitor (Phase 3)
-    │   ├── Stop-loss triggers
-    │   ├── Take-profit triggers
-    │   └── Max hold time enforcement
-    │
-    └── DriftService (execution)
-        └── Slippage protection (Phase 3)
+    ├── SignalsService (OpenBB/CoinGecko/CoinDesk/DeFiLlama)
+    ├── RiskManager (exposure, sizing, circuit breaker, cooldown)
+    ├── PositionMonitor (SL/TP/hold time - USD-based PnL)
+    └── DriftService (slippage-protected execution)
+
+User Actions (Phase 4):
+    ├── STRATEGY_STATUS  - Show current state
+    ├── STRATEGY_TOGGLE  - Enable/disable automation
+    ├── STRATEGY_UPDATE  - Update configuration
+    └── STRATEGY_CLOSE   - Manual position close
 ```
 
 ---
 
-## Phase 3 Features
+## Phase 3.1 Fixes (Addressed Critiques)
 
-| Feature | Implementation |
-|---------|----------------|
-| Slippage Protection | `maxSlippageBps` in config, price limits on orders |
-| Pre-trade Validation | `validatePreTradePrice()` with drift tolerance |
-| PnL Tracking | Realized PnL on position flips, feeds circuit breaker |
-| Position Monitoring | `PositionMonitor` service with SL/TP/hold time |
-| Error Taxonomy | 6 new error codes (TX_TIMEOUT, SLIPPAGE_EXCEEDED, etc.) |
+| Issue | Fix |
+|-------|-----|
+| PnL Mismatch | `calculateActualPnlPct()` uses USD unrealizedPnl/notionalValue |
+| Volatile Restarts | `positionOpenTimes` persisted in AutomationStateStore (PostgreSQL) |
+| Race Conditions | Pending - mutex coordination between PositionMonitor/StrategyLoop |
 
 ---
 
-## Files Created (Phase 1 + 2 + 3)
+## Phase 4 Actions
 
-**Types:** `automation-config.ts`, `signals.ts`, `risk.ts`, `errors.ts`, `execution.ts`
-**State:** `automation-state.store.ts` (PostgreSQL via WALLET_DB_URL)
-**Utils:** `circuit-breaker.ts`, `trade-cooldown.ts`
-**Services:** `openbb.service.ts`, `signals.service.ts`, `risk-manager.service.ts`, `position-monitor.service.ts`
-**Tests:** `circuit-breaker.test.ts`, `trade-cooldown.test.ts`, `risk-manager.test.ts`, `execution.test.ts`, `position-monitor.test.ts`
+| Action | Description | Parameters |
+|--------|-------------|------------|
+| `STRATEGY_STATUS` | Show automation state, config, positions | None |
+| `STRATEGY_TOGGLE` | Enable/disable automation | `action`, `closePositions` |
+| `STRATEGY_UPDATE` | Update config parameters | All config fields |
+| `STRATEGY_CLOSE` | Close positions manually | `asset`, `closeAll`, `percentage` |
 
 ---
 
-## Safety Defaults
+## Configuration Options
 
 ```typescript
 {
-  maxPositionPct: 5,        // 5% of equity per position
-  maxExposurePct: 25,       // 25% total exposure
-  maxLeverage: 3,           // Conservative cap
-  circuitBreakerPct: 10,    // 10% drawdown stops trading
-  cooldownMinutes: 5,       // 5min between trades on same asset
-  allowShorts: false,       // Longs only by default
-  // Phase 3
-  maxSlippageBps: 50,       // 0.5% slippage tolerance
-  maxPriceDriftBps: 100,    // 1% max price drift from signal
-  stopLossPct: undefined,   // Optional - no default
-  takeProfitPct: undefined, // Optional - no default
-  maxHoldMinutes: undefined, // Optional - no default
+  // Core
+  enabled, intervalMinutes, assets, allowShorts,
+  // Risk
+  maxPositionPct, maxExposurePct, maxLeverage,
+  circuitBreakerPct, cooldownMinutes,
+  // Execution (Phase 3)
+  maxSlippageBps, maxPriceDriftBps,
+  stopLossPct?, takeProfitPct?, maxHoldMinutes?,
 }
+```
+
+---
+
+## Files Structure
+
+```
+plugin-strategy-core/
+├── src/
+│   ├── actions/           # Phase 4 user actions
+│   │   ├── strategy-status.action.ts
+│   │   ├── strategy-toggle.action.ts
+│   │   ├── strategy-update.action.ts
+│   │   └── strategy-close.action.ts
+│   ├── services/          # Core services
+│   ├── state/             # PostgreSQL persistence
+│   ├── types/             # Type definitions
+│   └── utils/             # CircuitBreaker, Cooldown
+└── __tests__/             # 104 tests
 ```
 
 ---
 
 ## Next Steps
 
-**Phase 4: User Controls**
-- [ ] Enable/disable automation actions
-- [ ] Status action (show current state)
-- [ ] Config update action
-- [ ] Position close action
+**Remaining:**
+- [ ] Race condition coordination (mutex between PositionMonitor/StrategyLoop)
+- [ ] Integration testing with live Drift
 
----
-
-## OpenBB Setup (Optional)
-
-```bash
-docker run -it --rm -p 6900:6900 openbb-platform:latest
-# Falls back to CoinGecko if unavailable
-```
+**Future:**
+- [ ] WebSocket position updates
+- [ ] Telegram/Discord notifications
+- [ ] Multi-strategy support
 
 ---
 

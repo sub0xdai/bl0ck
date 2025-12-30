@@ -24,6 +24,7 @@ interface AutomationStateRow {
     circuit_breaker_tripped: boolean;
     circuit_breaker_tripped_at: number | null;
     last_trade_timestamps: string; // JSON stringified Record<string, number>
+    position_open_times: string; // JSON stringified Record<string, number>
     session_pnl: string; // DECIMAL as string
     cycle_count: number;
     errors: string[]; // TEXT[]
@@ -43,6 +44,7 @@ CREATE TABLE IF NOT EXISTS lina_automation.automation_states (
     circuit_breaker_tripped BOOLEAN NOT NULL DEFAULT false,
     circuit_breaker_tripped_at BIGINT,
     last_trade_timestamps JSONB NOT NULL DEFAULT '{}'::jsonb,
+    position_open_times JSONB NOT NULL DEFAULT '{}'::jsonb,
     session_pnl DECIMAL(18, 6) NOT NULL DEFAULT 0,
     cycle_count INTEGER NOT NULL DEFAULT 0,
     errors TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
@@ -51,6 +53,20 @@ CREATE TABLE IF NOT EXISTS lina_automation.automation_states (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migration for existing tables (Phase 3.1)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'lina_automation'
+        AND table_name = 'automation_states'
+        AND column_name = 'position_open_times'
+    ) THEN
+        ALTER TABLE lina_automation.automation_states
+        ADD COLUMN position_open_times JSONB NOT NULL DEFAULT '{}'::jsonb;
+    END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_automation_enabled ON lina_automation.automation_states((config->>'enabled'));
 CREATE INDEX IF NOT EXISTS idx_automation_circuit_breaker ON lina_automation.automation_states(circuit_breaker_tripped);
@@ -166,6 +182,9 @@ export class AutomationStateStore {
             lastTradeTimestamps: typeof row.last_trade_timestamps === 'string'
                 ? JSON.parse(row.last_trade_timestamps)
                 : row.last_trade_timestamps,
+            positionOpenTimes: typeof row.position_open_times === 'string'
+                ? JSON.parse(row.position_open_times)
+                : (row.position_open_times || {}),
             sessionPnL: parseFloat(row.session_pnl),
             cycleCount: row.cycle_count,
             errors: row.errors || [],
@@ -219,14 +238,15 @@ export class AutomationStateStore {
                 await client.query(
                     `INSERT INTO lina_automation.automation_states (
                         user_id, config, circuit_breaker_tripped, circuit_breaker_tripped_at,
-                        last_trade_timestamps, session_pnl, cycle_count, errors,
+                        last_trade_timestamps, position_open_times, session_pnl, cycle_count, errors,
                         started_at, last_cycle_at
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                     ON CONFLICT (user_id) DO UPDATE SET
                         config = EXCLUDED.config,
                         circuit_breaker_tripped = EXCLUDED.circuit_breaker_tripped,
                         circuit_breaker_tripped_at = EXCLUDED.circuit_breaker_tripped_at,
                         last_trade_timestamps = EXCLUDED.last_trade_timestamps,
+                        position_open_times = EXCLUDED.position_open_times,
                         session_pnl = EXCLUDED.session_pnl,
                         cycle_count = EXCLUDED.cycle_count,
                         errors = EXCLUDED.errors,
@@ -238,6 +258,7 @@ export class AutomationStateStore {
                         state.circuitBreakerTripped,
                         state.circuitBreakerTrippedAt ?? null,
                         JSON.stringify(state.lastTradeTimestamps),
+                        JSON.stringify(state.positionOpenTimes),
                         state.sessionPnL,
                         state.cycleCount,
                         state.errors,
@@ -289,6 +310,10 @@ export class AutomationStateStore {
             if (updates.lastTradeTimestamps !== undefined) {
                 setClauses.push(`last_trade_timestamps = $${paramIndex++}`);
                 values.push(JSON.stringify(updates.lastTradeTimestamps));
+            }
+            if (updates.positionOpenTimes !== undefined) {
+                setClauses.push(`position_open_times = $${paramIndex++}`);
+                values.push(JSON.stringify(updates.positionOpenTimes));
             }
             if (updates.sessionPnL !== undefined) {
                 setClauses.push(`session_pnl = $${paramIndex++}`);
@@ -399,6 +424,40 @@ export class AutomationStateStore {
         };
 
         await this.updateState(userId, { lastTradeTimestamps: updatedTimestamps });
+    }
+
+    /**
+     * Record when a position was opened (for maxHoldMinutes enforcement)
+     */
+    public async recordPositionOpen(userId: string, asset: string, timestamp?: number): Promise<void> {
+        const state = await this.getState(userId);
+        if (!state) return;
+
+        const updatedTimes = {
+            ...state.positionOpenTimes,
+            [asset]: timestamp ?? Date.now(),
+        };
+
+        await this.updateState(userId, { positionOpenTimes: updatedTimes });
+    }
+
+    /**
+     * Clear position open time when closed (for maxHoldMinutes)
+     */
+    public async clearPositionOpen(userId: string, asset: string): Promise<void> {
+        const state = await this.getState(userId);
+        if (!state) return;
+
+        const { [asset]: _, ...remainingTimes } = state.positionOpenTimes;
+        await this.updateState(userId, { positionOpenTimes: remainingTimes });
+    }
+
+    /**
+     * Get position open time for an asset
+     */
+    public async getPositionOpenTime(userId: string, asset: string): Promise<number | undefined> {
+        const state = await this.getState(userId);
+        return state?.positionOpenTimes[asset];
     }
 
     /**

@@ -11,14 +11,35 @@ import type { AutomationConfig } from '../types/automation-config';
 
 /**
  * Position data from DriftService
+ *
+ * IMPORTANT: Uses USD-based PnL from DriftService, not price-based calculation.
+ * This accounts for funding rates, fees, and other factors that affect actual PnL.
  */
-interface MonitoredPosition {
+export interface MonitoredPosition {
     marketSymbol: string;
     side: 'long' | 'short';
     entryPrice: number;
     currentPrice: number;
+    /** USD value of unrealized PnL (includes funding, fees) */
+    unrealizedPnlUsd: number;
+    /** Notional value of position in USD */
+    notionalValueUsd: number;
+    /** Calculated PnL percentage based on actual USD values */
     unrealizedPnlPct: number;
     openedAt: number;
+}
+
+/**
+ * Calculate actual PnL percentage from USD values.
+ * This is more accurate than price-based calculation as it includes
+ * funding rates, fees, and other factors.
+ */
+export function calculateActualPnlPct(
+    unrealizedPnlUsd: number,
+    notionalValueUsd: number
+): number {
+    if (notionalValueUsd === 0) return 0;
+    return (unrealizedPnlUsd / notionalValueUsd) * 100;
 }
 
 /**
@@ -111,7 +132,11 @@ export class PositionMonitor {
     }
 
     /**
-     * Calculate unrealized PnL percentage
+     * Calculate unrealized PnL percentage from price change.
+     *
+     * @deprecated Use calculateActualPnlPct() with USD values from DriftService instead.
+     * Price-based calculation doesn't account for funding rates, fees, or slippage.
+     * This method is kept for backwards compatibility with tests.
      */
     calculatePnlPct(
         side: 'long' | 'short',
