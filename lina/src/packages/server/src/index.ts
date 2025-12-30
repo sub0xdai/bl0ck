@@ -200,6 +200,20 @@ export class AgentServer {
     // Delegate to ElizaOS for config/plugin resolution and agent creation
     const agentIds = await this.elizaOS.addAgents(agentConfigs, options);
 
+    // Patch runtimes to skip migrations if env var is set
+    if (process.env.SKIP_DB_MIGRATIONS === 'true') {
+      for (const id of agentIds) {
+        const runtime = this.elizaOS.getAgent(id);
+        if (runtime) {
+          const originalInit = runtime.initialize.bind(runtime);
+          runtime.initialize = async (opts?: any) => {
+            return originalInit({ ...opts, skipMigrations: true });
+          };
+        }
+      }
+      logger.warn('[INIT] Patched agent runtimes to skip migrations (SKIP_DB_MIGRATIONS=true)');
+    }
+
     // Start all agents
     await this.elizaOS.startAgents(agentIds);
 
