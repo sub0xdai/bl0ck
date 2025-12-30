@@ -6,50 +6,95 @@
 
 ## Summary
 
-**SHORT positions bug: RESOLVED** (Dec 31, 2025)
+**Session: Dec 31, 2025**
 
-Drift SHORT positions were returning hallucinated transaction hashes while LONG worked fine. Root cause: missing messageExample in character.ts for SHORT actions.
+1. **SHORT positions bug: RESOLVED** - Fixed hallucinated tx hashes
+2. **Root directory cleanup: DONE** - Removed 7 outdated MD files
+3. **Automation Phase 1: COMPLETE** - Types, state persistence, safety utilities
 
 ---
 
-## Resolution
+## Completed Today
 
-### Root Cause
-- `character.ts` had a messageExample for LONG but not SHORT
-- ElizaOS uses messageExamples to guide LLM action routing
-- LLM knew how to route LONG → `DRIFT_OPEN_LONG`
-- LLM didn't know how to route SHORT → hallucinated response
+### 1. SHORT Bug Fix
+- **Root cause:** Missing messageExample in `character.ts` for SHORT actions
+- **Fix:** Added SHORT example (commit `5874b8c`)
+- **Verification:** Real tx on Solscan `Jx4nVADtPkvf2NGEMaP8tXBzKNAGedmce6QaLz2D885q...`
 
-### Fixes Applied
-1. **Added SHORT messageExample** to `character.ts` (commit `5874b8c`)
-2. **Lowered MIN_COLLATERAL** to $1 for testing (commit `6cc9d17`)
+### 2. Automation Phase 1: Foundation (plugin-strategy-core)
+**New Files Created:**
+- `types/automation-config.ts` - AutomationConfig, AutomationState interfaces
+- `types/signals.ts` - Signal, SignalSource, aggregation logic
+- `types/risk.ts` - RiskAssessment, ExposureSnapshot, position sizing
+- `types/errors.ts` - TradingError class with codes
+- `state/automation-state.store.ts` - PostgreSQL persistence (lina_automation schema)
+- `utils/circuit-breaker.ts` - AsyncMutex-protected circuit breaker (10% threshold)
+- `utils/trade-cooldown.ts` - Per-asset cooldown (5min default)
 
-### Verification
-- SHORT tx confirmed on Solscan: `Jx4nVADtPkvf2NGEMaP8tXBzKNAGedmce6QaLz2D885q...`
-- Drift V2 Program execution: SUCCESS, Finalized
+**Tests:** 59 passing tests for circuit-breaker and trade-cooldown
+
+**Key Features:**
+- Circuit breaker with mutex prevents race conditions
+- Trade cooldowns prevent whipsaw
+- Database persistence via WALLET_DB_URL
+- Full type safety with TradingError codes
 
 ---
 
 ## Current State
 
-Both LONG and SHORT positions working correctly on Drift Protocol (Solana mainnet).
-
-### Debug Logging (can be removed)
-- `drift.service.ts:109-120` - Service startup logging
-- `drift.service.ts:391-408` - Order params debug
-- `drift.service.ts:427-437` - Position data debug
-- `action-factory.ts:101-115` - Validate function logging
-
----
-
-## Known Issues (Unrelated)
-- Railway showing `tasks` table query errors (ElizaOS DB schema issue)
-- These don't affect Drift functionality
+| Component | Status |
+|-----------|--------|
+| Drift LONG/SHORT | Working |
+| Hyperliquid perps | Working |
+| Automation Phase 1 | Complete |
+| MIN_COLLATERAL | $1 (testing) |
 
 ---
 
-## Notes
+## Next Steps
 
-- MIN_COLLATERAL currently $1 (testing) - consider raising to $10 for production
-- messageExamples in character.ts are critical for action routing
-- Both Drift and Hyperliquid have overlapping similes - messageExamples disambiguate
+**Phase 2: SignalsService + RiskManager**
+- [ ] SignalsService (trend + news + volume signals)
+- [ ] RiskManager (exposure tracking, position sizing)
+- [ ] Enhance StrategyLoop with dry-run mode
+
+**Phase 3: Execution + Safety**
+- [ ] execute-signal.ts (pure function)
+- [ ] Connect to DriftService
+- [ ] Position flip logic
+
+**Phase 4: User Controls**
+- [ ] Enable/disable actions
+- [ ] Config persistence
+- [ ] Status reporting
+
+---
+
+## Architecture (plugin-strategy-core)
+
+```
+StrategyLoop (orchestrates every N minutes)
+    ├── SignalsService (aggregate data → weighted score)
+    ├── RiskManager (exposure tracking, circuit breaker)
+    └── DriftService (execution - NO wrapper)
+```
+
+**Safety Defaults:**
+- maxPositionPct: 5%
+- maxExposurePct: 25%
+- maxLeverage: 3x
+- circuitBreakerPct: 10%
+- cooldownMinutes: 5
+
+---
+
+## Debug Logging (can be removed)
+- `drift.service.ts:109-120` - Service startup
+- `drift.service.ts:391-408` - Order params
+- `action-factory.ts:101-115` - Validate function
+
+---
+
+## Known Issues
+- Railway `tasks` table errors (ElizaOS DB schema) - doesn't affect Drift
