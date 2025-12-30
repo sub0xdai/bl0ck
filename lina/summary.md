@@ -8,28 +8,9 @@
 
 **Session: Dec 31, 2025**
 
-1. **SHORT positions bug: RESOLVED** - Fixed hallucinated tx hashes
-2. **Automation Phase 1: COMPLETE** - Types, state persistence, safety utilities
-3. **Automation Phase 2: COMPLETE** - SignalsService, RiskManager, StrategyLoop enhanced
-
----
-
-## Completed Today
-
-### Automation Phase 2: Core Services
-
-**New Services Created:**
-- `openbb.service.ts` - OpenBB REST API integration (OHLCV, RSI, MACD, news)
-- `signals.service.ts` - Multi-source signal aggregation (trend + news + volume)
-- `risk-manager.service.ts` - Exposure tracking, position sizing, circuit breaker
-
-**StrategyLoop Enhanced:**
-- Integrates SignalsService and RiskManager
-- Supports dry-run mode for testing
-- Per-user automation with database persistence
-- Handles position flips (close before reverse)
-
-**Tests:** 75 passing tests (16 new RiskManager tests)
+1. **Automation Phase 1: COMPLETE** (`09a47d0`) - Types, state, safety utilities
+2. **Automation Phase 2: COMPLETE** (`9385445`) - SignalsService, RiskManager, StrategyLoop
+3. **Automation Phase 3: COMPLETE** - Execution safeguards, slippage, PnL tracking, PositionMonitor
 
 ---
 
@@ -39,56 +20,61 @@
 |-----------|--------|
 | Drift LONG/SHORT | Working |
 | Hyperliquid perps | Working |
-| Automation Phase 1 | Complete |
-| Automation Phase 2 | Complete |
+| Automation Phase 1 | Complete (types, state, utils) |
+| Automation Phase 2 | Complete (signals, risk, loop) |
+| Automation Phase 3 | Complete (execution, monitoring) |
 | MIN_COLLATERAL | $1 (testing) |
+
+**Tests:** 104 passing
 
 ---
 
 ## Architecture (plugin-strategy-core)
 
 ```
-StrategyLoop (orchestrates every 5 minutes)
+StrategyLoop (5-min cycles)
     ├── SignalsService
-    │   ├── OpenBB (technicals: RSI, MACD) [optional]
-    │   ├── CoinGecko (price trends)
-    │   ├── CoinDesk/WebSearch (news sentiment)
+    │   ├── OpenBB (RSI/MACD) [optional]
+    │   ├── CoinGecko (7d trend fallback)
+    │   ├── CoinDesk (news sentiment)
     │   └── DeFiLlama (TVL/volume)
     │
     ├── RiskManager
-    │   ├── Exposure tracking
-    │   ├── Position sizing (% equity, scaled by confidence)
+    │   ├── Exposure tracking (% of equity)
+    │   ├── Position sizing (scaled by confidence)
     │   ├── CircuitBreaker (mutex-protected)
     │   └── TradeCooldown (per-asset)
     │
+    ├── PositionMonitor (Phase 3)
+    │   ├── Stop-loss triggers
+    │   ├── Take-profit triggers
+    │   └── Max hold time enforcement
+    │
     └── DriftService (execution)
+        └── Slippage protection (Phase 3)
 ```
 
 ---
 
-## Next Steps
+## Phase 3 Features
 
-**Phase 3: Execution + Safety**
-- [ ] Wire up real execution path testing
-- [ ] Add slippage protection
-- [ ] Position monitoring loop
-
-**Phase 4: User Controls**
-- [ ] Enable/disable automation actions
-- [ ] Status reporting action
-- [ ] Config update action
+| Feature | Implementation |
+|---------|----------------|
+| Slippage Protection | `maxSlippageBps` in config, price limits on orders |
+| Pre-trade Validation | `validatePreTradePrice()` with drift tolerance |
+| PnL Tracking | Realized PnL on position flips, feeds circuit breaker |
+| Position Monitoring | `PositionMonitor` service with SL/TP/hold time |
+| Error Taxonomy | 6 new error codes (TX_TIMEOUT, SLIPPAGE_EXCEEDED, etc.) |
 
 ---
 
-## Signal Weights
+## Files Created (Phase 1 + 2 + 3)
 
-| Source | Weight | Provider |
-|--------|--------|----------|
-| Trend | 50% | OpenBB RSI/MACD or CoinGecko 7d |
-| News | 30% | CoinDesk/WebSearch sentiment |
-| Volume | 20% | DeFiLlama TVL changes |
-
-**Signal threshold:** Confidence ≥ 0.6 for non-neutral signal
+**Types:** `automation-config.ts`, `signals.ts`, `risk.ts`, `errors.ts`, `execution.ts`
+**State:** `automation-state.store.ts` (PostgreSQL via WALLET_DB_URL)
+**Utils:** `circuit-breaker.ts`, `trade-cooldown.ts`
+**Services:** `openbb.service.ts`, `signals.service.ts`, `risk-manager.service.ts`, `position-monitor.service.ts`
+**Tests:** `circuit-breaker.test.ts`, `trade-cooldown.test.ts`, `risk-manager.test.ts`, `execution.test.ts`, `position-monitor.test.ts`
 
 ---
 
@@ -102,28 +88,33 @@ StrategyLoop (orchestrates every 5 minutes)
   circuitBreakerPct: 10,    // 10% drawdown stops trading
   cooldownMinutes: 5,       // 5min between trades on same asset
   allowShorts: false,       // Longs only by default
+  // Phase 3
+  maxSlippageBps: 50,       // 0.5% slippage tolerance
+  maxPriceDriftBps: 100,    // 1% max price drift from signal
+  stopLossPct: undefined,   // Optional - no default
+  takeProfitPct: undefined, // Optional - no default
+  maxHoldMinutes: undefined, // Optional - no default
 }
 ```
 
 ---
 
-## OpenBB Integration
+## Next Steps
 
-Requires OpenBB Platform running locally:
-```bash
-docker run -it --rm -p 6900:6900 openbb-platform:latest
-# OR
-pip install openbb && openbb-api --port 6900
-```
-
-Falls back to CoinGecko if OpenBB unavailable.
+**Phase 4: User Controls**
+- [ ] Enable/disable automation actions
+- [ ] Status action (show current state)
+- [ ] Config update action
+- [ ] Position close action
 
 ---
 
-## Debug Logging (can be removed)
-- `drift.service.ts:109-120` - Service startup
-- `drift.service.ts:391-408` - Order params
-- `action-factory.ts:101-115` - Validate function
+## OpenBB Setup (Optional)
+
+```bash
+docker run -it --rm -p 6900:6900 openbb-platform:latest
+# Falls back to CoinGecko if unavailable
+```
 
 ---
 

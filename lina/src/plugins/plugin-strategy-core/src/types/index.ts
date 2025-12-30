@@ -35,3 +35,12 @@ export {
     isTradingError,
     isRecoverableError,
 } from './errors';
+
+export {
+    type ExecutionParams,
+    type PriceValidationResult,
+    calculateSlippagePrice,
+    validatePreTradePrice,
+    bpsToPercent,
+    percentToBps,
+} from './execution';

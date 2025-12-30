@@ -421,28 +421,45 @@ export class StrategyLoop extends Service {
         try {
             // Check if we need to close existing position first (flip)
             const wouldFlip = await this.riskManager.wouldFlipPosition(userId, signal);
+            let realizedPnL = 0;
 
             if (wouldFlip) {
                 logger.info(`[STRATEGY_LOOP] Flipping position for ${signal.asset}`);
+
+                // Get current position's unrealized PnL before closing
+                const existingPosition = await driftService.getPosition(userId, signal.asset);
+                if (existingPosition) {
+                    realizedPnL = parseFloat(existingPosition.unrealizedPnl) || 0;
+                    logger.info(
+                        `[STRATEGY_LOOP] Closing ${signal.asset} position with PnL: $${realizedPnL.toFixed(2)}`
+                    );
+                }
 
                 // Close existing position
                 await driftService.closePosition(userId, {
                     marketSymbol: signal.asset,
                     percentage: 100,
                 });
+
+                // Record the realized PnL from closing (Phase 3: proper PnL tracking)
+                await this.riskManager.recordTrade(userId, signal.asset, realizedPnL, config);
             }
 
-            // Open new position
+            // Open new position with slippage protection
             const result = await driftService.openPosition(userId, {
                 marketSymbol: signal.asset,
                 side: signal.direction.toLowerCase() as 'long' | 'short',
                 size: riskAssessment.suggestedSizeUsd,
                 leverage: riskAssessment.suggestedLeverage,
                 orderType: 'market',
+                slippageBps: config.maxSlippageBps, // Phase 3: slippage protection
             });
 
-            // Record trade for cooldown
-            await this.riskManager.recordTrade(userId, signal.asset, 0, config);
+            // Record cooldown for new position (no PnL for opening)
+            if (!wouldFlip) {
+                // Only record if we didn't already record during flip
+                await this.riskManager.recordTrade(userId, signal.asset, 0, config);
+            }
 
             logger.info(
                 `[STRATEGY_LOOP] ${signal.asset}: ${signal.direction} executed - ` +

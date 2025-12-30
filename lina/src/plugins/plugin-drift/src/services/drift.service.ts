@@ -387,12 +387,35 @@ export class DriftService extends Service {
       // Determine direction
       const direction = params.side === 'long' ? PositionDirection.LONG : PositionDirection.SHORT;
 
-      // Place market order
+      // Calculate slippage-protected price limit if slippageBps provided
+      // For LONGs: max price = oracle + slippage (willing to pay up to X% more)
+      // For SHORTs: min price = oracle - slippage (willing to sell at X% less)
+      const slippageBps = params.slippageBps ?? CONFIG.DEFAULT_SLIPPAGE * 100; // Convert % to bps
+      const oraclePriceNum = Number(oraclePrice.toString()) / PRICE_PRECISION.toNumber();
+      const slippageMultiplier = slippageBps / 10000;
+      let priceLimit: BN | undefined;
+
+      if (slippageBps > 0) {
+        if (params.side === 'long') {
+          // Max price we're willing to pay
+          const maxPrice = oraclePriceNum * (1 + slippageMultiplier);
+          priceLimit = new BN(Math.floor(maxPrice * 1_000_000)); // PRICE_PRECISION
+          logger.info(`[DRIFT_SERVICE] Slippage protection: maxPrice=${maxPrice.toFixed(4)} (${slippageBps}bps above oracle)`);
+        } else {
+          // Min price we're willing to receive
+          const minPrice = oraclePriceNum * (1 - slippageMultiplier);
+          priceLimit = new BN(Math.floor(minPrice * 1_000_000)); // PRICE_PRECISION
+          logger.info(`[DRIFT_SERVICE] Slippage protection: minPrice=${minPrice.toFixed(4)} (${slippageBps}bps below oracle)`);
+        }
+      }
+
+      // Place market order with optional price limit for slippage protection
       const orderParams = getMarketOrderParams({
         marketIndex,
         direction,
         baseAssetAmount,
         marketType: MarketType.PERP,
+        price: priceLimit, // Acts as slippage limit when set
       });
 
       // DEBUG: Log order params to diagnose SHORT position issue

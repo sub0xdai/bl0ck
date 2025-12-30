@@ -17,6 +17,14 @@ export enum TradingErrorCode {
     INSUFFICIENT_BALANCE = 'INSUFFICIENT_BALANCE',
     POSITION_NOT_FOUND = 'POSITION_NOT_FOUND',
 
+    // Phase 3: Transaction errors
+    TX_CONFIRMATION_TIMEOUT = 'TX_CONFIRMATION_TIMEOUT',
+    TX_SIMULATION_FAILED = 'TX_SIMULATION_FAILED',
+    SLIPPAGE_EXCEEDED = 'SLIPPAGE_EXCEEDED',
+    PRICE_DRIFT_EXCEEDED = 'PRICE_DRIFT_EXCEEDED',
+    RPC_ERROR = 'RPC_ERROR',
+    ORACLE_STALE = 'ORACLE_STALE',
+
     // Configuration errors
     INVALID_CONFIG = 'INVALID_CONFIG',
     AUTOMATION_DISABLED = 'AUTOMATION_DISABLED',
@@ -115,6 +123,55 @@ export const TradingErrors = {
             TradingErrorCode.EXECUTION_FAILED,
             true,
             context
+        ),
+
+    // Phase 3: Transaction errors
+    txConfirmationTimeout: (txSig: string, timeoutMs: number) =>
+        new TradingError(
+            `Transaction ${txSig.substring(0, 16)}... confirmation timed out after ${timeoutMs}ms`,
+            TradingErrorCode.TX_CONFIRMATION_TIMEOUT,
+            true, // Recoverable - tx may still land
+            { txSig, timeoutMs }
+        ),
+
+    txSimulationFailed: (reason: string, txSig?: string) =>
+        new TradingError(
+            `Transaction simulation failed: ${reason}`,
+            TradingErrorCode.TX_SIMULATION_FAILED,
+            false, // Non-recoverable - fix the issue
+            { txSig, reason }
+        ),
+
+    slippageExceeded: (expectedPrice: number, actualPrice: number, slippageBps: number) =>
+        new TradingError(
+            `Slippage exceeded: expected ${expectedPrice.toFixed(4)}, got ${actualPrice.toFixed(4)} (${slippageBps}bps limit)`,
+            TradingErrorCode.SLIPPAGE_EXCEEDED,
+            true, // Recoverable - wait for better price
+            { expectedPrice, actualPrice, slippageBps }
+        ),
+
+    priceDriftExceeded: (signalPrice: number, currentPrice: number, driftBps: number, maxDriftBps: number) =>
+        new TradingError(
+            `Price drifted ${driftBps.toFixed(0)}bps since signal (max: ${maxDriftBps}bps)`,
+            TradingErrorCode.PRICE_DRIFT_EXCEEDED,
+            true, // Recoverable - regenerate signal
+            { signalPrice, currentPrice, driftBps, maxDriftBps }
+        ),
+
+    rpcError: (endpoint: string, originalError: unknown) =>
+        new TradingError(
+            `RPC error from ${endpoint}: ${originalError instanceof Error ? originalError.message : String(originalError)}`,
+            TradingErrorCode.RPC_ERROR,
+            true, // Recoverable - retry with backoff
+            { endpoint, originalError: String(originalError) }
+        ),
+
+    oracleStale: (asset: string, lastUpdateMs: number, maxAgeMs: number) =>
+        new TradingError(
+            `Oracle for ${asset} is stale (${lastUpdateMs}ms old, max ${maxAgeMs}ms)`,
+            TradingErrorCode.ORACLE_STALE,
+            false, // Non-recoverable until oracle updates
+            { asset, lastUpdateMs, maxAgeMs }
         ),
 
     insufficientBalance: (required: number, available: number, asset: string) =>

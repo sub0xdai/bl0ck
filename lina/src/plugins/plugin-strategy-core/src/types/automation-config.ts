@@ -29,6 +29,23 @@ export interface AutomationConfig {
 
     /** Minimum minutes between trades on same asset (default 5) */
     cooldownMinutes: number;
+
+    // === Phase 3: Execution Safeguards ===
+
+    /** Max slippage in basis points (default 50 = 0.5%) */
+    maxSlippageBps: number;
+
+    /** Max price drift from signal time in basis points (default 100 = 1%) */
+    maxPriceDriftBps: number;
+
+    /** Stop loss percentage (e.g., 5 = close if position drops 5%) */
+    stopLossPct?: number;
+
+    /** Take profit percentage (e.g., 10 = close if position gains 10%) */
+    takeProfitPct?: number;
+
+    /** Maximum hold time in minutes before forced exit */
+    maxHoldMinutes?: number;
 }
 
 /**
@@ -80,6 +97,12 @@ export const DEFAULT_AUTOMATION_CONFIG: AutomationConfig = {
     allowShorts: false,
     circuitBreakerPct: 10,
     cooldownMinutes: 5,
+    // Phase 3: Execution safeguards
+    maxSlippageBps: 50,      // 0.5% default slippage tolerance
+    maxPriceDriftBps: 100,   // 1% max price drift from signal time
+    stopLossPct: undefined,  // Optional - no default stop loss
+    takeProfitPct: undefined, // Optional - no default take profit
+    maxHoldMinutes: undefined, // Optional - no default hold limit
 };
 
 /**

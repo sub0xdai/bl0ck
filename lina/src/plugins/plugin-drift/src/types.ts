@@ -64,6 +64,7 @@ export interface OpenPositionParams {
   orderType?: OrderType;
   limitPrice?: number;            // For limit orders
   reduceOnly?: boolean;
+  slippageBps?: number;           // Slippage tolerance in basis points (Phase 3)
 }
 
 /**
