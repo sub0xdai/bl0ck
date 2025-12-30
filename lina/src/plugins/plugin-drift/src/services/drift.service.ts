@@ -388,6 +388,17 @@ export class DriftService extends Service {
         marketType: MarketType.PERP,
       });
 
+      // DEBUG: Log order params to diagnose SHORT position issue
+      logger.info(`[DRIFT_SERVICE] === ORDER PARAMS DEBUG ===`);
+      logger.info(`[DRIFT_SERVICE] side: ${params.side}`);
+      logger.info(`[DRIFT_SERVICE] direction: ${direction} (0=LONG, 1=SHORT)`);
+      logger.info(`[DRIFT_SERVICE] baseAssetAmount: ${baseAssetAmount.toString()}`);
+      logger.info(`[DRIFT_SERVICE] baseAssetAmount (negative check): isNeg=${baseAssetAmount.isNeg()}`);
+      logger.info(`[DRIFT_SERVICE] marketIndex: ${marketIndex}`);
+      logger.info(`[DRIFT_SERVICE] oraclePrice: ${oraclePrice.toString()}`);
+      logger.info(`[DRIFT_SERVICE] leverage: ${leverage}`);
+      logger.info(`[DRIFT_SERVICE] size (USD): ${params.size}`);
+
       // Use retry wrapper for RPC rate limiting + priority fees for tx landing
       const txSig = await withRetry(() => client.placeAndTakePerpOrder(
         orderParams,
@@ -404,6 +415,19 @@ export class DriftService extends Service {
 
       // Get position from cache (WebSocket keeps it updated)
       const position = await this.getPosition(userId, params.marketSymbol);
+
+      // DEBUG: Log position data to diagnose SHORT position issue
+      logger.info(`[DRIFT_SERVICE] === POSITION DEBUG ===`);
+      logger.info(`[DRIFT_SERVICE] txSig: ${txSig}`);
+      if (position) {
+        logger.info(`[DRIFT_SERVICE] position.side: ${position.side}`);
+        logger.info(`[DRIFT_SERVICE] position.size: ${position.size}`);
+        logger.info(`[DRIFT_SERVICE] position.entryPrice: ${position.entryPrice}`);
+        logger.info(`[DRIFT_SERVICE] position.notionalValue: ${position.notionalValue}`);
+        logger.info(`[DRIFT_SERVICE] position.leverage: ${position.leverage}`);
+      } else {
+        logger.warn(`[DRIFT_SERVICE] position is NULL after order placement!`);
+      }
 
       logger.info(`[DRIFT_SERVICE] Opened ${params.side} position on ${params.marketSymbol} for user ${userId}`);
 
