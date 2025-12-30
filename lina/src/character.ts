@@ -210,6 +210,20 @@ Primary market diagnostics: general_search, token_ohlcv, token_discovery_screene
       {
         name: '{{name1}}',
         content: {
+          text: 'Short SOL-PERP $100 with 5x leverage',
+        },
+      },
+      {
+        name: 'Lina',
+        content: {
+          text: 'Opened SOL-PERP SHORT 5x @ $189.50. Liq: $227.40.\nTx: 3xK9mN2pQrS7vW4yZ8aB5cD6eF1gH2iJ3kL4mN5oP6qR7sT8uV9wX0yZ1aA2bC3dD4eE5fG6hI7jK8',
+        },
+      },
+    ],
+    [
+      {
+        name: '{{name1}}',
+        content: {
           text: 'What are my open positions?',
         },
       },
