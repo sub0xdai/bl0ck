@@ -329,26 +329,30 @@ export class AgentServer {
       logger.success('Database initialized for server operations');
 
       // Run migrations for the SQL plugin schema
-      logger.info('[INIT] Running database migrations for messaging tables...');
-      try {
-        const migrationService = new DatabaseMigrationService();
+      if (process.env.SKIP_DB_MIGRATIONS === 'true') {
+        logger.warn('[INIT] Skipping database migrations (SKIP_DB_MIGRATIONS=true)');
+      } else {
+        logger.info('[INIT] Running database migrations for messaging tables...');
+        try {
+          const migrationService = new DatabaseMigrationService();
 
-        // Get the underlying database instance
-        const db = (this.database as any).getDatabase();
-        await migrationService.initializeWithDatabase(db);
+          // Get the underlying database instance
+          const db = (this.database as any).getDatabase();
+          await migrationService.initializeWithDatabase(db);
 
-        // Register the SQL plugin schema
-        migrationService.discoverAndRegisterPluginSchemas([sqlPlugin]);
+          // Register the SQL plugin schema
+          migrationService.discoverAndRegisterPluginSchemas([sqlPlugin]);
 
-        // Run the migrations
-        await migrationService.runAllPluginMigrations();
+          // Run the migrations
+          await migrationService.runAllPluginMigrations();
 
-        logger.success('[INIT] Database migrations completed successfully');
-      } catch (migrationError) {
-        logger.error({ error: migrationError }, '[INIT] Failed to run database migrations:');
-        throw new Error(
-          `Database migration failed: ${migrationError instanceof Error ? migrationError.message : String(migrationError)}`
-        );
+          logger.success('[INIT] Database migrations completed successfully');
+        } catch (migrationError) {
+          logger.error({ error: migrationError }, '[INIT] Failed to run database migrations:');
+          throw new Error(
+            `Database migration failed: ${migrationError instanceof Error ? migrationError.message : String(migrationError)}`
+          );
+        }
       }
 
       // Add a small delay to ensure database is fully ready
