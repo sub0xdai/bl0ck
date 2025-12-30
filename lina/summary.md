@@ -9,35 +9,27 @@
 **Session: Dec 31, 2025**
 
 1. **SHORT positions bug: RESOLVED** - Fixed hallucinated tx hashes
-2. **Root directory cleanup: DONE** - Removed 7 outdated MD files
-3. **Automation Phase 1: COMPLETE** - Types, state persistence, safety utilities
+2. **Automation Phase 1: COMPLETE** - Types, state persistence, safety utilities
+3. **Automation Phase 2: COMPLETE** - SignalsService, RiskManager, StrategyLoop enhanced
 
 ---
 
 ## Completed Today
 
-### 1. SHORT Bug Fix
-- **Root cause:** Missing messageExample in `character.ts` for SHORT actions
-- **Fix:** Added SHORT example (commit `5874b8c`)
-- **Verification:** Real tx on Solscan `Jx4nVADtPkvf2NGEMaP8tXBzKNAGedmce6QaLz2D885q...`
+### Automation Phase 2: Core Services
 
-### 2. Automation Phase 1: Foundation (plugin-strategy-core)
-**New Files Created:**
-- `types/automation-config.ts` - AutomationConfig, AutomationState interfaces
-- `types/signals.ts` - Signal, SignalSource, aggregation logic
-- `types/risk.ts` - RiskAssessment, ExposureSnapshot, position sizing
-- `types/errors.ts` - TradingError class with codes
-- `state/automation-state.store.ts` - PostgreSQL persistence (lina_automation schema)
-- `utils/circuit-breaker.ts` - AsyncMutex-protected circuit breaker (10% threshold)
-- `utils/trade-cooldown.ts` - Per-asset cooldown (5min default)
+**New Services Created:**
+- `openbb.service.ts` - OpenBB REST API integration (OHLCV, RSI, MACD, news)
+- `signals.service.ts` - Multi-source signal aggregation (trend + news + volume)
+- `risk-manager.service.ts` - Exposure tracking, position sizing, circuit breaker
 
-**Tests:** 59 passing tests for circuit-breaker and trade-cooldown
+**StrategyLoop Enhanced:**
+- Integrates SignalsService and RiskManager
+- Supports dry-run mode for testing
+- Per-user automation with database persistence
+- Handles position flips (close before reverse)
 
-**Key Features:**
-- Circuit breaker with mutex prevents race conditions
-- Trade cooldowns prevent whipsaw
-- Database persistence via WALLET_DB_URL
-- Full type safety with TradingError codes
+**Tests:** 75 passing tests (16 new RiskManager tests)
 
 ---
 
@@ -48,44 +40,83 @@
 | Drift LONG/SHORT | Working |
 | Hyperliquid perps | Working |
 | Automation Phase 1 | Complete |
+| Automation Phase 2 | Complete |
 | MIN_COLLATERAL | $1 (testing) |
-
----
-
-## Next Steps
-
-**Phase 2: SignalsService + RiskManager**
-- [ ] SignalsService (trend + news + volume signals)
-- [ ] RiskManager (exposure tracking, position sizing)
-- [ ] Enhance StrategyLoop with dry-run mode
-
-**Phase 3: Execution + Safety**
-- [ ] execute-signal.ts (pure function)
-- [ ] Connect to DriftService
-- [ ] Position flip logic
-
-**Phase 4: User Controls**
-- [ ] Enable/disable actions
-- [ ] Config persistence
-- [ ] Status reporting
 
 ---
 
 ## Architecture (plugin-strategy-core)
 
 ```
-StrategyLoop (orchestrates every N minutes)
-    ├── SignalsService (aggregate data → weighted score)
-    ├── RiskManager (exposure tracking, circuit breaker)
-    └── DriftService (execution - NO wrapper)
+StrategyLoop (orchestrates every 5 minutes)
+    ├── SignalsService
+    │   ├── OpenBB (technicals: RSI, MACD) [optional]
+    │   ├── CoinGecko (price trends)
+    │   ├── CoinDesk/WebSearch (news sentiment)
+    │   └── DeFiLlama (TVL/volume)
+    │
+    ├── RiskManager
+    │   ├── Exposure tracking
+    │   ├── Position sizing (% equity, scaled by confidence)
+    │   ├── CircuitBreaker (mutex-protected)
+    │   └── TradeCooldown (per-asset)
+    │
+    └── DriftService (execution)
 ```
 
-**Safety Defaults:**
-- maxPositionPct: 5%
-- maxExposurePct: 25%
-- maxLeverage: 3x
-- circuitBreakerPct: 10%
-- cooldownMinutes: 5
+---
+
+## Next Steps
+
+**Phase 3: Execution + Safety**
+- [ ] Wire up real execution path testing
+- [ ] Add slippage protection
+- [ ] Position monitoring loop
+
+**Phase 4: User Controls**
+- [ ] Enable/disable automation actions
+- [ ] Status reporting action
+- [ ] Config update action
+
+---
+
+## Signal Weights
+
+| Source | Weight | Provider |
+|--------|--------|----------|
+| Trend | 50% | OpenBB RSI/MACD or CoinGecko 7d |
+| News | 30% | CoinDesk/WebSearch sentiment |
+| Volume | 20% | DeFiLlama TVL changes |
+
+**Signal threshold:** Confidence ≥ 0.6 for non-neutral signal
+
+---
+
+## Safety Defaults
+
+```typescript
+{
+  maxPositionPct: 5,        // 5% of equity per position
+  maxExposurePct: 25,       // 25% total exposure
+  maxLeverage: 3,           // Conservative cap
+  circuitBreakerPct: 10,    // 10% drawdown stops trading
+  cooldownMinutes: 5,       // 5min between trades on same asset
+  allowShorts: false,       // Longs only by default
+}
+```
+
+---
+
+## OpenBB Integration
+
+Requires OpenBB Platform running locally:
+```bash
+docker run -it --rm -p 6900:6900 openbb-platform:latest
+# OR
+pip install openbb && openbb-api --port 6900
+```
+
+Falls back to CoinGecko if OpenBB unavailable.
 
 ---
 

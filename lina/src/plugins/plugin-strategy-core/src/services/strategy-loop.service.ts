@@ -1,23 +1,94 @@
+/**
+ * Strategy Loop Service (The Conductor)
+ *
+ * Orchestrates the automated trading cycle:
+ * 1. Fetch signals from SignalsService
+ * 2. Assess risk via RiskManager
+ * 3. Execute trades via DriftService
+ *
+ * Supports dry-run mode for testing without execution.
+ */
 import {
     Service,
     type IAgentRuntime,
     logger,
 } from '@elizaos/core';
 import { BehaviorSubject } from 'rxjs';
+import {
+    type AutomationConfig,
+    type AutomationState,
+    type Signal,
+    type RiskAssessment,
+    DEFAULT_AUTOMATION_CONFIG,
+    createInitialState,
+} from '../types';
+import { SignalsService } from './signals.service';
+import { RiskManager } from './risk-manager.service';
+import { AutomationStateStore, getAutomationStateStore } from '../state/automation-state.store';
 
+/**
+ * Cycle result for a single asset
+ */
+export interface CycleAssetResult {
+    asset: string;
+    signal: Signal;
+    riskAssessment: RiskAssessment;
+    executed: boolean;
+    executionResult?: {
+        success: boolean;
+        txSignature?: string;
+        error?: string;
+    };
+}
+
+/**
+ * Cycle result summary
+ */
+export interface CycleResult {
+    timestamp: number;
+    cycleNumber: number;
+    userId: string;
+    dryRun: boolean;
+    assets: CycleAssetResult[];
+    duration: number;
+}
+
+/**
+ * Market context observable state
+ */
+export interface MarketContext {
+    timestamp: number;
+    lastCycleResult?: CycleResult;
+    activeUsers: number;
+}
+
+/**
+ * Strategy Loop Service
+ */
 export class StrategyLoop extends Service {
     static serviceType = 'strategy-core';
     capabilityDescription = 'Core trading strategy engine (The Conductor) for market analysis and trade execution';
 
     private intervalId: NodeJS.Timeout | null = null;
     private isRunning = false;
-    private readonly LOOP_INTERVAL_MS = 60 * 1000; // 1 minute loop
+    private loopIntervalMs = 5 * 60 * 1000; // 5 minutes default
 
-    // Observable state for market context (to be expanded)
-    public marketContext$ = new BehaviorSubject<any>(null);
+    // Services
+    private signalsService: SignalsService;
+    private riskManager: RiskManager;
+    private stateStore: AutomationStateStore;
+
+    // User states (in-memory, synced with database)
+    private userStates: Map<string, AutomationState> = new Map();
+
+    // Observable state for external consumers
+    public marketContext$ = new BehaviorSubject<MarketContext | null>(null);
 
     constructor(runtime: IAgentRuntime) {
         super(runtime);
+        this.signalsService = new SignalsService();
+        this.riskManager = new RiskManager();
+        this.stateStore = getAutomationStateStore();
     }
 
     static async start(runtime: IAgentRuntime): Promise<StrategyLoop> {
@@ -29,60 +100,415 @@ export class StrategyLoop extends Service {
     async initialize(_runtime?: IAgentRuntime): Promise<void> {
         logger.info('[STRATEGY_LOOP] Initializing Strategy Core...');
 
+        // Initialize state store
+        try {
+            await this.stateStore.initialize();
+        } catch (error) {
+            logger.warn(
+                '[STRATEGY_LOOP] State store initialization failed, running without persistence:',
+                error instanceof Error ? error.message : String(error)
+            );
+        }
+
+        // Initialize services
+        await this.signalsService.initialize(this.runtime);
+        await this.riskManager.initialize(this.runtime);
+
+        // Load enabled users from database
+        await this.loadEnabledUsers();
+
         // Start the loop
         this.startLoop();
 
-        logger.info('[STRATEGY_LOOP] Strategy Core initialized in OBSERVER mode.');
+        const enabledCount = this.getEnabledUserCount();
+        logger.info(
+            `[STRATEGY_LOOP] Strategy Core initialized. ` +
+            `${enabledCount} users with automation enabled.`
+        );
     }
 
-    private startLoop() {
-        if (this.isRunning) return;
-        this.isRunning = true;
-
-        logger.info(`[STRATEGY_LOOP] Starting analysis loop (${this.LOOP_INTERVAL_MS}ms interval)`);
-
-        this.intervalId = setInterval(async () => {
-            await this.executeCycle();
-        }, this.LOOP_INTERVAL_MS);
-
-        // Run first cycle immediately
-        this.executeCycle();
-    }
-
-    private async executeCycle() {
+    /**
+     * Load users with automation enabled from database
+     */
+    private async loadEnabledUsers(): Promise<void> {
         try {
-            logger.info('[STRATEGY_LOOP] --- Starting Analysis Cycle ---');
+            const enabledStates = await this.stateStore.getEnabledUsers();
 
-            // 1. Macro Regime (Placeholder)
-            const macroRegime = await this.analyzeMacroRegime();
-            logger.info(`[STRATEGY_LOOP] Macro Regime: ${macroRegime}`);
+            for (const state of enabledStates) {
+                this.userStates.set(state.userId, state);
 
-            // 2. Asset Selection (Placeholder)
-            logger.info('[STRATEGY_LOOP] Scanning assets...');
+                // Restore risk manager state
+                this.riskManager.restoreState(
+                    state.userId,
+                    {
+                        tripped: state.circuitBreakerTripped,
+                        trippedAt: state.circuitBreakerTrippedAt,
+                        sessionPnL: state.sessionPnL,
+                        startingEquity: 0, // Will be re-initialized
+                    },
+                    state.lastTradeTimestamps
+                );
+            }
 
-            // 3. Update Context
-            this.marketContext$.next({
-                timestamp: Date.now(),
-                macro: macroRegime,
-            });
-
-            logger.info('[STRATEGY_LOOP] --- Cycle Complete ---');
+            logger.info(`[STRATEGY_LOOP] Loaded ${enabledStates.length} enabled user states`);
         } catch (error) {
-            logger.error('[STRATEGY_LOOP] Error in analysis cycle:', error instanceof Error ? error.message : String(error));
+            logger.warn(
+                '[STRATEGY_LOOP] Failed to load enabled users:',
+                error instanceof Error ? error.message : String(error)
+            );
         }
     }
 
-    private async analyzeMacroRegime(): Promise<string> {
-        // TODO: Implement actual macro analysis (Fear & Greed, BTC trend, etc.)
-        return 'NEUTRAL';
+    /**
+     * Enable automation for a user
+     */
+    async enableAutomation(
+        userId: string,
+        config: Partial<AutomationConfig> = {}
+    ): Promise<AutomationState> {
+        const fullConfig: AutomationConfig = {
+            ...DEFAULT_AUTOMATION_CONFIG,
+            ...config,
+            enabled: true,
+        };
+
+        const state = createInitialState(userId, fullConfig);
+        this.userStates.set(userId, state);
+
+        // Initialize circuit breaker with current equity
+        await this.riskManager.initializeCircuitBreaker(userId, fullConfig);
+
+        // Persist
+        await this.stateStore.saveState(state);
+
+        logger.info(
+            `[STRATEGY_LOOP] Automation enabled for user ${userId.substring(0, 8)}... ` +
+            `Assets: ${fullConfig.assets.join(', ')}`
+        );
+
+        return state;
     }
 
-    async stop() {
+    /**
+     * Disable automation for a user
+     */
+    async disableAutomation(
+        userId: string,
+        closePositions: boolean = false
+    ): Promise<void> {
+        const state = this.userStates.get(userId);
+
+        if (state) {
+            state.config.enabled = false;
+            await this.stateStore.saveState(state);
+        }
+
+        if (closePositions) {
+            await this.closeAllPositions(userId);
+        }
+
+        logger.info(
+            `[STRATEGY_LOOP] Automation disabled for user ${userId.substring(0, 8)}...` +
+            (closePositions ? ' (positions closed)' : '')
+        );
+    }
+
+    /**
+     * Get automation status for a user
+     */
+    getStatus(userId: string): AutomationState | null {
+        return this.userStates.get(userId) || null;
+    }
+
+    /**
+     * Update automation config for a user
+     */
+    async updateConfig(
+        userId: string,
+        config: Partial<AutomationConfig>
+    ): Promise<AutomationState | null> {
+        const state = this.userStates.get(userId);
+        if (!state) return null;
+
+        state.config = { ...state.config, ...config };
+        await this.stateStore.saveState(state);
+
+        return state;
+    }
+
+    /**
+     * Get count of enabled users
+     */
+    getEnabledUserCount(): number {
+        let count = 0;
+        for (const state of this.userStates.values()) {
+            if (state.config.enabled) count++;
+        }
+        return count;
+    }
+
+    /**
+     * Start the analysis loop
+     */
+    private startLoop(): void {
+        if (this.isRunning) return;
+        this.isRunning = true;
+
+        logger.info(`[STRATEGY_LOOP] Starting analysis loop (${this.loopIntervalMs / 1000}s interval)`);
+
+        this.intervalId = setInterval(async () => {
+            await this.executeCycleForAllUsers();
+        }, this.loopIntervalMs);
+
+        // Run first cycle after a short delay
+        setTimeout(() => this.executeCycleForAllUsers(), 5000);
+    }
+
+    /**
+     * Execute cycle for all enabled users
+     */
+    private async executeCycleForAllUsers(): Promise<void> {
+        const enabledUsers = Array.from(this.userStates.entries())
+            .filter(([_, state]) => state.config.enabled);
+
+        if (enabledUsers.length === 0) {
+            logger.debug('[STRATEGY_LOOP] No enabled users, skipping cycle');
+            return;
+        }
+
+        logger.info(`[STRATEGY_LOOP] --- Starting Cycle for ${enabledUsers.length} users ---`);
+
+        for (const [userId, state] of enabledUsers) {
+            try {
+                await this.executeCycleForUser(userId, state);
+            } catch (error) {
+                logger.error(
+                    `[STRATEGY_LOOP] Cycle failed for user ${userId.substring(0, 8)}...:`,
+                    error instanceof Error ? error.message : String(error)
+                );
+
+                // Record error but don't stop other users
+                state.errors.push(
+                    `Cycle error: ${error instanceof Error ? error.message : String(error)}`
+                );
+                if (state.errors.length > 10) state.errors.shift(); // Keep last 10 errors
+            }
+        }
+
+        // Update market context
+        this.marketContext$.next({
+            timestamp: Date.now(),
+            activeUsers: enabledUsers.length,
+        });
+
+        logger.info('[STRATEGY_LOOP] --- Cycle Complete ---');
+    }
+
+    /**
+     * Execute trading cycle for a single user
+     */
+    private async executeCycleForUser(
+        userId: string,
+        state: AutomationState
+    ): Promise<CycleResult> {
+        const startTime = Date.now();
+        state.cycleCount++;
+        state.lastCycleAt = startTime;
+
+        const config = state.config;
+        const assets = config.assets;
+        const dryRun = !config.enabled; // Safety: treat disabled as dry-run
+
+        const results: CycleAssetResult[] = [];
+
+        // Get signals for all assets
+        const signals = await this.signalsService.getSignalsForAssets(assets);
+
+        for (const signal of signals) {
+            // Skip neutral signals
+            if (signal.direction === 'NEUTRAL') {
+                results.push({
+                    asset: signal.asset,
+                    signal,
+                    riskAssessment: { canTrade: false, reason: 'Neutral signal', suggestedSizeUsd: 0, suggestedLeverage: 0, currentExposurePct: 0, remainingCapacityUsd: 0 },
+                    executed: false,
+                });
+                continue;
+            }
+
+            // Assess risk
+            const riskAssessment = await this.riskManager.assessTrade(
+                userId,
+                signal,
+                config
+            );
+
+            if (!riskAssessment.canTrade) {
+                logger.info(
+                    `[STRATEGY_LOOP] ${signal.asset}: Skipped - ${riskAssessment.reason}`
+                );
+                results.push({
+                    asset: signal.asset,
+                    signal,
+                    riskAssessment,
+                    executed: false,
+                });
+                continue;
+            }
+
+            // Execute trade (or simulate in dry-run)
+            if (dryRun) {
+                logger.info(
+                    `[STRATEGY_LOOP] [DRY-RUN] ${signal.asset}: Would ${signal.direction} ` +
+                    `$${riskAssessment.suggestedSizeUsd.toFixed(2)} @ ${riskAssessment.suggestedLeverage}x`
+                );
+                results.push({
+                    asset: signal.asset,
+                    signal,
+                    riskAssessment,
+                    executed: false,
+                    executionResult: { success: true, txSignature: 'DRY_RUN' },
+                });
+            } else {
+                // Real execution
+                const executionResult = await this.executeSignal(
+                    userId,
+                    signal,
+                    riskAssessment,
+                    config
+                );
+
+                results.push({
+                    asset: signal.asset,
+                    signal,
+                    riskAssessment,
+                    executed: executionResult.success,
+                    executionResult,
+                });
+            }
+        }
+
+        // Save updated state
+        await this.stateStore.saveState(state);
+
+        const cycleResult: CycleResult = {
+            timestamp: startTime,
+            cycleNumber: state.cycleCount,
+            userId,
+            dryRun,
+            assets: results,
+            duration: Date.now() - startTime,
+        };
+
+        return cycleResult;
+    }
+
+    /**
+     * Execute a trading signal via DriftService
+     */
+    private async executeSignal(
+        userId: string,
+        signal: Signal,
+        riskAssessment: RiskAssessment,
+        config: AutomationConfig
+    ): Promise<{ success: boolean; txSignature?: string; error?: string }> {
+        const driftService = this.runtime.getService('DRIFT_SERVICE') as any;
+
+        if (!driftService) {
+            return { success: false, error: 'DriftService not available' };
+        }
+
+        try {
+            // Check if we need to close existing position first (flip)
+            const wouldFlip = await this.riskManager.wouldFlipPosition(userId, signal);
+
+            if (wouldFlip) {
+                logger.info(`[STRATEGY_LOOP] Flipping position for ${signal.asset}`);
+
+                // Close existing position
+                await driftService.closePosition(userId, {
+                    marketSymbol: signal.asset,
+                    percentage: 100,
+                });
+            }
+
+            // Open new position
+            const result = await driftService.openPosition(userId, {
+                marketSymbol: signal.asset,
+                side: signal.direction.toLowerCase() as 'long' | 'short',
+                size: riskAssessment.suggestedSizeUsd,
+                leverage: riskAssessment.suggestedLeverage,
+                orderType: 'market',
+            });
+
+            // Record trade for cooldown
+            await this.riskManager.recordTrade(userId, signal.asset, 0, config);
+
+            logger.info(
+                `[STRATEGY_LOOP] ${signal.asset}: ${signal.direction} executed - ` +
+                `$${riskAssessment.suggestedSizeUsd.toFixed(2)} | tx: ${result.txSignature?.substring(0, 16)}...`
+            );
+
+            return {
+                success: true,
+                txSignature: result.txSignature,
+            };
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            logger.error(`[STRATEGY_LOOP] Execution failed for ${signal.asset}: ${errorMsg}`);
+
+            return {
+                success: false,
+                error: errorMsg,
+            };
+        }
+    }
+
+    /**
+     * Close all positions for a user
+     */
+    private async closeAllPositions(userId: string): Promise<void> {
+        const driftService = this.runtime.getService('DRIFT_SERVICE') as any;
+
+        if (!driftService) {
+            logger.warn('[STRATEGY_LOOP] Cannot close positions - DriftService not available');
+            return;
+        }
+
+        try {
+            await driftService.closeAllPositions(userId);
+            logger.info(`[STRATEGY_LOOP] All positions closed for user ${userId.substring(0, 8)}...`);
+        } catch (error) {
+            logger.error(
+                '[STRATEGY_LOOP] Failed to close all positions:',
+                error instanceof Error ? error.message : String(error)
+            );
+        }
+    }
+
+    /**
+     * Stop the strategy loop
+     */
+    async stop(): Promise<void> {
         if (this.intervalId) {
             clearInterval(this.intervalId);
             this.intervalId = null;
         }
         this.isRunning = false;
         logger.info('[STRATEGY_LOOP] Stopped.');
+    }
+
+    /**
+     * Set loop interval (for testing)
+     */
+    setLoopIntervalMs(intervalMs: number): void {
+        this.loopIntervalMs = intervalMs;
+
+        if (this.isRunning && this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = setInterval(async () => {
+                await this.executeCycleForAllUsers();
+            }, this.loopIntervalMs);
+        }
     }
 }
