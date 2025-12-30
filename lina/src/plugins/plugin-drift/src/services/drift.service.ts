@@ -107,9 +107,16 @@ export class DriftService extends Service {
   }
 
   static async start(runtime: IAgentRuntime): Promise<DriftService> {
-    const svc = new DriftService(runtime);
-    await svc.initialize();
-    return svc;
+    logger.info('[DRIFT_SERVICE] === SERVICE START CALLED ===');
+    try {
+      const svc = new DriftService(runtime);
+      await svc.initialize();
+      logger.info('[DRIFT_SERVICE] === SERVICE STARTED SUCCESSFULLY ===');
+      return svc;
+    } catch (error) {
+      logger.error('[DRIFT_SERVICE] === SERVICE START FAILED ===', error instanceof Error ? error.message : String(error));
+      throw error;
+    }
   }
 
   async stop(): Promise<void> {

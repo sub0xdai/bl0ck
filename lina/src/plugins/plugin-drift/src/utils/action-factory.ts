@@ -99,9 +99,12 @@ export function createOpenPositionAction(config: OpenPositionConfig): Action {
     },
 
     validate: async (runtime: IAgentRuntime, _message: Memory) => {
+      logger.info(`[${actionName}] === VALIDATE CALLED ===`);
       try {
         const service = runtime.getService(SERVICE_NAME) as DriftService;
-        return !!service;
+        const isValid = !!service;
+        logger.info(`[${actionName}] validate result: ${isValid}, service: ${service ? 'exists' : 'null'}`);
+        return isValid;
       } catch (error) {
         logger.warn(
           `[${actionName}] Validation failed:`,
