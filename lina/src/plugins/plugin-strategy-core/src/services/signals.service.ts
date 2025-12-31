@@ -264,9 +264,10 @@ export class SignalsService {
                     this.config.timeoutMs
                 );
 
-                if (priceData?.prices && priceData.prices.length >= 2) {
-                    const firstPrice = priceData.prices[0][1];
-                    const lastPrice = priceData.prices[priceData.prices.length - 1][1];
+                const prices = (priceData as { prices?: number[][] })?.prices;
+                if (prices && prices.length >= 2) {
+                    const firstPrice = prices[0][1];
+                    const lastPrice = prices[prices.length - 1][1];
                     const priceChange = ((lastPrice - firstPrice) / firstPrice) * 100;
 
                     // Convert to -1 to 1 signal
@@ -357,14 +358,15 @@ export class SignalsService {
                     this.config.timeoutMs
                 );
 
-                if (results?.results && results.results.length > 0) {
+                const searchResults = (results as { results?: Array<{ title?: string }> })?.results;
+                if (searchResults && searchResults.length > 0) {
                     // Analyze titles for sentiment
-                    const titles = results.results.map((r: any) => r.title || '').join(' ');
+                    const titles = searchResults.map((r) => r.title || '').join(' ');
                     const sentiment = this.analyzeSentiment(titles);
 
                     return {
                         value: sentiment,
-                        rawData: { source: 'web_search', resultCount: results.results.length },
+                        rawData: { source: 'web_search', resultCount: searchResults.length },
                     };
                 }
             }
@@ -404,9 +406,10 @@ export class SignalsService {
                     this.config.timeoutMs
                 );
 
-                if (tvlHistory && tvlHistory.length >= 2) {
-                    const firstTVL = tvlHistory[0].tvl;
-                    const lastTVL = tvlHistory[tvlHistory.length - 1].tvl;
+                const tvlData = tvlHistory as Array<{ tvl: number }> | undefined;
+                if (tvlData && tvlData.length >= 2) {
+                    const firstTVL = tvlData[0].tvl;
+                    const lastTVL = tvlData[tvlData.length - 1].tvl;
                     const tvlChange = ((lastTVL - firstTVL) / firstTVL) * 100;
 
                     // TVL growth = bullish, TVL decline = bearish

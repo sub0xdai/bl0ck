@@ -116,7 +116,7 @@ export const strategyStatus: Action = {
     handler: async (
         runtime: IAgentRuntime,
         message: Memory,
-        _state: State,
+        _state?: State,
         _options?: { [key: string]: unknown },
         callback?: HandlerCallback
     ): Promise<ActionResult> => {
@@ -124,8 +124,8 @@ export const strategyStatus: Action = {
             const stateStore = AutomationStateStore.getInstance();
             await stateStore.initialize();
 
-            // Get user ID from message
-            const userId = message.userId;
+            // Get user ID from message (entityId is the user's UUID)
+            const userId = message.entityId;
             if (!userId) {
                 throw new Error('User ID not found in message');
             }

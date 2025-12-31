@@ -5,7 +5,8 @@
  * and execution parameter types.
  */
 
-import type { PositionSide } from '../../../../plugin-drift/src/types';
+/** Position side (matches plugin-drift type) */
+export type PositionSide = 'long' | 'short';
 
 /**
  * Parameters for executing a trade with safeguards.

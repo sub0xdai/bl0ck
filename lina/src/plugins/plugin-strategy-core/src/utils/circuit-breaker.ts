@@ -207,7 +207,7 @@ export class CircuitBreaker {
             try {
                 await this.options.onTrip(drawdownPct);
             } catch (error) {
-                logger.error('[CIRCUIT_BREAKER] onTrip callback failed:', error);
+                logger.error('[CIRCUIT_BREAKER] onTrip callback failed:', error instanceof Error ? error.message : String(error));
             }
         }
     }
