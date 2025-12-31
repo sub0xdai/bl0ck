@@ -24,6 +24,12 @@ import {
 } from '../types';
 import { SignalsService } from './signals.service';
 import { RiskManager } from './risk-manager.service';
+import {
+    PositionMonitor,
+    type MonitoredPosition,
+    type ExitTrigger,
+    calculateActualPnlPct,
+} from './position-monitor.service';
 import { AutomationStateStore, getAutomationStateStore } from '../state/automation-state.store';
 import { getExecutionCoordinator } from '../utils/execution-coordinator';
 
@@ -82,6 +88,9 @@ export class StrategyLoop extends Service {
     // User states (in-memory, synced with database)
     private userStates: Map<string, AutomationState> = new Map();
 
+    // Position monitors per user (for SL/TP/hold time enforcement)
+    private positionMonitors: Map<string, PositionMonitor> = new Map();
+
     // Observable state for external consumers
     public marketContext$ = new BehaviorSubject<MarketContext | null>(null);
 
@@ -118,13 +127,22 @@ export class StrategyLoop extends Service {
         // Load enabled users from database
         await this.loadEnabledUsers();
 
+        // Start position monitors for enabled users
+        for (const [userId, state] of this.userStates.entries()) {
+            if (state.config.enabled) {
+                this.startMonitoringForUser(userId);
+            }
+        }
+
         // Start the loop
         this.startLoop();
 
         const enabledCount = this.getEnabledUserCount();
+        const monitorCount = this.positionMonitors.size;
         logger.info(
             `[STRATEGY_LOOP] Strategy Core initialized. ` +
-            `${enabledCount} users with automation enabled.`
+            `${enabledCount} users with automation enabled, ` +
+            `${monitorCount} position monitors active.`
         );
     }
 
@@ -182,6 +200,9 @@ export class StrategyLoop extends Service {
         // Persist
         await this.stateStore.saveState(state);
 
+        // Start position monitoring if exit conditions are configured
+        this.startMonitoringForUser(userId);
+
         logger.info(
             `[STRATEGY_LOOP] Automation enabled for user ${userId.substring(0, 8)}... ` +
             `Assets: ${fullConfig.assets.join(', ')}`
@@ -203,6 +224,9 @@ export class StrategyLoop extends Service {
             state.config.enabled = false;
             await this.stateStore.saveState(state);
         }
+
+        // Stop position monitoring
+        this.stopMonitoringForUser(userId);
 
         if (closePositions) {
             await this.closeAllPositions(userId);
@@ -246,6 +270,168 @@ export class StrategyLoop extends Service {
             if (state.config.enabled) count++;
         }
         return count;
+    }
+
+    // =========================================================================
+    // Position Monitoring (SL/TP/Hold Time)
+    // =========================================================================
+
+    /**
+     * Start position monitoring for a user
+     */
+    private startMonitoringForUser(userId: string): void {
+        // Stop existing monitor if any
+        const existing = this.positionMonitors.get(userId);
+        if (existing?.running) {
+            existing.stop();
+        }
+
+        const state = this.userStates.get(userId);
+        if (!state) return;
+
+        // Only start if SL, TP, or hold time is configured
+        const config = state.config;
+        const hasExitConditions =
+            (config.stopLossPct !== undefined && config.stopLossPct > 0) ||
+            (config.takeProfitPct !== undefined && config.takeProfitPct > 0) ||
+            (config.maxHoldMinutes !== undefined && config.maxHoldMinutes > 0);
+
+        if (!hasExitConditions) {
+            logger.debug(
+                `[STRATEGY_LOOP] No exit conditions configured for user ${userId.substring(0, 8)}..., skipping monitor`
+            );
+            return;
+        }
+
+        const monitor = new PositionMonitor({
+            checkIntervalMs: 30_000, // 30 second checks
+            onExitTrigger: this.handleExitTrigger.bind(this),
+        });
+
+        monitor.start(
+            userId,
+            () => this.getMonitoredPositions(userId),
+            () => state.config
+        );
+
+        this.positionMonitors.set(userId, monitor);
+        logger.info(
+            `[STRATEGY_LOOP] Started position monitoring for user ${userId.substring(0, 8)}...`
+        );
+    }
+
+    /**
+     * Stop position monitoring for a user
+     */
+    private stopMonitoringForUser(userId: string): void {
+        const monitor = this.positionMonitors.get(userId);
+        if (monitor?.running) {
+            monitor.stop();
+            this.positionMonitors.delete(userId);
+            logger.info(
+                `[STRATEGY_LOOP] Stopped position monitoring for user ${userId.substring(0, 8)}...`
+            );
+        }
+    }
+
+    /**
+     * Fetch positions from DriftService and convert to MonitoredPosition format
+     */
+    private async getMonitoredPositions(userId: string): Promise<MonitoredPosition[]> {
+        const driftService = this.runtime.getService('DRIFT_SERVICE') as any;
+        if (!driftService) return [];
+
+        const state = this.userStates.get(userId);
+        if (!state) return [];
+
+        try {
+            const positions = await driftService.getPositions(userId);
+            if (!positions || !Array.isArray(positions)) return [];
+
+            return positions.map((pos: any) => {
+                const unrealizedPnlUsd = parseFloat(pos.unrealizedPnl) || 0;
+                const notionalValueUsd = parseFloat(pos.notionalValue) || 0;
+
+                return {
+                    marketSymbol: pos.marketSymbol,
+                    side: pos.side as 'long' | 'short',
+                    entryPrice: parseFloat(pos.entryPrice) || 0,
+                    currentPrice: parseFloat(pos.markPrice) || 0,
+                    unrealizedPnlUsd,
+                    notionalValueUsd,
+                    unrealizedPnlPct: calculateActualPnlPct(unrealizedPnlUsd, notionalValueUsd),
+                    openedAt: state.positionOpenTimes[pos.marketSymbol] || Date.now(),
+                };
+            });
+        } catch (error) {
+            logger.error(
+                '[STRATEGY_LOOP] Failed to fetch positions for monitoring:',
+                error instanceof Error ? error.message : String(error)
+            );
+            return [];
+        }
+    }
+
+    /**
+     * Handle exit triggers from PositionMonitor (SL/TP/max hold time)
+     */
+    private async handleExitTrigger(userId: string, trigger: ExitTrigger): Promise<void> {
+        if (!trigger.asset) return;
+
+        const driftService = this.runtime.getService('DRIFT_SERVICE') as any;
+        if (!driftService) {
+            logger.error('[STRATEGY_LOOP] Cannot close position - DriftService not available');
+            return;
+        }
+
+        const state = this.userStates.get(userId);
+        const config = state?.config;
+
+        try {
+            const reasonLabel =
+                trigger.reason === 'stop_loss' ? 'STOP-LOSS' :
+                trigger.reason === 'take_profit' ? 'TAKE-PROFIT' : 'MAX-HOLD-TIME';
+
+            logger.info(
+                `[STRATEGY_LOOP] [${reasonLabel}] Closing ${trigger.asset} for user ${userId.substring(0, 8)}... ` +
+                `(PnL: ${trigger.pnlPct !== undefined ? trigger.pnlPct.toFixed(2) + '%' : 'N/A'})`
+            );
+
+            // Get position PnL before closing
+            const position = await driftService.getPosition(userId, trigger.asset);
+            const realizedPnL = position ? parseFloat(position.unrealizedPnl) || 0 : 0;
+
+            // Close the position
+            const result = await driftService.closePosition(userId, {
+                marketSymbol: trigger.asset,
+                percentage: 100,
+            });
+
+            if (result.success) {
+                // Record realized PnL for circuit breaker tracking
+                if (config) {
+                    await this.riskManager.recordTrade(userId, trigger.asset, realizedPnL, config);
+                }
+
+                // Clear position tracking
+                if (state) {
+                    delete state.positionOpenTimes[trigger.asset];
+                    await this.stateStore.saveState(state);
+                }
+
+                logger.info(
+                    `[STRATEGY_LOOP] [${reasonLabel}] ${trigger.asset} closed successfully ` +
+                    `(realized PnL: $${realizedPnL.toFixed(2)})`
+                );
+            } else {
+                logger.error(`[STRATEGY_LOOP] Failed to close position: ${result.error}`);
+            }
+        } catch (error) {
+            logger.error(
+                `[STRATEGY_LOOP] Exception closing position ${trigger.asset}:`,
+                error instanceof Error ? error.message : String(error)
+            );
+        }
     }
 
     /**
@@ -466,6 +652,13 @@ export class StrategyLoop extends Service {
                     await this.riskManager.recordTrade(userId, signal.asset, 0, config);
                 }
 
+                // Track position open time for maxHoldMinutes enforcement
+                const state = this.userStates.get(userId);
+                if (state) {
+                    state.positionOpenTimes[signal.asset] = Date.now();
+                    await this.stateStore.saveState(state);
+                }
+
                 logger.info(
                     `[STRATEGY_LOOP] ${signal.asset}: ${signal.direction} executed - ` +
                     `$${riskAssessment.suggestedSizeUsd.toFixed(2)} | tx: ${result.txSignature?.substring(0, 16)}...`
@@ -513,6 +706,19 @@ export class StrategyLoop extends Service {
      * Stop the strategy loop
      */
     async stop(): Promise<void> {
+        // Stop all position monitors
+        const monitorCount = this.positionMonitors.size;
+        for (const [_userId, monitor] of this.positionMonitors.entries()) {
+            if (monitor.running) {
+                monitor.stop();
+            }
+        }
+        this.positionMonitors.clear();
+        if (monitorCount > 0) {
+            logger.info(`[STRATEGY_LOOP] Stopped ${monitorCount} position monitors.`);
+        }
+
+        // Stop the main loop
         if (this.intervalId) {
             clearInterval(this.intervalId);
             this.intervalId = null;

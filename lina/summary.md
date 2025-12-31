@@ -12,7 +12,8 @@
 2. **Automation Phase 2: COMPLETE** (`9385445`) - SignalsService, RiskManager, StrategyLoop
 3. **Automation Phase 3: COMPLETE** (`2276695`) - Execution safeguards, slippage, PnL tracking
 4. **Automation Phase 3.1 + 4: COMPLETE** (`074bc2a`) - USD PnL fix, persistence, user actions
-5. **Race Condition Fix: COMPLETE** - ExecutionCoordinator for PositionMonitor/StrategyLoop
+5. **Race Condition Fix: COMPLETE** (`e2cfd70`) - ExecutionCoordinator for PositionMonitor/StrategyLoop
+6. **PositionMonitor Integration: COMPLETE** - SL/TP/hold time now wired into StrategyLoop
 
 ---
 
@@ -23,6 +24,7 @@
 | Drift LONG/SHORT | Working |
 | Automation Phase 1-4 | Complete |
 | Race Condition Fix | Complete |
+| PositionMonitor | Fully integrated |
 | User Actions | 4 actions ready |
 
 **Tests:** 104 passing
@@ -104,9 +106,10 @@ plugin-strategy-core/
 ## Next Steps
 
 **Integration Testing:**
+- [ ] Create integration test infrastructure (mocks, helpers)
+- [ ] Test RiskManager + DriftService integration
+- [ ] Test PositionMonitor exit triggers E2E
 - [ ] Test with live Drift devnet
-- [ ] Verify slippage protection works
-- [ ] Test position monitoring triggers
 
 **Future:**
 - [ ] WebSocket position updates
