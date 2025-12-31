@@ -11,8 +11,7 @@
 1. **Automation Phase 1: COMPLETE** (`09a47d0`) - Types, state, safety utilities
 2. **Automation Phase 2: COMPLETE** (`9385445`) - SignalsService, RiskManager, StrategyLoop
 3. **Automation Phase 3: COMPLETE** (`2276695`) - Execution safeguards, slippage, PnL tracking
-4. **Automation Phase 3.1: COMPLETE** - USD-based PnL, persisted position times, fixes
-5. **Automation Phase 4: COMPLETE** - User control actions (STATUS, TOGGLE, UPDATE, CLOSE)
+4. **Automation Phase 3.1 + 4: COMPLETE** (`074bc2a`) - USD PnL fix, persistence, user actions
 
 ---
 
