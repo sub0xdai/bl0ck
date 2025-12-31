@@ -661,9 +661,6 @@ function AppContent({
     showModal(
       <AutomationModalContent
         onClose={() => hideModal(AUTOMATION_MODAL_ID)}
-        userId={userId}
-        agentId={agent?.id || ''}
-        channelId={activeChannelId}
       />,
       AUTOMATION_MODAL_ID,
       {

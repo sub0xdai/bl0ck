@@ -2,15 +2,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, Zap, AlertTriangle, ChevronDown, ChevronRight, Shield, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { socketManager } from '@/lib/socketManager';
 import { elizaClient } from '@/lib/elizaClient';
 import type { AutomationStatusResponse, AutomationPosition } from '@elizaos/api-client';
 
 interface AutomationModalContentProps {
   onClose: () => void;
-  userId: string;
-  agentId: string;
-  channelId: string | null;
 }
 
 interface AutomationConfig {
@@ -70,9 +66,6 @@ const getStatusMessage = (config: AutomationConfig, state: AutomationState | nul
 
 export function AutomationModalContent({
   onClose,
-  userId,
-  agentId,
-  channelId
 }: AutomationModalContentProps) {
   const [state, setState] = useState<AutomationState | null>(null);
   const [positions, setPositions] = useState<AutomationPosition[]>([]);
@@ -128,50 +121,83 @@ export function AutomationModalContent({
   }, [fetchStatus]);
 
   const handleToggle = async () => {
-    if (!channelId) return;
     setIsSaving(true);
     const newEnabled = !config.enabled;
 
     try {
+      // First update config if enabling
       if (newEnabled) {
-        const configStr = [
-          `maxPositionPct ${config.maxPositionPct}`,
-          `assets ${config.assets.join(',')}`,
-          config.stopLossPct ? `stopLossPct ${config.stopLossPct}` : '',
-          config.takeProfitPct ? `takeProfitPct ${config.takeProfitPct}` : '',
-        ].filter(Boolean).join(', ');
-
-        socketManager.sendMessage(channelId, `Update automation config: ${configStr}`, userId, agentId);
-        setTimeout(() => {
-          socketManager.sendMessage(channelId, 'Enable automation', userId, agentId);
-        }, 500);
-      } else {
-        socketManager.sendMessage(channelId, 'Disable automation', userId, agentId);
+        await elizaClient.automation.updateConfig({
+          maxPositionPct: config.maxPositionPct,
+          assets: config.assets,
+          stopLossPct: config.stopLossPct,
+          takeProfitPct: config.takeProfitPct,
+          allowShorts: config.allowShorts,
+          maxExposurePct: config.maxExposurePct,
+          maxLeverage: config.maxLeverage,
+          circuitBreakerPct: config.circuitBreakerPct,
+          cooldownMinutes: config.cooldownMinutes,
+          maxSlippageBps: config.maxSlippageBps,
+        });
       }
-      setConfig(prev => ({ ...prev, enabled: newEnabled }));
+
+      // Then toggle
+      const response = await elizaClient.automation.toggle(newEnabled);
+
+      // Update local state from response
+      if (response.automation) {
+        setConfig(response.automation.config);
+        setState({
+          config: response.automation.config,
+          circuitBreakerTripped: response.automation.circuitBreakerTripped,
+          circuitBreakerTrippedAt: response.automation.circuitBreakerTrippedAt,
+          sessionPnL: response.automation.sessionPnL,
+          cycleCount: response.automation.cycleCount,
+          errors: response.automation.errors,
+          lastCycleAt: response.automation.lastCycleAt,
+        });
+      }
+
+      // Clear local edits after successful toggle
+      localEditsRef.current = {};
+      setLocalEdits({});
     } catch (error) {
       console.error('Failed to toggle automation:', error);
     } finally {
-      setTimeout(() => setIsSaving(false), 1000);
+      setIsSaving(false);
     }
   };
 
   const handleHalt = async () => {
-    if (!channelId) return;
     setIsSaving(true);
     try {
-      socketManager.sendMessage(channelId, 'Disable automation', userId, agentId);
-      setConfig(prev => ({ ...prev, enabled: false }));
+      const response = await elizaClient.automation.toggle(false);
+
+      // Update local state from response
+      if (response.automation) {
+        setConfig(response.automation.config);
+        setState({
+          config: response.automation.config,
+          circuitBreakerTripped: response.automation.circuitBreakerTripped,
+          circuitBreakerTrippedAt: response.automation.circuitBreakerTrippedAt,
+          sessionPnL: response.automation.sessionPnL,
+          cycleCount: response.automation.cycleCount,
+          errors: response.automation.errors,
+          lastCycleAt: response.automation.lastCycleAt,
+        });
+      }
     } catch (error) {
       console.error('Failed to halt automation:', error);
     } finally {
-      setTimeout(() => setIsSaving(false), 1000);
+      setIsSaving(false);
     }
   };
 
   const handleResetCircuitBreaker = async () => {
-    if (!channelId || !state) return;
+    if (!state) return;
+    // Optimistic UI update
     setState(prev => prev ? { ...prev, circuitBreakerTripped: false } : null);
+    // TODO: Add API endpoint for circuit breaker reset when needed
   };
 
   // Helper to track local edits

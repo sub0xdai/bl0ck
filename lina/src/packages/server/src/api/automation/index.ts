@@ -135,5 +135,117 @@ export function automationRouter(elizaOS: ElizaOS, _serverInstance: AgentServer)
     }
   });
 
+  /**
+   * POST /api/automation/toggle
+   * Enable or disable automation for the authenticated user
+   * Body: { enabled: boolean }
+   */
+  router.post('/toggle', async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.userId!;
+      const { enabled } = req.body as { enabled: boolean };
+
+      if (typeof enabled !== 'boolean') {
+        return sendError(res, 400, 'INVALID_REQUEST', 'enabled must be a boolean');
+      }
+
+      logger.info(`[Automation API] Toggle automation for user ${userId.substring(0, 8)}...: ${enabled ? 'ON' : 'OFF'}`);
+
+      const stateStore = AutomationStateStore.getInstance();
+      await stateStore.initialize();
+
+      // Get or create state
+      const state = await stateStore.getOrCreateState(userId);
+
+      // Update enabled flag in config
+      const updatedConfig = { ...state.config, enabled };
+      await stateStore.updateState(userId, { config: updatedConfig });
+
+      // Return updated state
+      const updatedState = await stateStore.getState(userId);
+
+      sendSuccess(res, {
+        automation: updatedState ? {
+          userId: updatedState.userId,
+          config: updatedState.config,
+          circuitBreakerTripped: updatedState.circuitBreakerTripped,
+          circuitBreakerTrippedAt: updatedState.circuitBreakerTrippedAt,
+          sessionPnL: updatedState.sessionPnL,
+          cycleCount: updatedState.cycleCount,
+          errors: updatedState.errors.slice(-5),
+          startedAt: updatedState.startedAt,
+          lastCycleAt: updatedState.lastCycleAt,
+        } : null,
+        message: `Automation ${enabled ? 'enabled' : 'disabled'}`,
+      });
+    } catch (error) {
+      logger.error(
+        '[Automation API] Error toggling automation:',
+        error instanceof Error ? error.message : String(error)
+      );
+      sendError(
+        res,
+        500,
+        'TOGGLE_FAILED',
+        'Failed to toggle automation',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  });
+
+  /**
+   * POST /api/automation/config
+   * Update automation configuration for the authenticated user
+   * Body: Partial<AutomationConfig>
+   */
+  router.post('/config', async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.userId!;
+      const configUpdates = req.body;
+
+      logger.info(`[Automation API] Updating config for user ${userId.substring(0, 8)}...`);
+
+      const stateStore = AutomationStateStore.getInstance();
+      await stateStore.initialize();
+
+      // Get or create state
+      const state = await stateStore.getOrCreateState(userId);
+
+      // Merge config updates
+      const updatedConfig = { ...state.config, ...configUpdates };
+      await stateStore.updateState(userId, { config: updatedConfig });
+
+      // Return updated state
+      const updatedState = await stateStore.getState(userId);
+
+      sendSuccess(res, {
+        automation: updatedState ? {
+          userId: updatedState.userId,
+          config: updatedState.config,
+          circuitBreakerTripped: updatedState.circuitBreakerTripped,
+          circuitBreakerTrippedAt: updatedState.circuitBreakerTrippedAt,
+          sessionPnL: updatedState.sessionPnL,
+          cycleCount: updatedState.cycleCount,
+          errors: updatedState.errors.slice(-5),
+          startedAt: updatedState.startedAt,
+          lastCycleAt: updatedState.lastCycleAt,
+        } : null,
+        message: 'Configuration updated',
+      });
+    } catch (error) {
+      logger.error(
+        '[Automation API] Error updating config:',
+        error instanceof Error ? error.message : String(error)
+      );
+      sendError(
+        res,
+        500,
+        'CONFIG_UPDATE_FAILED',
+        'Failed to update configuration',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  });
+
   return router;
 }

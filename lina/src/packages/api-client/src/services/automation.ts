@@ -57,6 +57,14 @@ export interface AutomationStatusResponse {
 }
 
 /**
+ * Response from POST /api/automation/toggle and /api/automation/config
+ */
+export interface AutomationUpdateResponse {
+  automation: AutomationState | null;
+  message: string;
+}
+
+/**
  * Service for interacting with Automation endpoints
  * Fetches strategy-core automation status and configuration
  */
@@ -67,5 +75,19 @@ export class AutomationService extends BaseApiClient {
    */
   async getStatus(): Promise<AutomationStatusResponse> {
     return this.get<AutomationStatusResponse>('/api/automation/status');
+  }
+
+  /**
+   * Toggle automation on/off for the authenticated user
+   */
+  async toggle(enabled: boolean): Promise<AutomationUpdateResponse> {
+    return this.post<AutomationUpdateResponse>('/api/automation/toggle', { enabled });
+  }
+
+  /**
+   * Update automation configuration for the authenticated user
+   */
+  async updateConfig(config: Partial<AutomationConfig>): Promise<AutomationUpdateResponse> {
+    return this.post<AutomationUpdateResponse>('/api/automation/config', config);
   }
 }

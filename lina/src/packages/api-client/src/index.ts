@@ -51,6 +51,7 @@ export type {
   AutomationState,
   AutomationPosition,
   AutomationStatusResponse,
+  AutomationUpdateResponse,
 } from './services/automation';
 
 // Base client and error
