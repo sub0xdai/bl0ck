@@ -27,7 +27,7 @@
 | PositionMonitor | Fully integrated |
 | User Actions | 4 actions ready |
 
-**Tests:** 104 passing
+**Tests:** 175 passing (104 unit + 71 integration)
 
 ---
 
@@ -105,11 +105,12 @@ plugin-strategy-core/
 
 ## Next Steps
 
-**Integration Testing:**
-- [ ] Create integration test infrastructure (mocks, helpers)
-- [ ] Test RiskManager + DriftService integration
-- [ ] Test PositionMonitor exit triggers E2E
-- [ ] Test with live Drift devnet
+**Integration Testing:** COMPLETE
+- [x] Create integration test infrastructure (mocks, helpers)
+- [x] Test RiskManager + DriftService integration
+- [x] Test PositionMonitor exit triggers E2E
+- [x] Test ExecutionCoordinator race prevention
+- [ ] Test with live Drift devnet (manual)
 
 **Future:**
 - [ ] WebSocket position updates
