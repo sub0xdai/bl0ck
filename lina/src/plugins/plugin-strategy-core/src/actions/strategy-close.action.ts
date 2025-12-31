@@ -143,7 +143,7 @@ export const strategyClose: Action = {
                 }
 
                 const result = await driftService.closePosition(userId, {
-                    marketSymbol: asset,
+                    marketSymbol: asset!,
                     percentage,
                 });
 
@@ -154,11 +154,11 @@ export const strategyClose: Action = {
                         percentage === 100
                             ? `Closed ${asset} position. TX: ${result.txSignature?.substring(0, 16)}...`
                             : `Closed ${percentage}% of ${asset} position. TX: ${result.txSignature?.substring(0, 16)}...`;
-                    closedPositions.push(asset);
+                    closedPositions.push(asset!);
 
                     // Clear position open time if fully closed
                     if (percentage === 100) {
-                        await stateStore.clearPositionOpen(userId, asset);
+                        await stateStore.clearPositionOpen(userId, asset!);
                     }
                 } else {
                     resultText = `Failed to close ${asset}: ${result.error}`;
