@@ -25,6 +25,7 @@ import {
 import { SignalsService } from './signals.service';
 import { RiskManager } from './risk-manager.service';
 import { AutomationStateStore, getAutomationStateStore } from '../state/automation-state.store';
+import { getExecutionCoordinator } from '../utils/execution-coordinator';
 
 /**
  * Cycle result for a single asset
@@ -418,67 +419,72 @@ export class StrategyLoop extends Service {
             return { success: false, error: 'DriftService not available' };
         }
 
-        try {
-            // Check if we need to close existing position first (flip)
-            const wouldFlip = await this.riskManager.wouldFlipPosition(userId, signal);
-            let realizedPnL = 0;
+        // Acquire execution lock to prevent race conditions with PositionMonitor
+        const coordinator = getExecutionCoordinator();
+        const wouldFlip = await this.riskManager.wouldFlipPosition(userId, signal);
+        const operationType = wouldFlip ? 'flip' : 'open';
 
-            if (wouldFlip) {
-                logger.info(`[STRATEGY_LOOP] Flipping position for ${signal.asset}`);
+        return coordinator.withLock(userId, signal.asset, operationType, async () => {
+            try {
+                let realizedPnL = 0;
 
-                // Get current position's unrealized PnL before closing
-                const existingPosition = await driftService.getPosition(userId, signal.asset);
-                if (existingPosition) {
-                    realizedPnL = parseFloat(existingPosition.unrealizedPnl) || 0;
-                    logger.info(
-                        `[STRATEGY_LOOP] Closing ${signal.asset} position with PnL: $${realizedPnL.toFixed(2)}`
-                    );
+                if (wouldFlip) {
+                    logger.info(`[STRATEGY_LOOP] Flipping position for ${signal.asset}`);
+
+                    // Get current position's unrealized PnL before closing
+                    const existingPosition = await driftService.getPosition(userId, signal.asset);
+                    if (existingPosition) {
+                        realizedPnL = parseFloat(existingPosition.unrealizedPnl) || 0;
+                        logger.info(
+                            `[STRATEGY_LOOP] Closing ${signal.asset} position with PnL: $${realizedPnL.toFixed(2)}`
+                        );
+                    }
+
+                    // Close existing position
+                    await driftService.closePosition(userId, {
+                        marketSymbol: signal.asset,
+                        percentage: 100,
+                    });
+
+                    // Record the realized PnL from closing (Phase 3: proper PnL tracking)
+                    await this.riskManager.recordTrade(userId, signal.asset, realizedPnL, config);
                 }
 
-                // Close existing position
-                await driftService.closePosition(userId, {
+                // Open new position with slippage protection
+                const result = await driftService.openPosition(userId, {
                     marketSymbol: signal.asset,
-                    percentage: 100,
+                    side: signal.direction.toLowerCase() as 'long' | 'short',
+                    size: riskAssessment.suggestedSizeUsd,
+                    leverage: riskAssessment.suggestedLeverage,
+                    orderType: 'market',
+                    slippageBps: config.maxSlippageBps, // Phase 3: slippage protection
                 });
 
-                // Record the realized PnL from closing (Phase 3: proper PnL tracking)
-                await this.riskManager.recordTrade(userId, signal.asset, realizedPnL, config);
+                // Record cooldown for new position (no PnL for opening)
+                if (!wouldFlip) {
+                    // Only record if we didn't already record during flip
+                    await this.riskManager.recordTrade(userId, signal.asset, 0, config);
+                }
+
+                logger.info(
+                    `[STRATEGY_LOOP] ${signal.asset}: ${signal.direction} executed - ` +
+                    `$${riskAssessment.suggestedSizeUsd.toFixed(2)} | tx: ${result.txSignature?.substring(0, 16)}...`
+                );
+
+                return {
+                    success: true,
+                    txSignature: result.txSignature,
+                };
+            } catch (error) {
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                logger.error(`[STRATEGY_LOOP] Execution failed for ${signal.asset}: ${errorMsg}`);
+
+                return {
+                    success: false,
+                    error: errorMsg,
+                };
             }
-
-            // Open new position with slippage protection
-            const result = await driftService.openPosition(userId, {
-                marketSymbol: signal.asset,
-                side: signal.direction.toLowerCase() as 'long' | 'short',
-                size: riskAssessment.suggestedSizeUsd,
-                leverage: riskAssessment.suggestedLeverage,
-                orderType: 'market',
-                slippageBps: config.maxSlippageBps, // Phase 3: slippage protection
-            });
-
-            // Record cooldown for new position (no PnL for opening)
-            if (!wouldFlip) {
-                // Only record if we didn't already record during flip
-                await this.riskManager.recordTrade(userId, signal.asset, 0, config);
-            }
-
-            logger.info(
-                `[STRATEGY_LOOP] ${signal.asset}: ${signal.direction} executed - ` +
-                `$${riskAssessment.suggestedSizeUsd.toFixed(2)} | tx: ${result.txSignature?.substring(0, 16)}...`
-            );
-
-            return {
-                success: true,
-                txSignature: result.txSignature,
-            };
-        } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error);
-            logger.error(`[STRATEGY_LOOP] Execution failed for ${signal.asset}: ${errorMsg}`);
-
-            return {
-                success: false,
-                error: errorMsg,
-            };
-        }
+        });
     }
 
     /**

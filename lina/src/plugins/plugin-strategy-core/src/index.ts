@@ -30,6 +30,8 @@ export { AutomationStateStore, getAutomationStateStore } from './state/automatio
 // Utils
 export { CircuitBreaker, AsyncMutex } from './utils/circuit-breaker';
 export { TradeCooldown } from './utils/trade-cooldown';
+export { ExecutionCoordinator, getExecutionCoordinator } from './utils/execution-coordinator';
+export type { OperationType, LockStatus } from './utils/execution-coordinator';
 
 // Types
 export * from './types';

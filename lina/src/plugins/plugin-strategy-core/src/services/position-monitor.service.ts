@@ -8,6 +8,7 @@
 
 import { logger } from '@elizaos/core';
 import type { AutomationConfig } from '../types/automation-config';
+import { getExecutionCoordinator, type OperationType } from '../utils/execution-coordinator';
 
 /**
  * Position data from DriftService
@@ -59,8 +60,8 @@ export interface ExitTrigger {
 export interface PositionMonitorConfig {
     /** Check interval in milliseconds (default: 30000 = 30s) */
     checkIntervalMs: number;
-    /** Callback when exit trigger fires */
-    onExitTrigger?: (trigger: ExitTrigger) => Promise<void>;
+    /** Callback when exit trigger fires (userId added for coordination) */
+    onExitTrigger?: (userId: string, trigger: ExitTrigger) => Promise<void>;
 }
 
 const DEFAULT_CHECK_INTERVAL_MS = 30_000; // 30 seconds
@@ -72,10 +73,13 @@ export class PositionMonitor {
     private intervalId: NodeJS.Timeout | null = null;
     private isRunning = false;
     private checkIntervalMs: number;
-    private onExitTrigger?: (trigger: ExitTrigger) => Promise<void>;
+    private onExitTrigger?: (userId: string, trigger: ExitTrigger) => Promise<void>;
 
     // Position tracking for hold time
     private positionOpenTimes: Map<string, number> = new Map();
+
+    // User ID for coordination (set during start)
+    private userId: string | null = null;
 
     constructor(config?: Partial<PositionMonitorConfig>) {
         this.checkIntervalMs = config?.checkIntervalMs ?? DEFAULT_CHECK_INTERVAL_MS;
@@ -175,8 +179,13 @@ export class PositionMonitor {
 
     /**
      * Start the monitor loop
+     *
+     * @param userId User identifier for coordination
+     * @param getPositions Function to fetch current positions
+     * @param getConfig Function to get current config
      */
     start(
+        userId: string,
         getPositions: () => Promise<MonitoredPosition[]>,
         getConfig: () => AutomationConfig
     ): void {
@@ -185,6 +194,7 @@ export class PositionMonitor {
             return;
         }
 
+        this.userId = userId;
         this.isRunning = true;
         logger.info(
             `[POSITION_MONITOR] Started with ${this.checkIntervalMs}ms interval`
@@ -194,15 +204,34 @@ export class PositionMonitor {
             try {
                 const positions = await getPositions();
                 const config = getConfig();
+                const coordinator = getExecutionCoordinator();
 
                 for (const position of positions) {
                     const trigger = this.checkExitConditions(position, config);
 
-                    if (trigger.triggered && this.onExitTrigger) {
-                        logger.info(
-                            `[POSITION_MONITOR] Exit trigger: ${trigger.reason} for ${trigger.asset}`
-                        );
-                        await this.onExitTrigger(trigger);
+                    if (trigger.triggered && this.onExitTrigger && trigger.asset) {
+                        // Check if position is already locked by StrategyLoop
+                        if (coordinator.isLocked(userId, trigger.asset)) {
+                            logger.debug(
+                                `[POSITION_MONITOR] Skipping ${trigger.asset} - already locked by another operation`
+                            );
+                            continue;
+                        }
+
+                        // Map trigger reason to operation type
+                        const operationType: OperationType = trigger.reason === 'stop_loss'
+                            ? 'stop_loss'
+                            : trigger.reason === 'take_profit'
+                                ? 'take_profit'
+                                : 'max_hold';
+
+                        // Acquire lock and execute exit
+                        await coordinator.withLock(userId, trigger.asset, operationType, async () => {
+                            logger.info(
+                                `[POSITION_MONITOR] Exit trigger: ${trigger.reason} for ${trigger.asset}`
+                            );
+                            await this.onExitTrigger!(userId, trigger);
+                        });
                     }
                 }
             } catch (error) {

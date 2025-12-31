@@ -12,6 +12,7 @@
 2. **Automation Phase 2: COMPLETE** (`9385445`) - SignalsService, RiskManager, StrategyLoop
 3. **Automation Phase 3: COMPLETE** (`2276695`) - Execution safeguards, slippage, PnL tracking
 4. **Automation Phase 3.1 + 4: COMPLETE** (`074bc2a`) - USD PnL fix, persistence, user actions
+5. **Race Condition Fix: COMPLETE** - ExecutionCoordinator for PositionMonitor/StrategyLoop
 
 ---
 
@@ -21,6 +22,7 @@
 |-----------|--------|
 | Drift LONG/SHORT | Working |
 | Automation Phase 1-4 | Complete |
+| Race Condition Fix | Complete |
 | User Actions | 4 actions ready |
 
 **Tests:** 104 passing
@@ -34,6 +36,7 @@ StrategyLoop (5-min cycles)
     ├── SignalsService (OpenBB/CoinGecko/CoinDesk/DeFiLlama)
     ├── RiskManager (exposure, sizing, circuit breaker, cooldown)
     ├── PositionMonitor (SL/TP/hold time - USD-based PnL)
+    ├── ExecutionCoordinator (per-asset mutex locks)
     └── DriftService (slippage-protected execution)
 
 User Actions (Phase 4):
@@ -45,24 +48,24 @@ User Actions (Phase 4):
 
 ---
 
-## Phase 3.1 Fixes (Addressed Critiques)
+## ExecutionCoordinator (Race Condition Fix)
 
-| Issue | Fix |
-|-------|-----|
-| PnL Mismatch | `calculateActualPnlPct()` uses USD unrealizedPnl/notionalValue |
-| Volatile Restarts | `positionOpenTimes` persisted in AutomationStateStore (PostgreSQL) |
-| Race Conditions | Pending - mutex coordination between PositionMonitor/StrategyLoop |
+**Problem:** PositionMonitor (30s) and StrategyLoop (5min) could close same position simultaneously.
 
----
+**Solution:** Shared per-user, per-asset mutex locks.
 
-## Phase 4 Actions
+```typescript
+// Both services acquire lock before position operations
+coordinator.withLock(userId, asset, operationType, async () => {
+    // Only one operation can execute at a time per asset
+});
+```
 
-| Action | Description | Parameters |
-|--------|-------------|------------|
-| `STRATEGY_STATUS` | Show automation state, config, positions | None |
-| `STRATEGY_TOGGLE` | Enable/disable automation | `action`, `closePositions` |
-| `STRATEGY_UPDATE` | Update config parameters | All config fields |
-| `STRATEGY_CLOSE` | Close positions manually | `asset`, `closeAll`, `percentage` |
+**Features:**
+- Per-asset locking (doesn't block other assets)
+- Operation type tracking for debugging
+- Stale lock cleanup (5min timeout)
+- Skip-if-locked for PositionMonitor (doesn't wait, moves on)
 
 ---
 
@@ -89,14 +92,10 @@ User Actions (Phase 4):
 plugin-strategy-core/
 ├── src/
 │   ├── actions/           # Phase 4 user actions
-│   │   ├── strategy-status.action.ts
-│   │   ├── strategy-toggle.action.ts
-│   │   ├── strategy-update.action.ts
-│   │   └── strategy-close.action.ts
-│   ├── services/          # Core services
+│   ├── services/          # StrategyLoop, SignalsService, RiskManager, PositionMonitor
 │   ├── state/             # PostgreSQL persistence
-│   ├── types/             # Type definitions
-│   └── utils/             # CircuitBreaker, Cooldown
+│   ├── types/             # Type definitions + execution utils
+│   └── utils/             # CircuitBreaker, Cooldown, ExecutionCoordinator
 └── __tests__/             # 104 tests
 ```
 
@@ -104,9 +103,10 @@ plugin-strategy-core/
 
 ## Next Steps
 
-**Remaining:**
-- [ ] Race condition coordination (mutex between PositionMonitor/StrategyLoop)
-- [ ] Integration testing with live Drift
+**Integration Testing:**
+- [ ] Test with live Drift devnet
+- [ ] Verify slippage protection works
+- [ ] Test position monitoring triggers
 
 **Future:**
 - [ ] WebSocket position updates

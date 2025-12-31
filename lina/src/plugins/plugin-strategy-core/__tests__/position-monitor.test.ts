@@ -231,7 +231,10 @@ describe('PositionMonitor', () => {
         });
 
         it('should start and stop cleanly', () => {
+            const testUserId = 'test-user-123';
+
             monitor.start(
+                testUserId,
                 async () => [],
                 () => testConfig
             );
