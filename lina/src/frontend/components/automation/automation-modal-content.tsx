@@ -198,6 +198,33 @@ export function AutomationModalContent({
     setEditingField(null);
   };
 
+  // Increment/decrement handlers for cyber number input
+  const handleIncrement = (
+    field: keyof AutomationConfig,
+    currentValue: number | undefined,
+    min: number,
+    max: number,
+    step: number = 1
+  ) => {
+    const current = currentValue ?? min;
+    const newValue = Math.min(max, current + step);
+    trackLocalEdit(field, newValue as AutomationConfig[typeof field]);
+    setConfig(prev => ({ ...prev, [field]: newValue }));
+  };
+
+  const handleDecrement = (
+    field: keyof AutomationConfig,
+    currentValue: number | undefined,
+    min: number,
+    max: number,
+    step: number = 1
+  ) => {
+    const current = currentValue ?? min;
+    const newValue = Math.max(min, current - step);
+    trackLocalEdit(field, newValue as AutomationConfig[typeof field]);
+    setConfig(prev => ({ ...prev, [field]: newValue }));
+  };
+
   const renderEditableValue = (
     field: keyof AutomationConfig,
     value: number | undefined,
@@ -209,10 +236,10 @@ export function AutomationModalContent({
 
     if (isEditing) {
       return (
-        <div className="relative inline-flex items-center">
+        <div className="cyber-number-wrapper">
           <input
             type="number"
-            className="w-20 bg-transparent border-b-2 border-primary px-1 py-0.5 text-primary text-right font-mono outline-none"
+            className="cyber-number-input w-16 bg-transparent border-b-2 border-primary px-1 py-0.5 text-primary text-right font-mono outline-none"
             defaultValue={value ?? ''}
             min={min}
             max={max}
@@ -223,8 +250,34 @@ export function AutomationModalContent({
               if (e.key === 'Escape') setEditingField(null);
             }}
           />
-          <span className="text-primary font-mono ml-0.5">{suffix}</span>
-          <span className="ml-1 text-primary animate-pulse">█</span>
+          <span className="text-primary font-mono">{suffix}</span>
+          <div className="cyber-number-spinners">
+            <button
+              type="button"
+              className="cyber-number-btn cyber-number-btn--up"
+              onClick={() => {
+                const input = document.querySelector(`input[type="number"]:focus`) as HTMLInputElement;
+                if (input) {
+                  const current = Number(input.value) || min;
+                  input.value = String(Math.min(max, current + 1));
+                }
+              }}
+              tabIndex={-1}
+            />
+            <button
+              type="button"
+              className="cyber-number-btn cyber-number-btn--down"
+              onClick={() => {
+                const input = document.querySelector(`input[type="number"]:focus`) as HTMLInputElement;
+                if (input) {
+                  const current = Number(input.value) || min;
+                  input.value = String(Math.max(min, current - 1));
+                }
+              }}
+              tabIndex={-1}
+            />
+          </div>
+          <span className="ml-1 text-primary animate-pulse">|</span>
         </div>
       );
     }
@@ -234,7 +287,7 @@ export function AutomationModalContent({
         className="editable-value"
         onClick={() => setEditingField(field)}
       >
-        {value !== undefined ? `${value}${suffix}` : '—'}
+        {value !== undefined ? `${value}${suffix}` : '\u2014'}
       </button>
     );
   };
@@ -242,7 +295,7 @@ export function AutomationModalContent({
   // PnL calculations
   const pnlDisplay = state?.sessionPnL ?? 0;
   const pnlClass = pnlDisplay > 0 ? 'pnl-positive' : pnlDisplay < 0 ? 'pnl-negative' : 'pnl-neutral';
-  const pnlArrow = pnlDisplay > 0 ? '▲' : pnlDisplay < 0 ? '▼' : '·';
+  const pnlArrow = pnlDisplay > 0 ? '\u25B2' : pnlDisplay < 0 ? '\u25BC' : '\u00B7';
 
   if (isLoading) {
     return (
