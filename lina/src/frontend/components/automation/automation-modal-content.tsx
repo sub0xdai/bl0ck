@@ -232,63 +232,30 @@ export function AutomationModalContent({
     min: number = 0,
     max: number = 100
   ) => {
-    const isEditing = editingField === field;
-
-    if (isEditing) {
-      return (
-        <div className="cyber-number-wrapper">
-          <input
-            type="number"
-            className="cyber-number-input w-16 bg-transparent border-b-2 border-primary px-1 py-0.5 text-primary text-right font-mono outline-none"
-            defaultValue={value ?? ''}
-            min={min}
-            max={max}
-            autoFocus
-            onBlur={(e) => handleFieldChange(field, e.target.value ? Number(e.target.value) : undefined)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleFieldChange(field, e.currentTarget.value ? Number(e.currentTarget.value) : undefined);
-              if (e.key === 'Escape') setEditingField(null);
-            }}
-          />
-          <span className="text-primary font-mono">{suffix}</span>
-          <div className="cyber-number-spinners">
-            <button
-              type="button"
-              className="cyber-number-btn cyber-number-btn--up"
-              onClick={() => {
-                const input = document.querySelector(`input[type="number"]:focus`) as HTMLInputElement;
-                if (input) {
-                  const current = Number(input.value) || min;
-                  input.value = String(Math.min(max, current + 1));
-                }
-              }}
-              tabIndex={-1}
-            />
-            <button
-              type="button"
-              className="cyber-number-btn cyber-number-btn--down"
-              onClick={() => {
-                const input = document.querySelector(`input[type="number"]:focus`) as HTMLInputElement;
-                if (input) {
-                  const current = Number(input.value) || min;
-                  input.value = String(Math.max(min, current - 1));
-                }
-              }}
-              tabIndex={-1}
-            />
-          </div>
-          <span className="ml-1 text-primary animate-pulse">|</span>
-        </div>
-      );
-    }
-
     return (
-      <button
-        className="editable-value"
-        onClick={() => setEditingField(field)}
-      >
-        {value !== undefined ? `${value}${suffix}` : '\u2014'}
-      </button>
+      <div className="cyber-number-wrapper">
+        <span
+          className="editable-value cursor-text"
+          onClick={() => setEditingField(field)}
+        >
+          {value !== undefined ? value : '\u2014'}
+        </span>
+        <span className="text-primary font-mono ml-0.5">{suffix}</span>
+        <div className="cyber-number-spinners">
+          <button
+            type="button"
+            className="cyber-number-btn cyber-number-btn--up"
+            onClick={() => handleIncrement(field, value, min, max)}
+            tabIndex={-1}
+          />
+          <button
+            type="button"
+            className="cyber-number-btn cyber-number-btn--down"
+            onClick={() => handleDecrement(field, value, min, max)}
+            tabIndex={-1}
+          />
+        </div>
+      </div>
     );
   };
 
