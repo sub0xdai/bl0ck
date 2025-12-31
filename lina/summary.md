@@ -15,8 +15,11 @@
    - Persona-driven status messages
    - Editable values with dotted underline + primary color (always visible)
    - PnL color coding (green ▲ / red ▼)
+   - Custom cyberpunk number spinners (replaced ugly browser defaults)
 3. **Real-Time Status API** - REST endpoint with 5s polling
-4. **UX Fix** - Local edits persist across polling (no more reset on Allow Shorts)
+4. **UX Fixes**:
+   - Local edits persist across polling (no more reset on Allow Shorts)
+   - Number input spinners styled with CSS triangles + mauve glow
 
 **Previous (Dec 31):**
 - Automation Phase 1-4 complete, production @ app.lina4rmdabl0ck.xyz
@@ -30,11 +33,11 @@
 | Drift LONG/SHORT | Working |
 | Automation System | Live in prod |
 | User Actions | 4 actions working |
-| UI Automation Button | Added (needs wiring) |
+| UI Automation Modal | Complete |
 | Tests | 175 passing |
 | Production | Railway deployed |
 
-**Commits today:** `d528376`, `e3caf8d`, `2ebc4a0` (TypeScript fixes for prod)
+**Commits today:** `51d0c31` (local edit persist), `4b1b535` (cyberpunk spinners)
 
 ---
 
@@ -107,6 +110,7 @@ plugin-strategy-core/
 - [x] UI button for automation
 - [x] Automation modal with controls
 - [x] Real-time status updates (REST + 5s polling)
+- [x] Cyberpunk-styled number inputs
 - [ ] Live trade execution (currently observer mode)
 - [ ] Telegram/Discord notifications
 
