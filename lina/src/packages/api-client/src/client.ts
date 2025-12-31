@@ -15,6 +15,7 @@ import { JobsService } from './services/jobs';
 import { SolanaService } from './services/solana';
 import { WalletService } from './services/wallet';
 import { DriftService } from './services/drift';
+import { AutomationService } from './services/automation';
 
 export class ElizaClient {
   public readonly agents: AgentsService;
@@ -33,6 +34,7 @@ export class ElizaClient {
   public readonly solana: SolanaService;
   public readonly wallet: WalletService;
   public readonly drift: DriftService;
+  public readonly automation: AutomationService;
 
   private services: any[];
 
@@ -54,6 +56,7 @@ export class ElizaClient {
     this.solana = new SolanaService(config);
     this.wallet = new WalletService(config);
     this.drift = new DriftService(config);
+    this.automation = new AutomationService(config);
 
     // Keep track of all services for bulk operations
     this.services = [
@@ -73,6 +76,7 @@ export class ElizaClient {
       this.solana,
       this.wallet,
       this.drift,
+      this.automation,
     ];
   }
 

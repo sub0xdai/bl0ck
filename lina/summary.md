@@ -9,12 +9,11 @@
 **Session: Jan 1, 2026**
 
 1. **UI Automation Button** - Brutalist "AUTO" button with shine animation
-2. **Automation Modal** - Full modal with status row, config, and controls:
-   - Toggle switch with `[○────]`/`[────●]` visual
-   - PnL display with `▲`/`▼` arrows
-   - Circuit breaker status + HALT button
-   - Inline-editable settings (assets, SL/TP, position size)
-   - Collapsible advanced settings
+2. **Automation Modal** - Full modal with status row, config, and controls
+3. **Real-Time Status API** - REST endpoint `/api/automation/status` with 5s polling:
+   - Backend: `server/src/api/automation/index.ts`
+   - Client: `api-client/src/services/automation.ts`
+   - Returns: config, circuitBreaker, sessionPnL, cycleCount, positions
 
 **Previous (Dec 31):**
 - Automation Phase 1-4 complete, production deployed @ app.lina4rmdabl0ck.xyz
@@ -104,7 +103,7 @@ plugin-strategy-core/
 
 - [x] UI button for automation
 - [x] Automation modal with controls
-- [ ] Real-time status updates (WebSocket)
+- [x] Real-time status updates (REST + 5s polling)
 - [ ] Live trade execution (currently observer mode)
 - [ ] Telegram/Discord notifications
 

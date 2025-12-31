@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, Zap, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { socketManager } from '@/lib/socketManager';
+import { elizaClient } from '@/lib/elizaClient';
+import type { AutomationStatusResponse, AutomationPosition } from '@elizaos/api-client';
 
 interface AutomationModalContentProps {
   onClose: () => void;
@@ -29,10 +31,14 @@ interface AutomationConfig {
 interface AutomationState {
   config: AutomationConfig;
   circuitBreakerTripped: boolean;
+  circuitBreakerTrippedAt?: number;
   sessionPnL: number;
   cycleCount: number;
   errors: string[];
+  lastCycleAt?: number;
 }
+
+const POLL_INTERVAL_MS = 5000; // Poll every 5 seconds
 
 const DEFAULT_CONFIG: AutomationConfig = {
   enabled: false,
@@ -57,45 +63,72 @@ export function AutomationModalContent({
   channelId
 }: AutomationModalContentProps) {
   const [state, setState] = useState<AutomationState | null>(null);
+  const [positions, setPositions] = useState<AutomationPosition[]>([]);
   const [config, setConfig] = useState<AutomationConfig>(DEFAULT_CONFIG);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('Lina is idle.');
+  const [storeAvailable, setStoreAvailable] = useState(true);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch current status on mount
-  useEffect(() => {
-    fetchStatus();
-  }, []);
-
-  const fetchStatus = async () => {
-    setIsLoading(true);
+  // Fetch status from API
+  const fetchStatus = useCallback(async (showLoading = false) => {
+    if (showLoading) setIsLoading(true);
     try {
-      // Send a status request through the socket
-      if (channelId) {
-        socketManager.sendMessage(channelId, 'Show strategy status', userId, agentId);
-        // We'll update state when we receive the response
-        // For now, simulate with default state after a delay
-        setTimeout(() => {
-          setState({
-            config: DEFAULT_CONFIG,
-            circuitBreakerTripped: false,
-            sessionPnL: 0,
-            cycleCount: 0,
-            errors: [],
-          });
-          setConfig(DEFAULT_CONFIG);
-          setIsLoading(false);
-        }, 500);
+      const response = await elizaClient.automation.getStatus();
+
+      setStoreAvailable(response.storeAvailable);
+      setPositions(response.positions || []);
+
+      if (response.automation) {
+        setState({
+          config: response.automation.config,
+          circuitBreakerTripped: response.automation.circuitBreakerTripped,
+          circuitBreakerTrippedAt: response.automation.circuitBreakerTrippedAt,
+          sessionPnL: response.automation.sessionPnL,
+          cycleCount: response.automation.cycleCount,
+          errors: response.automation.errors,
+          lastCycleAt: response.automation.lastCycleAt,
+        });
+        setConfig(response.automation.config);
+
+        // Update status message based on state
+        if (response.automation.config.enabled) {
+          setStatusMessage(`Monitoring ${response.automation.config.assets.join(', ')}...`);
+        } else {
+          setStatusMessage('Lina is idle.');
+        }
       } else {
-        setIsLoading(false);
+        // No automation config yet
+        setState(null);
+        setConfig(DEFAULT_CONFIG);
+        setStatusMessage('No automation configured.');
       }
     } catch (error) {
       console.error('Failed to fetch automation status:', error);
-      setIsLoading(false);
+      setStatusMessage('Failed to connect to automation service.');
+    } finally {
+      if (showLoading) setIsLoading(false);
     }
-  };
+  }, []);
+
+  // Fetch on mount and start polling
+  useEffect(() => {
+    fetchStatus(true);
+
+    // Start polling
+    pollIntervalRef.current = setInterval(() => {
+      fetchStatus(false);
+    }, POLL_INTERVAL_MS);
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [fetchStatus]);
 
   const handleToggle = async () => {
     if (!channelId) return;

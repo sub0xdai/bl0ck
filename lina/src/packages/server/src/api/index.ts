@@ -21,6 +21,7 @@ import { cdpRouter } from './cdp';
 import { solanaRouter } from './solana';
 import { walletRouter } from './wallet';
 import { driftRouter } from './drift';
+import { automationRouter } from './automation';
 import { autotradeRouter } from './autotrade';
 import { createAuthRouter } from './auth';
 // Autotrade service imports
@@ -493,6 +494,9 @@ export function createApiRouter(
 
   // Mount Drift router at /drift - handles Drift Protocol perpetual trading data
   router.use('/drift', driftRouter(elizaOS, serverInstance));
+
+  // Mount Automation router at /automation - handles strategy-core automation status
+  router.use('/automation', automationRouter(elizaOS, serverInstance));
 
   // Mount Autotrade router at /autotrade - handles subscription payments via x402
   // Initialize autotrade service if environment is configured
