@@ -13,7 +13,8 @@
 3. **Automation Phase 3: COMPLETE** (`2276695`) - Execution safeguards, slippage, PnL tracking
 4. **Automation Phase 3.1 + 4: COMPLETE** (`074bc2a`) - USD PnL fix, persistence, user actions
 5. **Race Condition Fix: COMPLETE** (`e2cfd70`) - ExecutionCoordinator for PositionMonitor/StrategyLoop
-6. **PositionMonitor Integration: COMPLETE** - SL/TP/hold time now wired into StrategyLoop
+6. **PositionMonitor Integration: COMPLETE** (`abac91c`) - SL/TP/hold time wired into StrategyLoop
+7. **Integration Tests: COMPLETE** (`9e07505`, `f3ac1a3`) - Mocks, helpers, 71 integration tests
 
 ---
 
@@ -23,8 +24,8 @@
 |-----------|--------|
 | Drift LONG/SHORT | Working |
 | Automation Phase 1-4 | Complete |
-| Race Condition Fix | Complete |
 | PositionMonitor | Fully integrated |
+| Integration Tests | 71 tests |
 | User Actions | 4 actions ready |
 
 **Tests:** 175 passing (104 unit + 71 integration)
@@ -37,11 +38,11 @@
 StrategyLoop (5-min cycles)
     ├── SignalsService (OpenBB/CoinGecko/CoinDesk/DeFiLlama)
     ├── RiskManager (exposure, sizing, circuit breaker, cooldown)
-    ├── PositionMonitor (SL/TP/hold time - USD-based PnL)
+    ├── PositionMonitor (SL/TP/hold time - 30s checks)
     ├── ExecutionCoordinator (per-asset mutex locks)
     └── DriftService (slippage-protected execution)
 
-User Actions (Phase 4):
+User Actions:
     ├── STRATEGY_STATUS  - Show current state
     ├── STRATEGY_TOGGLE  - Enable/disable automation
     ├── STRATEGY_UPDATE  - Update configuration
@@ -50,55 +51,39 @@ User Actions (Phase 4):
 
 ---
 
-## ExecutionCoordinator (Race Condition Fix)
+## Integration Tests
 
-**Problem:** PositionMonitor (30s) and StrategyLoop (5min) could close same position simultaneously.
-
-**Solution:** Shared per-user, per-asset mutex locks.
-
-```typescript
-// Both services acquire lock before position operations
-coordinator.withLock(userId, asset, operationType, async () => {
-    // Only one operation can execute at a time per asset
-});
+```
+__tests__/
+├── mocks/
+│   ├── drift-service.mock.ts   # Stateful DriftService mock
+│   └── runtime.mock.ts         # IAgentRuntime factory
+├── helpers/
+│   └── test-utils.ts           # Signal/config factories, async helpers
+└── integration/
+    ├── mock-infrastructure.test.ts    # Verifies mocks work (25 tests)
+    ├── position-monitor-exits.test.ts # SL/TP/hold time (17 tests)
+    ├── execution-coordinator.test.ts  # Race prevention (14 tests)
+    └── risk-manager-drift.test.ts     # Config validation (15 tests)
 ```
 
-**Features:**
-- Per-asset locking (doesn't block other assets)
-- Operation type tracking for debugging
-- Stale lock cleanup (5min timeout)
-- Skip-if-locked for PositionMonitor (doesn't wait, moves on)
+**Key test scenarios:**
+- Stop-loss/take-profit triggers at correct thresholds
+- ExecutionCoordinator blocks concurrent ops on same asset
+- RiskManager validates config and detects position flips
+- Cooldown blocks rapid trades on same asset
 
 ---
 
-## Configuration Options
+## Configuration
 
 ```typescript
 {
-  // Core
   enabled, intervalMinutes, assets, allowShorts,
-  // Risk
   maxPositionPct, maxExposurePct, maxLeverage,
-  circuitBreakerPct, cooldownMinutes,
-  // Execution (Phase 3)
-  maxSlippageBps, maxPriceDriftBps,
+  circuitBreakerPct, cooldownMinutes, maxSlippageBps,
   stopLossPct?, takeProfitPct?, maxHoldMinutes?,
 }
-```
-
----
-
-## Files Structure
-
-```
-plugin-strategy-core/
-├── src/
-│   ├── actions/           # Phase 4 user actions
-│   ├── services/          # StrategyLoop, SignalsService, RiskManager, PositionMonitor
-│   ├── state/             # PostgreSQL persistence
-│   ├── types/             # Type definitions + execution utils
-│   └── utils/             # CircuitBreaker, Cooldown, ExecutionCoordinator
-└── __tests__/             # 104 tests
 ```
 
 ---
@@ -110,11 +95,19 @@ plugin-strategy-core/
 2. Enable: `Enable automation`
 3. Monitor: `Show strategy status`
 
-**Available actions:**
-- `STRATEGY_STATUS` - Show current state
-- `STRATEGY_TOGGLE` - Enable/disable automation
-- `STRATEGY_UPDATE` - Update config (stopLossPct, takeProfitPct, maxHoldMinutes, etc.)
-- `STRATEGY_CLOSE` - Manual position close
+---
+
+## Files Structure
+
+```
+plugin-strategy-core/
+├── src/
+│   ├── actions/           # User actions (status, toggle, update, close)
+│   ├── services/          # StrategyLoop, SignalsService, RiskManager, PositionMonitor
+│   ├── state/             # PostgreSQL persistence
+│   └── utils/             # CircuitBreaker, Cooldown, ExecutionCoordinator
+└── __tests__/             # 175 tests (104 unit + 71 integration)
+```
 
 ---
 
