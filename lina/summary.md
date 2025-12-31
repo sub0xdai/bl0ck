@@ -103,16 +103,22 @@ plugin-strategy-core/
 
 ---
 
-## Next Steps
+## Live Testing
 
-**Integration Testing:** COMPLETE
-- [x] Create integration test infrastructure (mocks, helpers)
-- [x] Test RiskManager + DriftService integration
-- [x] Test PositionMonitor exit triggers E2E
-- [x] Test ExecutionCoordinator race prevention
-- [ ] Test with live Drift devnet (manual)
+**Enable automation via chat:**
+1. Configure: `Update automation config: maxPositionPct 2, stopLossPct 3, takeProfitPct 5`
+2. Enable: `Enable automation`
+3. Monitor: `Show strategy status`
 
-**Future:**
+**Available actions:**
+- `STRATEGY_STATUS` - Show current state
+- `STRATEGY_TOGGLE` - Enable/disable automation
+- `STRATEGY_UPDATE` - Update config (stopLossPct, takeProfitPct, maxHoldMinutes, etc.)
+- `STRATEGY_CLOSE` - Manual position close
+
+---
+
+## Future
 - [ ] WebSocket position updates
 - [ ] Telegram/Discord notifications
 - [ ] Multi-strategy support
