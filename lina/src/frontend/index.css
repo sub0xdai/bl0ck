@@ -386,26 +386,32 @@
   box-shadow: 0 0 8px rgba(203, 166, 247, 0.8);
 }
 
-/* Editable Value with Block Cursor */
+/* Editable Value - Always visible as editable */
 .editable-value {
   position: relative;
   padding: 0.125rem 0.5rem;
-  border-radius: 0.25rem;
-  transition: all 0.15s ease;
-  cursor: pointer;
+  padding-bottom: 0.25rem;
+  transition: all 0.2s ease;
+  cursor: text;
   font-family: 'Roboto Mono', monospace;
+  color: #cba6f7;
+  border-bottom: 1px dotted rgba(203, 166, 247, 0.4);
 }
 
 .editable-value:hover {
-  background: rgba(203, 166, 247, 0.1);
-  color: #cba6f7;
+  background: rgba(203, 166, 247, 0.08);
+  border-bottom-color: #cba6f7;
+  border-bottom-style: solid;
 }
 
 .editable-value:hover::after {
   content: "█";
   position: absolute;
-  right: -0.75rem;
+  right: -1rem;
+  top: 50%;
+  transform: translateY(-50%);
   color: #cba6f7;
+  font-size: 0.75em;
   animation: blink-cursor 1s step-end infinite;
 }
 

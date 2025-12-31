@@ -77,13 +77,14 @@ export function AutomationModalContent({
   const [state, setState] = useState<AutomationState | null>(null);
   const [positions, setPositions] = useState<AutomationPosition[]>([]);
   const [config, setConfig] = useState<AutomationConfig>(DEFAULT_CONFIG);
+  const [localEdits, setLocalEdits] = useState<Partial<AutomationConfig>>({}); // Track local modifications
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
-  const [hoveredField, setHoveredField] = useState<string | null>(null);
   const [storeAvailable, setStoreAvailable] = useState(true);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const localEditsRef = useRef<Partial<AutomationConfig>>({}); // Ref for use in fetchStatus
 
   const fetchStatus = useCallback(async (showLoading = false) => {
     if (showLoading) setIsLoading(true);
@@ -102,10 +103,14 @@ export function AutomationModalContent({
           errors: response.automation.errors,
           lastCycleAt: response.automation.lastCycleAt,
         });
-        setConfig(response.automation.config);
+        // Merge server config with local edits (local takes precedence)
+        setConfig({
+          ...response.automation.config,
+          ...localEditsRef.current,
+        });
       } else {
         setState(null);
-        setConfig(DEFAULT_CONFIG);
+        setConfig({ ...DEFAULT_CONFIG, ...localEditsRef.current });
       }
     } catch (error) {
       console.error('Failed to fetch automation status:', error);
@@ -169,16 +174,26 @@ export function AutomationModalContent({
     setState(prev => prev ? { ...prev, circuitBreakerTripped: false } : null);
   };
 
+  // Helper to track local edits
+  const trackLocalEdit = <K extends keyof AutomationConfig>(field: K, value: AutomationConfig[K]) => {
+    const newEdits = { ...localEditsRef.current, [field]: value };
+    localEditsRef.current = newEdits;
+    setLocalEdits(newEdits);
+  };
+
   const handleAssetToggle = (asset: string) => {
     setConfig(prev => {
       const newAssets = prev.assets.includes(asset)
         ? prev.assets.filter(a => a !== asset)
         : [...prev.assets, asset];
-      return { ...prev, assets: newAssets.length > 0 ? newAssets : [asset] };
+      const finalAssets = newAssets.length > 0 ? newAssets : [asset];
+      trackLocalEdit('assets', finalAssets);
+      return { ...prev, assets: finalAssets };
     });
   };
 
   const handleFieldChange = (field: keyof AutomationConfig, value: number | undefined) => {
+    trackLocalEdit(field, value as AutomationConfig[typeof field]);
     setConfig(prev => ({ ...prev, [field]: value }));
     setEditingField(null);
   };
@@ -191,7 +206,6 @@ export function AutomationModalContent({
     max: number = 100
   ) => {
     const isEditing = editingField === field;
-    const isHovered = hoveredField === field;
 
     if (isEditing) {
       return (
@@ -217,13 +231,10 @@ export function AutomationModalContent({
 
     return (
       <button
-        className="editable-value text-foreground"
+        className="editable-value"
         onClick={() => setEditingField(field)}
-        onMouseEnter={() => setHoveredField(field)}
-        onMouseLeave={() => setHoveredField(null)}
       >
         {value !== undefined ? `${value}${suffix}` : '—'}
-        {isHovered && <span className="absolute -right-3 text-primary opacity-60">█</span>}
       </button>
     );
   };
@@ -429,7 +440,11 @@ export function AutomationModalContent({
                   ? "bg-primary/20 text-primary border border-primary/40"
                   : "bg-muted/30 text-muted-foreground border border-transparent hover:border-muted-foreground/30"
               )}
-              onClick={() => setConfig(prev => ({ ...prev, allowShorts: !prev.allowShorts }))}
+              onClick={() => {
+                const newValue = !config.allowShorts;
+                trackLocalEdit('allowShorts', newValue);
+                setConfig(prev => ({ ...prev, allowShorts: newValue }));
+              }}
             >
               {config.allowShorts ? 'Enabled' : 'Disabled'}
             </button>

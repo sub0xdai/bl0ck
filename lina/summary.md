@@ -13,9 +13,10 @@
    - Pill toggle with glow animation (STANDBY/ACTIVE)
    - Lina breathing indicator (subtle pulse when active)
    - Persona-driven status messages
-   - Editable values with block cursor hover
+   - Editable values with dotted underline + primary color (always visible)
    - PnL color coding (green ▲ / red ▼)
 3. **Real-Time Status API** - REST endpoint with 5s polling
+4. **UX Fix** - Local edits persist across polling (no more reset on Allow Shorts)
 
 **Previous (Dec 31):**
 - Automation Phase 1-4 complete, production @ app.lina4rmdabl0ck.xyz
