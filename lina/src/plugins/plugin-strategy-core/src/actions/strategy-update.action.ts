@@ -207,7 +207,7 @@ export const strategyUpdate: Action = {
 
             // Get params from composed state
             const composedState = await runtime.composeState(message, ['ACTION_STATE'], true);
-            const params = composedState?.data?.actionParams || {};
+            const params = (composedState?.data?.actionParams || {}) as Partial<AutomationConfig> & { resetCircuitBreaker?: boolean };
 
             // Get or create state
             let state = await stateStore.getState(userId);

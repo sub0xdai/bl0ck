@@ -80,7 +80,7 @@ export const strategyToggle: Action = {
 
             // Get params from composed state
             const composedState = await runtime.composeState(message, ['ACTION_STATE'], true);
-            const params = composedState?.data?.actionParams || {};
+            const params = (composedState?.data?.actionParams || {}) as { action?: string; closePositions?: boolean };
 
             const action = params.action?.toLowerCase();
             const closePositions = params.closePositions ?? false;

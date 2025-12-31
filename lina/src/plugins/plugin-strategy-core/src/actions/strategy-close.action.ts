@@ -79,7 +79,7 @@ export const strategyClose: Action = {
 
             // Get params from composed state
             const composedState = await runtime.composeState(message, ['ACTION_STATE'], true);
-            const params = composedState?.data?.actionParams || {};
+            const params = (composedState?.data?.actionParams || {}) as { asset?: string; closeAll?: boolean; percentage?: number };
 
             const asset = params.asset?.toUpperCase();
             const closeAll = params.closeAll ?? false;
