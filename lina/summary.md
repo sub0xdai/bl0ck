@@ -8,12 +8,16 @@
 
 **Session: Jan 1, 2026**
 
-1. **UI Automation Button** - Added brutalist-styled "AUTO" button with shine animation next to About
-2. **Tooltip on Hover** - Radix tooltip with "Trading Automation" description
+1. **UI Automation Button** - Brutalist "AUTO" button with shine animation
+2. **Automation Modal** - Full modal with status row, config, and controls:
+   - Toggle switch with `[○────]`/`[────●]` visual
+   - PnL display with `▲`/`▼` arrows
+   - Circuit breaker status + HALT button
+   - Inline-editable settings (assets, SL/TP, position size)
+   - Collapsible advanced settings
 
 **Previous (Dec 31):**
 - Automation Phase 1-4 complete, production deployed @ app.lina4rmdabl0ck.xyz
-- 4 user actions tested in prod (Configure, Enable, Status, Disable)
 
 ---
 
@@ -98,10 +102,10 @@ plugin-strategy-core/
 
 ## Next Steps
 
-- [x] UI button for automation (added, needs modal wiring)
-- [ ] Wire automation modal to button click
+- [x] UI button for automation
+- [x] Automation modal with controls
+- [ ] Real-time status updates (WebSocket)
 - [ ] Live trade execution (currently observer mode)
-- [ ] WebSocket position updates
 - [ ] Telegram/Discord notifications
 
 ---

@@ -21,6 +21,7 @@ import {
 } from '../components/ui/tooltip';
 import { UUID } from '@elizaos/core';
 import { AboutModalContent } from '../components/about/about-modal-content';
+import { AutomationModalContent } from '../components/automation/automation-modal-content';
 import {
   DepositOnboardingContent,
   shouldShowOnboarding,
@@ -43,6 +44,7 @@ interface Channel {
 }
 
 const ABOUT_MODAL_ID = 'about-lina-modal';
+const AUTOMATION_MODAL_ID = 'automation-modal';
 
 /**
  * MainApp - The authenticated application shell
@@ -655,6 +657,24 @@ function AppContent({
     );
   };
 
+  const handleOpenAutomation = () => {
+    showModal(
+      <AutomationModalContent
+        onClose={() => hideModal(AUTOMATION_MODAL_ID)}
+        userId={userId}
+        agentId={agent?.id || ''}
+        channelId={activeChannelId}
+      />,
+      AUTOMATION_MODAL_ID,
+      {
+        closeOnBackdropClick: true,
+        closeOnEsc: true,
+        showCloseButton: false,
+        className: 'max-w-lg w-full',
+      }
+    );
+  };
+
   const onNewChat = () => {
     handleNewChat();
     setCurrentView('chat');
@@ -718,10 +738,7 @@ function AppContent({
                       <TooltipTrigger asChild>
                         <button
                           className="btn-shine rounded-full px-3 py-2 transition-colors hover:bg-accent flex items-center gap-2 border border-primary/30"
-                          onClick={() => {
-                            // TODO: Open automation modal or navigate to automation settings
-                            console.log('Automation button clicked');
-                          }}
+                          onClick={handleOpenAutomation}
                         >
                           <Zap className="size-4 md:size-5 text-primary" />
                           <span className="text-sm md:text-base text-primary uppercase">AUTO</span>
