@@ -8,13 +8,10 @@
 
 **Session: Dec 31, 2025**
 
-1. **Automation Phase 1: COMPLETE** (`09a47d0`) - Types, state, safety utilities
-2. **Automation Phase 2: COMPLETE** (`9385445`) - SignalsService, RiskManager, StrategyLoop
-3. **Automation Phase 3: COMPLETE** (`2276695`) - Execution safeguards, slippage, PnL tracking
-4. **Automation Phase 3.1 + 4: COMPLETE** (`074bc2a`) - USD PnL fix, persistence, user actions
-5. **Race Condition Fix: COMPLETE** (`e2cfd70`) - ExecutionCoordinator for PositionMonitor/StrategyLoop
-6. **PositionMonitor Integration: COMPLETE** (`abac91c`) - SL/TP/hold time wired into StrategyLoop
-7. **Integration Tests: COMPLETE** (`9e07505`, `f3ac1a3`) - Mocks, helpers, 71 integration tests
+1. **Automation Phase 1-4: COMPLETE** - Full trading automation system
+2. **Production TypeScript Fixes** (`2ebc4a0`) - Fixed ElizaOS API changes (Memory.entityId, State optional, params typing)
+3. **Production Deployment: LIVE** - app.lina4rmdabl0ck.xyz
+4. **User Actions Tested in Prod** - Configure, Enable, Status, Disable all working
 
 ---
 
@@ -23,26 +20,26 @@
 | Component | Status |
 |-----------|--------|
 | Drift LONG/SHORT | Working |
-| Automation Phase 1-4 | Complete |
-| PositionMonitor | Fully integrated |
-| Integration Tests | 71 tests |
-| User Actions | 4 actions ready |
+| Automation System | Live in prod |
+| User Actions | 4 actions working |
+| Tests | 175 passing |
+| Production | Railway deployed |
 
-**Tests:** 175 passing (104 unit + 71 integration)
+**Commits today:** `d528376`, `e3caf8d`, `2ebc4a0` (TypeScript fixes for prod)
 
 ---
 
 ## Architecture
 
 ```
-StrategyLoop (5-min cycles)
-    ├── SignalsService (OpenBB/CoinGecko/CoinDesk/DeFiLlama)
+StrategyLoop (60s cycles)
+    ├── SignalsService (CoinGecko/CoinDesk/DeFiLlama)
     ├── RiskManager (exposure, sizing, circuit breaker, cooldown)
     ├── PositionMonitor (SL/TP/hold time - 30s checks)
     ├── ExecutionCoordinator (per-asset mutex locks)
     └── DriftService (slippage-protected execution)
 
-User Actions:
+User Actions (chat commands):
     ├── STRATEGY_STATUS  - Show current state
     ├── STRATEGY_TOGGLE  - Enable/disable automation
     ├── STRATEGY_UPDATE  - Update configuration
@@ -51,27 +48,21 @@ User Actions:
 
 ---
 
-## Integration Tests
+## Production Testing (Dec 31)
 
+**Tested commands:**
 ```
-__tests__/
-├── mocks/
-│   ├── drift-service.mock.ts   # Stateful DriftService mock
-│   └── runtime.mock.ts         # IAgentRuntime factory
-├── helpers/
-│   └── test-utils.ts           # Signal/config factories, async helpers
-└── integration/
-    ├── mock-infrastructure.test.ts    # Verifies mocks work (25 tests)
-    ├── position-monitor-exits.test.ts # SL/TP/hold time (17 tests)
-    ├── execution-coordinator.test.ts  # Race prevention (14 tests)
-    └── risk-manager-drift.test.ts     # Config validation (15 tests)
+Update automation config: maxPositionPct 1, stopLossPct 3, takeProfitPct 5, assets SOL-PERP
+Enable automation
+Show strategy status
+Disable automation
 ```
 
-**Key test scenarios:**
-- Stop-loss/take-profit triggers at correct thresholds
-- ExecutionCoordinator blocks concurrent ops on same asset
-- RiskManager validates config and detects position flips
-- Cooldown blocks rapid trades on same asset
+**Results:**
+- Config saves correctly
+- Enable/disable toggles work
+- Status shows config + circuit breaker state
+- Automation runs in OBSERVER mode (signals generated, no trades yet)
 
 ---
 
@@ -85,15 +76,6 @@ __tests__/
   stopLossPct?, takeProfitPct?, maxHoldMinutes?,
 }
 ```
-
----
-
-## Live Testing
-
-**Enable automation via chat:**
-1. Configure: `Update automation config: maxPositionPct 2, stopLossPct 3, takeProfitPct 5`
-2. Enable: `Enable automation`
-3. Monitor: `Show strategy status`
 
 ---
 
@@ -111,12 +93,16 @@ plugin-strategy-core/
 
 ---
 
-## Future
+## Next Steps
+
+- [ ] UI button for automation (skip chat commands)
+- [ ] Live trade execution (currently observer mode)
 - [ ] WebSocket position updates
 - [ ] Telegram/Discord notifications
-- [ ] Multi-strategy support
 
 ---
 
 ## Known Issues
+
 - Railway `tasks` table errors (ElizaOS DB schema) - doesn't affect Drift
+- Automation in observer mode - signals generated but not executing trades yet
