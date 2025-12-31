@@ -270,6 +270,38 @@
   50% { opacity: 0.8; transform: scale(1.05) translateY(-2px); }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   AUTOMATION BUTTON - Shine Animation
+   ═══════════════════════════════════════════════════════════════════════════ */
+@keyframes btn-shine {
+  0% { left: -100%; }
+  50%, 100% { left: 100%; }
+}
+
+.btn-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-shine::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(203, 166, 247, 0.15),
+    rgba(203, 166, 247, 0.3),
+    rgba(203, 166, 247, 0.15),
+    transparent
+  );
+  animation: btn-shine 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
 .group:hover .animate-marquee-pulse,
 .group:hover .animate-marquee-up,
 .group:hover .animate-marquee-down { animation-play-state: paused; }

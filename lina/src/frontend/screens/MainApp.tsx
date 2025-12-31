@@ -13,7 +13,12 @@ import { MobileHeader } from '../components/dashboard/mobile-header';
 import { LoadingPanelProvider, useLoadingPanel } from '../contexts/LoadingPanelContext';
 import { ModalProvider, useModal } from '../contexts/ModalContext';
 import { AgentWalletProvider, useAgentWallet } from '../contexts/AgentWalletContext';
-import { Info } from 'lucide-react';
+import { Info, Zap } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '../components/ui/tooltip';
 import { UUID } from '@elizaos/core';
 import { AboutModalContent } from '../components/about/about-modal-content';
 import {
@@ -707,14 +712,36 @@ function AppContent({
                   <h1 className="text-xl lg:text-4xl font-display leading-none mb-1">
                     CHAT
                   </h1>
-                  <button
-                    className="ml-auto rounded-full px-3 py-2 transition-colors hover:bg-accent flex items-center gap-2"
-                    title="About"
-                    onClick={handleOpenAbout}
-                  >
-                    <Info className="size-4 md:size-5 text-muted-foreground" />
-                    <span className="text-sm md:text-base text-muted-foreground uppercase">ABOUT</span>
-                  </button>
+                  <div className="ml-auto flex items-center gap-2">
+                    {/* Automation Button */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          className="btn-shine rounded-full px-3 py-2 transition-colors hover:bg-accent flex items-center gap-2 border border-primary/30"
+                          onClick={() => {
+                            // TODO: Open automation modal or navigate to automation settings
+                            console.log('Automation button clicked');
+                          }}
+                        >
+                          <Zap className="size-4 md:size-5 text-primary" />
+                          <span className="text-sm md:text-base text-primary uppercase">AUTO</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" sideOffset={8}>
+                        <p className="font-medium">Trading Automation</p>
+                        <p className="text-xs opacity-80">Configure automated trading strategies</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    {/* About Button */}
+                    <button
+                      className="rounded-full px-3 py-2 transition-colors hover:bg-accent flex items-center gap-2"
+                      title="About"
+                      onClick={handleOpenAbout}
+                    >
+                      <Info className="size-4 md:size-5 text-muted-foreground" />
+                      <span className="text-sm md:text-base text-muted-foreground uppercase">ABOUT</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Content Area */}

@@ -6,12 +6,14 @@
 
 ## Summary
 
-**Session: Dec 31, 2025**
+**Session: Jan 1, 2026**
 
-1. **Automation Phase 1-4: COMPLETE** - Full trading automation system
-2. **Production TypeScript Fixes** (`2ebc4a0`) - Fixed ElizaOS API changes (Memory.entityId, State optional, params typing)
-3. **Production Deployment: LIVE** - app.lina4rmdabl0ck.xyz
-4. **User Actions Tested in Prod** - Configure, Enable, Status, Disable all working
+1. **UI Automation Button** - Added brutalist-styled "AUTO" button with shine animation next to About
+2. **Tooltip on Hover** - Radix tooltip with "Trading Automation" description
+
+**Previous (Dec 31):**
+- Automation Phase 1-4 complete, production deployed @ app.lina4rmdabl0ck.xyz
+- 4 user actions tested in prod (Configure, Enable, Status, Disable)
 
 ---
 
@@ -22,6 +24,7 @@
 | Drift LONG/SHORT | Working |
 | Automation System | Live in prod |
 | User Actions | 4 actions working |
+| UI Automation Button | Added (needs wiring) |
 | Tests | 175 passing |
 | Production | Railway deployed |
 
@@ -95,7 +98,8 @@ plugin-strategy-core/
 
 ## Next Steps
 
-- [ ] UI button for automation (skip chat commands)
+- [x] UI button for automation (added, needs modal wiring)
+- [ ] Wire automation modal to button click
 - [ ] Live trade execution (currently observer mode)
 - [ ] WebSocket position updates
 - [ ] Telegram/Discord notifications
