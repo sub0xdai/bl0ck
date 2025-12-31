@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { X, Zap, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
+import { X, Zap, AlertTriangle, ChevronDown, ChevronRight, Shield, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { socketManager } from '@/lib/socketManager';
 import { elizaClient } from '@/lib/elizaClient';
@@ -38,7 +38,7 @@ interface AutomationState {
   lastCycleAt?: number;
 }
 
-const POLL_INTERVAL_MS = 5000; // Poll every 5 seconds
+const POLL_INTERVAL_MS = 5000;
 
 const DEFAULT_CONFIG: AutomationConfig = {
   enabled: false,
@@ -56,6 +56,18 @@ const DEFAULT_CONFIG: AutomationConfig = {
 
 const AVAILABLE_ASSETS = ['SOL-PERP', 'BTC-PERP', 'ETH-PERP'];
 
+// Persona-driven status messages
+const getStatusMessage = (config: AutomationConfig, state: AutomationState | null, isConnecting: boolean): string => {
+  if (isConnecting) return "Establishing connection...";
+  if (!state) return "Awaiting parameters...";
+  if (state.circuitBreakerTripped) return "Circuit breaker triggered. Standing by for reset.";
+  if (config.enabled) {
+    const assets = config.assets.map(a => a.replace('-PERP', '')).join(', ');
+    return `Scanning ${assets} for opportunities...`;
+  }
+  return "Standing by. Ready to engage.";
+};
+
 export function AutomationModalContent({
   onClose,
   userId,
@@ -69,16 +81,14 @@ export function AutomationModalContent({
   const [isSaving, setIsSaving] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string>('Lina is idle.');
+  const [hoveredField, setHoveredField] = useState<string | null>(null);
   const [storeAvailable, setStoreAvailable] = useState(true);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch status from API
   const fetchStatus = useCallback(async (showLoading = false) => {
     if (showLoading) setIsLoading(true);
     try {
       const response = await elizaClient.automation.getStatus();
-
       setStoreAvailable(response.storeAvailable);
       setPositions(response.positions || []);
 
@@ -93,52 +103,32 @@ export function AutomationModalContent({
           lastCycleAt: response.automation.lastCycleAt,
         });
         setConfig(response.automation.config);
-
-        // Update status message based on state
-        if (response.automation.config.enabled) {
-          setStatusMessage(`Monitoring ${response.automation.config.assets.join(', ')}...`);
-        } else {
-          setStatusMessage('Lina is idle.');
-        }
       } else {
-        // No automation config yet
         setState(null);
         setConfig(DEFAULT_CONFIG);
-        setStatusMessage('No automation configured.');
       }
     } catch (error) {
       console.error('Failed to fetch automation status:', error);
-      setStatusMessage('Failed to connect to automation service.');
     } finally {
       if (showLoading) setIsLoading(false);
     }
   }, []);
 
-  // Fetch on mount and start polling
   useEffect(() => {
     fetchStatus(true);
-
-    // Start polling
-    pollIntervalRef.current = setInterval(() => {
-      fetchStatus(false);
-    }, POLL_INTERVAL_MS);
-
+    pollIntervalRef.current = setInterval(() => fetchStatus(false), POLL_INTERVAL_MS);
     return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
   }, [fetchStatus]);
 
   const handleToggle = async () => {
     if (!channelId) return;
-
     setIsSaving(true);
     const newEnabled = !config.enabled;
 
     try {
       if (newEnabled) {
-        // Build the enable command with current config
         const configStr = [
           `maxPositionPct ${config.maxPositionPct}`,
           `assets ${config.assets.join(',')}`,
@@ -146,24 +136,13 @@ export function AutomationModalContent({
           config.takeProfitPct ? `takeProfitPct ${config.takeProfitPct}` : '',
         ].filter(Boolean).join(', ');
 
-        socketManager.sendMessage(
-          channelId,
-          `Update automation config: ${configStr}`,
-          userId,
-          agentId
-        );
-
-        // Small delay then enable
+        socketManager.sendMessage(channelId, `Update automation config: ${configStr}`, userId, agentId);
         setTimeout(() => {
           socketManager.sendMessage(channelId, 'Enable automation', userId, agentId);
         }, 500);
-
-        setStatusMessage('Lina is starting up...');
       } else {
         socketManager.sendMessage(channelId, 'Disable automation', userId, agentId);
-        setStatusMessage('Lina is idle.');
       }
-
       setConfig(prev => ({ ...prev, enabled: newEnabled }));
     } catch (error) {
       console.error('Failed to toggle automation:', error);
@@ -174,12 +153,10 @@ export function AutomationModalContent({
 
   const handleHalt = async () => {
     if (!channelId) return;
-
     setIsSaving(true);
     try {
       socketManager.sendMessage(channelId, 'Disable automation', userId, agentId);
       setConfig(prev => ({ ...prev, enabled: false }));
-      setStatusMessage('Lina halted.');
     } catch (error) {
       console.error('Failed to halt automation:', error);
     } finally {
@@ -189,9 +166,6 @@ export function AutomationModalContent({
 
   const handleResetCircuitBreaker = async () => {
     if (!channelId || !state) return;
-
-    // For now, just update local state
-    // In real implementation, this would call an API
     setState(prev => prev ? { ...prev, circuitBreakerTripped: false } : null);
   };
 
@@ -216,59 +190,79 @@ export function AutomationModalContent({
     min: number = 0,
     max: number = 100
   ) => {
-    if (editingField === field) {
+    const isEditing = editingField === field;
+    const isHovered = hoveredField === field;
+
+    if (isEditing) {
       return (
-        <input
-          type="number"
-          className="w-16 bg-card border border-primary rounded px-2 py-0.5 text-foreground text-right"
-          defaultValue={value ?? ''}
-          min={min}
-          max={max}
-          autoFocus
-          onBlur={(e) => handleFieldChange(field, e.target.value ? Number(e.target.value) : undefined)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              handleFieldChange(field, e.currentTarget.value ? Number(e.currentTarget.value) : undefined);
-            }
-            if (e.key === 'Escape') {
-              setEditingField(null);
-            }
-          }}
-        />
+        <div className="relative inline-flex items-center">
+          <input
+            type="number"
+            className="w-20 bg-transparent border-b-2 border-primary px-1 py-0.5 text-primary text-right font-mono outline-none"
+            defaultValue={value ?? ''}
+            min={min}
+            max={max}
+            autoFocus
+            onBlur={(e) => handleFieldChange(field, e.target.value ? Number(e.target.value) : undefined)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleFieldChange(field, e.currentTarget.value ? Number(e.currentTarget.value) : undefined);
+              if (e.key === 'Escape') setEditingField(null);
+            }}
+          />
+          <span className="text-primary font-mono ml-0.5">{suffix}</span>
+          <span className="ml-1 text-primary animate-pulse">█</span>
+        </div>
       );
     }
 
     return (
       <button
-        className="text-primary hover:underline cursor-pointer"
+        className="editable-value text-foreground"
         onClick={() => setEditingField(field)}
+        onMouseEnter={() => setHoveredField(field)}
+        onMouseLeave={() => setHoveredField(null)}
       >
         {value !== undefined ? `${value}${suffix}` : '—'}
+        {isHovered && <span className="absolute -right-3 text-primary opacity-60">█</span>}
       </button>
     );
   };
 
+  // PnL calculations
   const pnlDisplay = state?.sessionPnL ?? 0;
-  const pnlPrefix = pnlDisplay > 0 ? '▲' : pnlDisplay < 0 ? '▼' : '──';
-  const pnlColor = pnlDisplay > 0 ? 'text-success' : pnlDisplay < 0 ? 'text-destructive' : 'text-muted-foreground';
+  const pnlClass = pnlDisplay > 0 ? 'pnl-positive' : pnlDisplay < 0 ? 'pnl-negative' : 'pnl-neutral';
+  const pnlArrow = pnlDisplay > 0 ? '▲' : pnlDisplay < 0 ? '▼' : '·';
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <Zap className="size-8 text-primary animate-pulse" />
-        <p className="mt-4 text-muted-foreground uppercase text-sm">Loading automation status...</p>
+      <div className="flex flex-col items-center justify-center py-16">
+        <div className="relative">
+          <Zap className="size-10 text-primary lina-breath" />
+        </div>
+        <p className="mt-6 text-muted-foreground uppercase text-xs tracking-widest">
+          Initializing...
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-4 max-w-lg">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-display uppercase flex items-center gap-2">
-          <Zap className="size-5 text-primary" />
-          Automation: Lina
-        </h2>
+    <div className="flex flex-col gap-6 max-w-lg">
+      {/* Header - Seamless with modal */}
+      <div className="flex items-center justify-between border-b border-muted/30 pb-4">
+        <div className="flex items-center gap-3">
+          {/* Lina's Breathing Indicator */}
+          <div className="relative">
+            <div className={cn(
+              "size-2 rounded-full",
+              config.enabled ? "bg-primary lina-breath" : "bg-muted-foreground/50"
+            )} />
+          </div>
+          <h2 className="text-2xl font-display uppercase tracking-wide">
+            <span className="text-muted-foreground">Automation:</span>{' '}
+            <span className="text-primary">Lina</span>
+          </h2>
+        </div>
         <Button
           variant="ghost"
           size="icon-sm"
@@ -279,93 +273,89 @@ export function AutomationModalContent({
         </Button>
       </div>
 
-      {/* Status Row */}
-      <div className="ring-2 ring-pop rounded-lg p-4 bg-card">
-        <div className="flex items-center gap-4 flex-wrap">
-          {/* Toggle */}
-          <button
-            className={cn(
-              "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all",
-              config.enabled
-                ? "border-success bg-success/10 text-success"
-                : "border-muted-foreground bg-muted/10 text-muted-foreground",
-              isSaving && "opacity-50 pointer-events-none"
-            )}
-            onClick={handleToggle}
-            disabled={isSaving}
-          >
-            <span className="text-xs font-mono">
-              {config.enabled ? '[────●]' : '[○────]'}
-            </span>
-            <span className="uppercase text-sm font-bold">
-              {config.enabled ? 'ON' : 'OFF'}
-            </span>
-          </button>
+      {/* Status Row - Integrated, no inner box */}
+      <div className="flex items-center gap-6 flex-wrap">
+        {/* Pill Toggle */}
+        <button
+          className={cn(
+            "toggle-pill",
+            config.enabled ? "toggle-pill--active" : "toggle-pill--standby",
+            isSaving && "opacity-50 pointer-events-none"
+          )}
+          onClick={handleToggle}
+          disabled={isSaving}
+        >
+          <span className={cn(
+            "toggle-knob",
+            config.enabled ? "toggle-knob--on" : "toggle-knob--off"
+          )} />
+          <span>{config.enabled ? 'ACTIVE' : 'STANDBY'}</span>
+        </button>
 
-          {/* PnL */}
-          <div className={cn("flex items-center gap-1", pnlColor)}>
-            <span>{pnlPrefix}</span>
-            <span className="font-mono">${Math.abs(pnlDisplay).toFixed(2)}</span>
-          </div>
+        {/* PnL Display */}
+        <div className={cn("flex items-center gap-1.5 font-mono text-sm", pnlClass)}>
+          <span className="text-lg">{pnlArrow}</span>
+          <span>${Math.abs(pnlDisplay).toFixed(2)}</span>
+        </div>
 
-          {/* Circuit Breaker */}
-          <div className={cn(
-            "flex items-center gap-1 text-sm",
-            state?.circuitBreakerTripped ? "text-destructive" : "text-success"
-          )}>
-            {state?.circuitBreakerTripped ? (
-              <>
-                <AlertTriangle className="size-4" />
-                <span>TRIPPED</span>
-                <button
-                  className="ml-1 text-xs underline hover:no-underline"
-                  onClick={handleResetCircuitBreaker}
-                >
-                  [RESET]
-                </button>
-              </>
-            ) : (
-              <>
-                <span>✓</span>
-                <span>Circuit: OK</span>
-              </>
-            )}
-          </div>
-
-          {/* Halt Button (only when enabled) */}
-          {config.enabled && (
-            <button
-              className="ml-auto px-3 py-1 rounded bg-destructive text-destructive-foreground text-sm uppercase font-bold hover:bg-destructive/80 transition-colors"
-              onClick={handleHalt}
-              disabled={isSaving}
-            >
-              HALT
-            </button>
+        {/* Circuit Breaker Status */}
+        <div className={cn(
+          "flex items-center gap-1.5 text-sm",
+          state?.circuitBreakerTripped ? "circuit-tripped" : "circuit-ok"
+        )}>
+          {state?.circuitBreakerTripped ? (
+            <>
+              <ShieldAlert className="size-4" />
+              <span className="uppercase text-xs tracking-wide">Tripped</span>
+              <button
+                className="ml-1 text-xs border border-current px-1.5 py-0.5 rounded hover:bg-current/10 transition-colors"
+                onClick={handleResetCircuitBreaker}
+              >
+                Reset
+              </button>
+            </>
+          ) : (
+            <>
+              <Shield className="size-4" />
+              <span className="uppercase text-xs tracking-wide">Protected</span>
+            </>
           )}
         </div>
 
-        {/* Status Message */}
-        <p className="mt-3 text-sm text-muted-foreground italic">
-          {config.enabled
-            ? `Monitoring ${config.assets.join(', ')}...`
-            : statusMessage}
-        </p>
+        {/* Halt Button */}
+        {config.enabled && (
+          <button
+            className="halt-btn ml-auto text-xs"
+            onClick={handleHalt}
+            disabled={isSaving}
+          >
+            Halt
+          </button>
+        )}
       </div>
 
-      {/* Essential Settings */}
-      <div className="space-y-3">
+      {/* Lina's Status Message */}
+      <p className="text-sm text-muted-foreground/80 italic border-l-2 border-primary/30 pl-3">
+        {getStatusMessage(config, state, isLoading)}
+      </p>
+
+      {/* Divider */}
+      <div className="h-px bg-gradient-to-r from-transparent via-muted/50 to-transparent" />
+
+      {/* Configuration Section */}
+      <div className="space-y-4">
         {/* Assets */}
         <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground uppercase">Assets</span>
-          <div className="flex gap-1.5 flex-wrap">
+          <span className="text-xs text-muted-foreground uppercase tracking-wider">Assets</span>
+          <div className="flex gap-2 flex-wrap">
             {AVAILABLE_ASSETS.map(asset => (
               <button
                 key={asset}
                 className={cn(
-                  "px-2 py-0.5 rounded text-xs uppercase transition-colors",
+                  "px-3 py-1 rounded-full text-xs uppercase tracking-wide transition-all",
                   config.assets.includes(asset)
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    ? "bg-primary/20 text-primary border border-primary/40"
+                    : "bg-muted/30 text-muted-foreground border border-transparent hover:border-muted-foreground/30"
                 )}
                 onClick={() => handleAssetToggle(asset)}
               >
@@ -377,81 +367,83 @@ export function AutomationModalContent({
 
         {/* Max Position */}
         <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground uppercase">Max Position</span>
+          <span className="text-xs text-muted-foreground uppercase tracking-wider">Max Position</span>
           {renderEditableValue('maxPositionPct', config.maxPositionPct, '%', 1, 50)}
         </div>
 
         {/* Stop Loss */}
         <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground uppercase">Stop Loss</span>
+          <span className="text-xs text-muted-foreground uppercase tracking-wider">Stop Loss</span>
           {renderEditableValue('stopLossPct', config.stopLossPct, '%', 1, 50)}
         </div>
 
         {/* Take Profit */}
         <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground uppercase">Take Profit</span>
+          <span className="text-xs text-muted-foreground uppercase tracking-wider">Take Profit</span>
           {renderEditableValue('takeProfitPct', config.takeProfitPct, '%', 1, 100)}
         </div>
       </div>
 
       {/* Advanced Settings Toggle */}
       <button
-        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors uppercase tracking-wider"
         onClick={() => setShowAdvanced(!showAdvanced)}
       >
-        {showAdvanced ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-        <span className="uppercase">Advanced</span>
+        {showAdvanced ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
+        <span>Advanced Parameters</span>
       </button>
 
       {/* Advanced Settings */}
       {showAdvanced && (
-        <div className="space-y-3 pl-4 border-l-2 border-muted">
+        <div className="space-y-3 pl-4 border-l border-muted/30">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground uppercase">Max Exposure</span>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">Max Exposure</span>
             {renderEditableValue('maxExposurePct', config.maxExposurePct, '%', 5, 100)}
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground uppercase">Max Leverage</span>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">Max Leverage</span>
             {renderEditableValue('maxLeverage', config.maxLeverage, 'x', 1, 20)}
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground uppercase">Circuit Breaker</span>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">Circuit Breaker</span>
             {renderEditableValue('circuitBreakerPct', config.circuitBreakerPct, '%', 1, 50)}
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground uppercase">Cooldown</span>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">Cooldown</span>
             {renderEditableValue('cooldownMinutes', config.cooldownMinutes, 'min', 1, 60)}
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground uppercase">Max Slippage</span>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">Max Slippage</span>
             {renderEditableValue('maxSlippageBps', config.maxSlippageBps, 'bps', 10, 200)}
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground uppercase">Max Hold Time</span>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">Max Hold Time</span>
             {renderEditableValue('maxHoldMinutes', config.maxHoldMinutes, 'min', 0, 1440)}
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground uppercase">Allow Shorts</span>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">Allow Shorts</span>
             <button
               className={cn(
-                "px-2 py-0.5 rounded text-xs uppercase transition-colors",
+                "px-3 py-1 rounded-full text-xs uppercase tracking-wide transition-all",
                 config.allowShorts
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground"
+                  ? "bg-primary/20 text-primary border border-primary/40"
+                  : "bg-muted/30 text-muted-foreground border border-transparent hover:border-muted-foreground/30"
               )}
               onClick={() => setConfig(prev => ({ ...prev, allowShorts: !prev.allowShorts }))}
             >
-              {config.allowShorts ? 'Yes' : 'No'}
+              {config.allowShorts ? 'Enabled' : 'Disabled'}
             </button>
           </div>
         </div>
       )}
 
-      {/* Cycle Count */}
+      {/* Footer Stats */}
       {state && state.cycleCount > 0 && (
-        <p className="text-xs text-muted-foreground text-right">
-          {state.cycleCount} cycles completed
-        </p>
+        <div className="flex justify-end pt-2 border-t border-muted/20">
+          <span className="text-xs text-muted-foreground/60 font-mono">
+            {state.cycleCount} cycles · {state.lastCycleAt ? `Last: ${new Date(state.lastCycleAt).toLocaleTimeString()}` : ''}
+          </span>
+        </div>
       )}
     </div>
   );

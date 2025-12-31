@@ -302,6 +302,156 @@
   pointer-events: none;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   AUTOMATION MODAL - Roman-Cyberpunk Aesthetic
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Lina's Breathing Animation - subtle pulse to show agent is alive */
+@keyframes lina-breathe {
+  0%, 100% {
+    opacity: 0.6;
+    box-shadow: 0 0 4px rgba(203, 166, 247, 0.3);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 12px rgba(203, 166, 247, 0.6);
+  }
+}
+
+.lina-breath {
+  animation: lina-breathe 3s ease-in-out infinite;
+}
+
+/* Pill Toggle - Active State Glow */
+@keyframes toggle-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(203, 166, 247, 0.4), inset 0 0 8px rgba(203, 166, 247, 0.1); }
+  50% { box-shadow: 0 0 16px rgba(203, 166, 247, 0.6), inset 0 0 12px rgba(203, 166, 247, 0.2); }
+}
+
+.toggle-pill {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  border: 1px solid;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  font-family: 'Roboto Mono', monospace;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.toggle-pill--standby {
+  border-color: rgba(166, 173, 200, 0.3);
+  background: transparent;
+  color: #a6adc8;
+}
+
+.toggle-pill--standby:hover {
+  border-color: rgba(166, 173, 200, 0.5);
+  background: rgba(166, 173, 200, 0.05);
+}
+
+.toggle-pill--active {
+  border-color: rgba(203, 166, 247, 0.6);
+  background: rgba(203, 166, 247, 0.1);
+  color: #cba6f7;
+  animation: toggle-glow 2s ease-in-out infinite;
+}
+
+.toggle-pill--active:hover {
+  background: rgba(203, 166, 247, 0.15);
+}
+
+/* Toggle Knob */
+.toggle-knob {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.toggle-knob--off {
+  background: transparent;
+  border: 2px solid #a6adc8;
+}
+
+.toggle-knob--on {
+  background: #cba6f7;
+  border: 2px solid #cba6f7;
+  box-shadow: 0 0 8px rgba(203, 166, 247, 0.8);
+}
+
+/* Editable Value with Block Cursor */
+.editable-value {
+  position: relative;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  font-family: 'Roboto Mono', monospace;
+}
+
+.editable-value:hover {
+  background: rgba(203, 166, 247, 0.1);
+  color: #cba6f7;
+}
+
+.editable-value:hover::after {
+  content: "█";
+  position: absolute;
+  right: -0.75rem;
+  color: #cba6f7;
+  animation: blink-cursor 1s step-end infinite;
+}
+
+@keyframes blink-cursor {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* PnL Display */
+.pnl-positive { color: #a6e3a1; }
+.pnl-negative { color: #f38ba8; }
+.pnl-neutral { color: #a6adc8; }
+
+/* Circuit Status */
+.circuit-ok {
+  color: #a6e3a1;
+}
+
+.circuit-tripped {
+  color: #f38ba8;
+  animation: circuit-pulse 1s ease-in-out infinite;
+}
+
+@keyframes circuit-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Halt Button */
+.halt-btn {
+  background: linear-gradient(135deg, #f38ba8 0%, #eba0ac 100%);
+  color: #1e1e2e;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 8px rgba(243, 139, 168, 0.3);
+}
+
+.halt-btn:hover {
+  box-shadow: 0 0 16px rgba(243, 139, 168, 0.5);
+  transform: translateY(-1px);
+}
+
 .group:hover .animate-marquee-pulse,
 .group:hover .animate-marquee-up,
 .group:hover .animate-marquee-down { animation-play-state: paused; }

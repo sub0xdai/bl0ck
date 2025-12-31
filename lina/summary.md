@@ -9,14 +9,16 @@
 **Session: Jan 1, 2026**
 
 1. **UI Automation Button** - Brutalist "AUTO" button with shine animation
-2. **Automation Modal** - Full modal with status row, config, and controls
-3. **Real-Time Status API** - REST endpoint `/api/automation/status` with 5s polling:
-   - Backend: `server/src/api/automation/index.ts`
-   - Client: `api-client/src/services/automation.ts`
-   - Returns: config, circuitBreaker, sessionPnL, cycleCount, positions
+2. **Automation Modal** - Roman-Cyberpunk aesthetic:
+   - Pill toggle with glow animation (STANDBY/ACTIVE)
+   - Lina breathing indicator (subtle pulse when active)
+   - Persona-driven status messages
+   - Editable values with block cursor hover
+   - PnL color coding (green ▲ / red ▼)
+3. **Real-Time Status API** - REST endpoint with 5s polling
 
 **Previous (Dec 31):**
-- Automation Phase 1-4 complete, production deployed @ app.lina4rmdabl0ck.xyz
+- Automation Phase 1-4 complete, production @ app.lina4rmdabl0ck.xyz
 
 ---
 
