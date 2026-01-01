@@ -332,9 +332,11 @@ export class DriftService extends Service {
     // Validate parameters first
     const validation = this.validatePositionParams(params);
     if (!validation.valid) {
+      const errorMsg = validation.errors.join('; ');
+      logger.error(`[DRIFT_SERVICE] Validation failed: ${errorMsg}`);
       return {
         success: false,
-        error: validation.errors.join('; '),
+        error: errorMsg,
       };
     }
 

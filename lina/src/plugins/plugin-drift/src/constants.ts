@@ -59,7 +59,7 @@ export const CONFIG = {
   MAX_LEVERAGE: 20,
   DEFAULT_LEVERAGE: 1,
   DEFAULT_SLIPPAGE: 0.5,         // 0.5%
-  MIN_COLLATERAL: 1,             // $1 minimum position size (lowered for testing)
+  MIN_COLLATERAL: 0.01,          // $0.01 minimum (lowered for low-collateral testing)
   MIN_SOL_FOR_INIT: 0.02,        // SOL needed for Drift account initialization
   SUBACCOUNT_ID: 0,              // Default subaccount
   HIGH_RISK_LEVERAGE_THRESHOLD: 5, // Warn user above this leverage
