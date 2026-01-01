@@ -61,8 +61,10 @@ export const DEFAULT_SIGNAL_WEIGHTS: SignalWeights = {
 
 /**
  * Minimum confidence threshold to generate a non-NEUTRAL signal.
+ * Original: 0.6 (60%), lowered because news/volume sources return 0.
+ * With only trend working (weight 0.5), max possible confidence is 50%.
  */
-export const SIGNAL_CONFIDENCE_THRESHOLD = 0.6;
+export const SIGNAL_CONFIDENCE_THRESHOLD = 0.2;
 
 /**
  * Trend threshold for determining bullish/bearish (7d price change %).
