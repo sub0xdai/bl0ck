@@ -682,6 +682,7 @@ function AppContent({
     showModal(
       <AutomationModalContent
         onClose={() => hideModal(AUTOMATION_MODAL_ID)}
+        channelId={activeChannelId}
       />,
       AUTOMATION_MODAL_ID,
       {

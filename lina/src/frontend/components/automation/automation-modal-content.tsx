@@ -7,6 +7,8 @@ import type { AutomationStatusResponse, AutomationPosition } from '@elizaos/api-
 
 interface AutomationModalContentProps {
   onClose: () => void;
+  /** Optional channel ID for trading updates (stored when enabling automation) */
+  channelId?: string | null;
 }
 
 interface AutomationConfig {
@@ -66,6 +68,7 @@ const getStatusMessage = (config: AutomationConfig, state: AutomationState | nul
 
 export function AutomationModalContent({
   onClose,
+  channelId,
 }: AutomationModalContentProps) {
   const [state, setState] = useState<AutomationState | null>(null);
   const [positions, setPositions] = useState<AutomationPosition[]>([]);
@@ -141,8 +144,8 @@ export function AutomationModalContent({
         });
       }
 
-      // Then toggle
-      const response = await elizaClient.automation.toggle(newEnabled);
+      // Then toggle (pass channelId when enabling for trading updates)
+      const response = await elizaClient.automation.toggle(newEnabled, newEnabled && channelId ? channelId : undefined);
 
       // Update local state from response
       if (response.automation) {

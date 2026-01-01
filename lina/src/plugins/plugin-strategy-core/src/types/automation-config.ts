@@ -59,6 +59,9 @@ export interface AutomationState {
     /** Current configuration */
     config: AutomationConfig;
 
+    /** Chat channel ID for sending trading updates (set when automation enabled) */
+    channelId?: string;
+
     /** Whether circuit breaker has been tripped */
     circuitBreakerTripped: boolean;
 

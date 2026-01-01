@@ -21,6 +21,7 @@ dns.setDefaultResultOrder('ipv4first');
 interface AutomationStateRow {
     user_id: string;
     config: string; // JSON stringified AutomationConfig
+    channel_id: string | null; // Chat channel for trading updates
     circuit_breaker_tripped: boolean;
     circuit_breaker_tripped_at: number | null;
     last_trade_timestamps: string; // JSON stringified Record<string, number>
@@ -65,6 +66,20 @@ BEGIN
     ) THEN
         ALTER TABLE lina_automation.automation_states
         ADD COLUMN position_open_times JSONB NOT NULL DEFAULT '{}'::jsonb;
+    END IF;
+END $$;
+
+-- Migration for channel_id (chat messaging)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'lina_automation'
+        AND table_name = 'automation_states'
+        AND column_name = 'channel_id'
+    ) THEN
+        ALTER TABLE lina_automation.automation_states
+        ADD COLUMN channel_id TEXT;
     END IF;
 END $$;
 
@@ -177,6 +192,7 @@ export class AutomationStateStore {
         return {
             userId: row.user_id,
             config: typeof row.config === 'string' ? JSON.parse(row.config) : row.config,
+            channelId: row.channel_id ?? undefined,
             circuitBreakerTripped: row.circuit_breaker_tripped,
             circuitBreakerTrippedAt: row.circuit_breaker_tripped_at ?? undefined,
             lastTradeTimestamps: typeof row.last_trade_timestamps === 'string'
@@ -237,12 +253,13 @@ export class AutomationStateStore {
             await this.withClient(async (client) => {
                 await client.query(
                     `INSERT INTO lina_automation.automation_states (
-                        user_id, config, circuit_breaker_tripped, circuit_breaker_tripped_at,
+                        user_id, config, channel_id, circuit_breaker_tripped, circuit_breaker_tripped_at,
                         last_trade_timestamps, position_open_times, session_pnl, cycle_count, errors,
                         started_at, last_cycle_at
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                     ON CONFLICT (user_id) DO UPDATE SET
                         config = EXCLUDED.config,
+                        channel_id = EXCLUDED.channel_id,
                         circuit_breaker_tripped = EXCLUDED.circuit_breaker_tripped,
                         circuit_breaker_tripped_at = EXCLUDED.circuit_breaker_tripped_at,
                         last_trade_timestamps = EXCLUDED.last_trade_timestamps,
@@ -255,6 +272,7 @@ export class AutomationStateStore {
                     [
                         state.userId,
                         JSON.stringify(state.config),
+                        state.channelId ?? null,
                         state.circuitBreakerTripped,
                         state.circuitBreakerTrippedAt ?? null,
                         JSON.stringify(state.lastTradeTimestamps),
@@ -298,6 +316,10 @@ export class AutomationStateStore {
             if (updates.config !== undefined) {
                 setClauses.push(`config = $${paramIndex++}`);
                 values.push(JSON.stringify(updates.config));
+            }
+            if (updates.channelId !== undefined) {
+                setClauses.push(`channel_id = $${paramIndex++}`);
+                values.push(updates.channelId ?? null);
             }
             if (updates.circuitBreakerTripped !== undefined) {
                 setClauses.push(`circuit_breaker_tripped = $${paramIndex++}`);

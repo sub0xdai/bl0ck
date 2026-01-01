@@ -79,9 +79,11 @@ export class AutomationService extends BaseApiClient {
 
   /**
    * Toggle automation on/off for the authenticated user
+   * @param enabled - Whether to enable or disable automation
+   * @param channelId - Optional chat channel ID for trading updates (stored when enabling)
    */
-  async toggle(enabled: boolean): Promise<AutomationUpdateResponse> {
-    return this.post<AutomationUpdateResponse>('/api/automation/toggle', { enabled });
+  async toggle(enabled: boolean, channelId?: string): Promise<AutomationUpdateResponse> {
+    return this.post<AutomationUpdateResponse>('/api/automation/toggle', { enabled, channelId });
   }
 
   /**

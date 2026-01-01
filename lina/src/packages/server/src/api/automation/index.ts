@@ -138,18 +138,18 @@ export function automationRouter(elizaOS: ElizaOS, _serverInstance: AgentServer)
   /**
    * POST /api/automation/toggle
    * Enable or disable automation for the authenticated user
-   * Body: { enabled: boolean }
+   * Body: { enabled: boolean, channelId?: string }
    */
   router.post('/toggle', async (req: AuthenticatedRequest, res) => {
     try {
       const userId = req.userId!;
-      const { enabled } = req.body as { enabled: boolean };
+      const { enabled, channelId } = req.body as { enabled: boolean; channelId?: string };
 
       if (typeof enabled !== 'boolean') {
         return sendError(res, 400, 'INVALID_REQUEST', 'enabled must be a boolean');
       }
 
-      logger.info(`[Automation API] Toggle automation for user ${userId.substring(0, 8)}...: ${enabled ? 'ON' : 'OFF'}`);
+      logger.info(`[Automation API] Toggle automation for user ${userId.substring(0, 8)}...: ${enabled ? 'ON' : 'OFF'}${channelId ? ` (channel: ${channelId.substring(0, 8)}...)` : ''}`);
 
       const stateStore = AutomationStateStore.getInstance();
       await stateStore.initialize();
@@ -157,9 +157,14 @@ export function automationRouter(elizaOS: ElizaOS, _serverInstance: AgentServer)
       // Get or create state
       const state = await stateStore.getOrCreateState(userId);
 
-      // Update enabled flag in config
+      // Update enabled flag in config, and channelId if provided (for chat messages)
       const updatedConfig = { ...state.config, enabled };
-      await stateStore.updateState(userId, { config: updatedConfig });
+      const updates: { config: typeof updatedConfig; channelId?: string } = { config: updatedConfig };
+      if (channelId && enabled) {
+        // Store channelId when enabling (for sending trading updates to chat)
+        updates.channelId = channelId;
+      }
+      await stateStore.updateState(userId, updates);
 
       // Return updated state
       const updatedState = await stateStore.getState(userId);
@@ -168,6 +173,7 @@ export function automationRouter(elizaOS: ElizaOS, _serverInstance: AgentServer)
         automation: updatedState ? {
           userId: updatedState.userId,
           config: updatedState.config,
+          channelId: updatedState.channelId,
           circuitBreakerTripped: updatedState.circuitBreakerTripped,
           circuitBreakerTrippedAt: updatedState.circuitBreakerTrippedAt,
           sessionPnL: updatedState.sessionPnL,
