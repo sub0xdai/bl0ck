@@ -148,9 +148,16 @@ export class StrategyLoop extends Service {
     }
 
     static async start(runtime: IAgentRuntime): Promise<StrategyLoop> {
-        const svc = new StrategyLoop(runtime);
-        await svc.initialize();
-        return svc;
+        logger.info('[STRATEGY_LOOP] === SERVICE START CALLED ===');
+        try {
+            const svc = new StrategyLoop(runtime);
+            await svc.initialize();
+            logger.info('[STRATEGY_LOOP] === SERVICE STARTED SUCCESSFULLY ===');
+            return svc;
+        } catch (error) {
+            logger.error('[STRATEGY_LOOP] === SERVICE START FAILED ===', error instanceof Error ? error.message : String(error));
+            throw error;
+        }
     }
 
     async initialize(_runtime?: IAgentRuntime): Promise<void> {
