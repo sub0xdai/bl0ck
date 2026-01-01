@@ -641,7 +641,9 @@ export class DriftService extends Service {
     const user = await this.getValidatedUser(client);
     const position = user.getPerpPosition(marketIndex);
 
-    if (!position || position.baseAssetAmount.isZero()) {
+    // Filter out closed positions and dust (< 0.0001 in base units)
+    const MIN_BASE_AMOUNT = new BN(100000); // 0.0001 * 10^9 (BASE_PRECISION)
+    if (!position || position.baseAssetAmount.abs().lt(MIN_BASE_AMOUNT)) {
       return null;
     }
 

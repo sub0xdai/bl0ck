@@ -38,16 +38,15 @@ function formatCompactNumber(value: string | number): string {
   return usd.toFixed(2);
 }
 
-// Format oracle price from raw BN string (PRICE_PRECISION = 6)
-function formatOraclePrice(value: string): string {
+// Format mark price (already normalized by backend)
+function formatMarkPrice(value: string): string {
   const num = parseFloat(value);
-  if (!Number.isFinite(num)) return '0.00';
-  // Raw oracle price values from Drift are scaled by 1e6
-  const price = num / 1_000_000;
-  if (price >= 1000) {
-    return price.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  if (!Number.isFinite(num) || num === 0) return '0.00';
+  // Backend already normalizes to human-readable (e.g., "190.50")
+  if (num >= 1000) {
+    return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
   }
-  return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 // Format USD price that's already in human-readable form (entry, liq)
@@ -60,27 +59,27 @@ function formatUsdPrice(value: string): string {
   return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// Format position size from base asset amount (9 decimals)
+// Format position size (already normalized by backend)
 function formatSize(value: string): string {
   const num = parseFloat(value);
   if (!Number.isFinite(num)) return '0';
-  const size = num / 1_000_000_000; // BASE_PRECISION = 9
-  if (size >= 1000) {
-    return size.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  // Backend already normalizes to human-readable (e.g., "0.1" for 0.1 SOL)
+  if (num >= 1000) {
+    return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
   }
-  if (size >= 1) {
-    return size.toFixed(4);
+  if (num >= 1) {
+    return num.toFixed(4);
   }
-  return size.toFixed(6);
+  return num.toFixed(6);
 }
 
-// Format PnL with color indicator
+// Format PnL with color indicator (already normalized by backend)
 function formatPnl(value: string): { text: string; isPositive: boolean } {
   const num = parseFloat(value);
   if (!Number.isFinite(num)) return { text: '$0.00', isPositive: true };
-  const pnl = num / 1_000_000; // QUOTE_PRECISION = 6
-  const isPositive = pnl >= 0;
-  const text = `${isPositive ? '+' : ''}$${formatUsdValue(Math.abs(pnl))}`;
+  // Backend already normalizes to human-readable (e.g., "5.50" for $5.50)
+  const isPositive = num >= 0;
+  const text = `${isPositive ? '+' : ''}$${formatUsdValue(Math.abs(num))}`;
   return { text, isPositive };
 }
 
@@ -108,10 +107,11 @@ export function DriftTab({ userId, isActive = true }: DriftTabProps) {
         elizaClient.drift.getAccountInfo(),
       ]) as [DriftPositionsResponse, DriftAccountResponse];
 
-      // Filter out ghost positions (size = 0)
+      // Filter out ghost/dust positions (size < 0.0001)
+      const MIN_POSITION_SIZE = 0.0001; // ~$0.01 at $100 price
       const activePositions = (positionsRes.positions || []).filter(p => {
         const size = parseFloat(p.size);
-        return Number.isFinite(size) && Math.abs(size) > 0;
+        return Number.isFinite(size) && Math.abs(size) >= MIN_POSITION_SIZE;
       });
       setPositions(activePositions);
       setAccount(accountRes.account);
@@ -286,7 +286,7 @@ export function DriftTab({ userId, isActive = true }: DriftTabProps) {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Mark</span>
-                  <span className="font-mono">${formatOraclePrice(position.markPrice)}</span>
+                  <span className="font-mono">${formatMarkPrice(position.markPrice)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Liq</span>

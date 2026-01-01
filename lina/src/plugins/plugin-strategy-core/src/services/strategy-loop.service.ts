@@ -594,6 +594,12 @@ export class StrategyLoop extends Service {
         const assets = config.assets;
         const dryRun = !config.enabled; // Safety: treat disabled as dry-run
 
+        // Log execution mode for observability
+        logger.info(
+            `[STRATEGY_LOOP] Cycle ${state.cycleCount} for ${userId.substring(0, 8)}... | ` +
+            `mode: ${dryRun ? 'DRY-RUN' : 'LIVE'} | enabled: ${config.enabled}`
+        );
+
         const results: CycleAssetResult[] = [];
         const channelId = state.channelId;
 

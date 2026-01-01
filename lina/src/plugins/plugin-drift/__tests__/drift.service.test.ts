@@ -36,6 +36,10 @@ class MockBN {
     const otherVal = other instanceof MockBN ? other.value : BigInt(other);
     return this.value > otherVal;
   }
+  lt(other: MockBN | number): boolean {
+    const otherVal = other instanceof MockBN ? other.value : BigInt(other);
+    return this.value < otherVal;
+  }
   mul(other: MockBN | number): MockBN {
     const otherVal = other instanceof MockBN ? other.value : BigInt(other);
     return new MockBN(this.value * otherVal);

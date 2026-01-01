@@ -23,6 +23,10 @@ class MockBN {
     const otherVal = (other as any).value !== undefined ? (other as MockBN).value : BigInt(other);
     return this.value > otherVal;
   }
+  lt(other: MockBN | number): boolean {
+    const otherVal = (other as any).value !== undefined ? (other as MockBN).value : BigInt(other);
+    return this.value < otherVal;
+  }
   mul(other: MockBN | number): MockBN {
     const otherVal = (other as any).value !== undefined ? (other as MockBN).value : BigInt(other);
     return new MockBN(this.value * otherVal);
