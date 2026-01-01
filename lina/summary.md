@@ -9,20 +9,15 @@
 **Session: Jan 1, 2026**
 
 1. **UI Automation Button** - Brutalist "AUTO" button with glow when active
-2. **Automation Modal** - Chat-first UX with cyberpunk aesthetic:
-   - Header: "Trading: Lina" (clearer intent)
-   - First-time user hint explaining chat integration
-   - Chat integration notice showing where updates appear
-   - Action-oriented status messages ("I'll share my analysis in chat")
-   - PnL display only when there's activity
-   - Confirmation dialog when stopping with open positions
-3. **REST API for Automation Control** - Toggle and config via REST (no chat required):
-   - `POST /api/automation/toggle` - Enable/disable + stores channelId
-   - `POST /api/automation/config` - Update configuration
-4. **Chat Integration** - channelId stored when enabling for trading updates
+2. **Automation Modal** - Chat-first UX with cyberpunk aesthetic
+3. **REST API for Automation Control** - Toggle and config via REST (no chat required)
+4. **Chat Messaging** - StrategyLoop sends trading updates to user's chat:
+   - Cycle start: "Analyzing SOL, BTC for opportunities..."
+   - Trade opened: "🔵 Opened LONG SOL · $500 @ 3x leverage"
+   - Trade closed: "✅ Closed SOL · +$45.20 (TAKE-PROFIT)"
+   - Circuit breaker: "⚠️ Circuit breaker triggered · Trading paused"
 
-**Previous (Dec 31):**
-- Automation Phase 1-4 complete, production @ app.lina4rmdabl0ck.xyz
+**Live trading is ready!** Just toggle ACTIVE in the modal.
 
 ---
 
@@ -34,10 +29,11 @@
 | Automation System | Live in prod |
 | REST API Control | Toggle + Config + channelId |
 | UI Automation Modal | Chat-first UX |
+| Chat Messaging | StrategyLoop → Chat |
 | Tests | 175 passing |
 | Production | Railway deployed |
 
-**Commits today:** `dd6aff0` (REST API), `ca812d3` (chat-first UX)
+**Commits today:** `7861593` (chat messaging)
 
 ---
 
@@ -49,16 +45,14 @@ StrategyLoop (5min cycles)
     ├── RiskManager (exposure, sizing, circuit breaker, cooldown)
     ├── PositionMonitor (SL/TP/hold time - 30s checks)
     ├── ExecutionCoordinator (per-asset mutex locks)
-    └── DriftService (slippage-protected execution)
+    ├── DriftService (slippage-protected execution)
+    └── sendChatMessage() → POST /api/messaging/submit
 
-REST API Endpoints:
-    ├── GET  /api/automation/status  - Current state + positions
-    ├── POST /api/automation/toggle  - Enable/disable (stores channelId)
-    └── POST /api/automation/config  - Update configuration
-
-Chat Integration:
-    - channelId stored in AutomationState when enabling
-    - StrategyLoop can send trading updates to user's chat (pending)
+Chat Integration Flow:
+    1. User enables automation (modal toggle → ACTIVE)
+    2. channelId stored in AutomationState
+    3. StrategyLoop runs cycle every 5 min
+    4. Messages sent to chat via sendChatMessage()
 ```
 
 ---
@@ -82,21 +76,15 @@ Chat Integration:
 ```
 plugin-strategy-core/
 ├── src/
-│   ├── actions/           # User actions (status, toggle, update, close)
-│   ├── services/          # StrategyLoop, SignalsService, RiskManager, PositionMonitor
-│   ├── state/             # PostgreSQL persistence (AutomationStateStore)
-│   └── utils/             # CircuitBreaker, Cooldown, ExecutionCoordinator
-└── __tests__/             # 175 tests (104 unit + 71 integration)
-
-packages/server/src/api/automation/
-└── index.ts               # REST endpoints for toggle + config
-
-packages/api-client/src/services/
-└── automation.ts          # Client methods: getStatus(), toggle(), updateConfig()
+│   ├── services/
+│   │   ├── strategy-loop.service.ts  # sendChatMessage() added
+│   │   └── risk-manager.service.ts   # isCircuitBreakerTripped() added
+│   └── ...
+└── __tests__/
 
 frontend/components/automation/
-├── automation-modal-content.tsx  # Main modal with chat-first UX
-└── confirmation-dialog.tsx       # Stop confirmation with positions warning
+├── automation-modal-content.tsx  # Chat-first UX
+└── confirmation-dialog.tsx       # Stop confirmation
 ```
 
 ---
@@ -105,11 +93,10 @@ frontend/components/automation/
 
 - [x] UI button for automation
 - [x] Automation modal with controls
-- [x] REST API for toggle/config (no chat required)
-- [x] Chat-first UX (hints, notices, status messages)
-- [x] channelId infrastructure for chat updates
-- [ ] StrategyLoop sends trading reasoning to chat
-- [ ] Live trade execution (currently observer mode)
+- [x] REST API for toggle/config
+- [x] Chat-first UX (hints, notices)
+- [x] StrategyLoop sends trading updates to chat
+- [ ] Test live trading end-to-end
 - [ ] Telegram/Discord notifications
 
 ---
@@ -117,4 +104,14 @@ frontend/components/automation/
 ## Known Issues
 
 - Railway `tasks` table errors (ElizaOS DB schema) - doesn't affect Drift
-- Automation in observer mode - signals generated but not executing trades yet
+- First-time trading needs verification in production
+
+---
+
+## Live Trading Activation
+
+To enable live trading:
+1. Open automation modal (click AUTO button)
+2. Configure assets, position size, SL/TP
+3. Toggle STANDBY → ACTIVE
+4. Lina will send updates to chat every 5 min cycle
