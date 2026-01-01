@@ -315,13 +315,13 @@ export function AutomationModalContent({
     field: keyof AutomationConfig,
     value: number | undefined,
     suffix: string = '%',
-    min: number = 0,
-    max: number = 100
+    _min: number = 0,
+    _max: number = 100
   ) => {
     return (
-      <div className="cyber-number-wrapper">
+      <div className="inline-flex items-center gap-1">
         <span
-          className="editable-value cursor-text"
+          className="editable-value cursor-text hover:text-primary transition-colors"
           onClick={() => setEditingField(field)}
           role="button"
           tabIndex={0}
@@ -330,27 +330,11 @@ export function AutomationModalContent({
               setEditingField(field);
             }
           }}
-          aria-label={`${field}: ${value !== undefined ? value : 'not set'} ${suffix}`}
+          aria-label={`${field}: ${value !== undefined ? value : 'not set'} ${suffix}. Click to edit.`}
         >
           {value !== undefined ? value : '\u2014'}
         </span>
-        <span className="text-primary font-mono ml-0.5" aria-hidden="true">{suffix}</span>
-        <div className="cyber-number-spinners">
-          <button
-            type="button"
-            className="cyber-number-btn cyber-number-btn--up"
-            onClick={() => handleIncrement(field, value, min, max)}
-            aria-label={`Increment ${field}`}
-            tabIndex={0}
-          />
-          <button
-            type="button"
-            className="cyber-number-btn cyber-number-btn--down"
-            onClick={() => handleDecrement(field, value, min, max)}
-            aria-label={`Decrement ${field}`}
-            tabIndex={0}
-          />
-        </div>
+        <span className="text-primary font-mono" aria-hidden="true">{suffix}</span>
       </div>
     );
   };

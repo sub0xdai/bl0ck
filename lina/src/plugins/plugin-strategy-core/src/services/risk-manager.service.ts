@@ -75,28 +75,28 @@ export class RiskManager {
 
         // 1. Check if automation is enabled
         if (!config.enabled) {
-            return this.reject(REJECTION_REASONS.AUTOMATION_DISABLED);
+            return this.reject(REJECTION_REASONS.AUTOMATION_DISABLED, asset);
         }
 
         // 2. Check if asset is in allowed list
         if (!config.assets.includes(asset)) {
-            return this.reject(REJECTION_REASONS.ASSET_NOT_ALLOWED);
+            return this.reject(REJECTION_REASONS.ASSET_NOT_ALLOWED, asset);
         }
 
         // 3. Check if shorts are allowed (if signal is SHORT)
         if (signal.direction === 'SHORT' && !config.allowShorts) {
-            return this.reject(REJECTION_REASONS.SHORTS_NOT_ALLOWED);
+            return this.reject(REJECTION_REASONS.SHORTS_NOT_ALLOWED, asset);
         }
 
         // 4. Check signal confidence
         if (signal.confidence < 0.6) {
-            return this.reject(REJECTION_REASONS.INSUFFICIENT_CONFIDENCE);
+            return this.reject(`${REJECTION_REASONS.INSUFFICIENT_CONFIDENCE} (${(signal.confidence * 100).toFixed(0)}% < 60%)`, asset);
         }
 
         // 5. Check circuit breaker
         const circuitBreaker = this.getCircuitBreaker(userId);
         if (circuitBreaker.isTripped()) {
-            return this.reject(REJECTION_REASONS.CIRCUIT_BREAKER_TRIPPED);
+            return this.reject(REJECTION_REASONS.CIRCUIT_BREAKER_TRIPPED, asset);
         }
 
         // 6. Check cooldown
@@ -141,8 +141,13 @@ export class RiskManager {
             signal.confidence
         );
 
-        // Minimum position check ($1)
-        if (suggestedSize < 1) {
+        // Minimum position check ($0.10 for testing with low collateral)
+        const MIN_POSITION_USD = 0.10;
+        if (suggestedSize < MIN_POSITION_USD) {
+            logger.info(
+                `[RISK_MANAGER] Trade rejected for ${asset}: suggestedSize $${suggestedSize.toFixed(2)} < $${MIN_POSITION_USD} minimum ` +
+                `(collateral: $${exposure.totalCollateral.toFixed(2)}, maxPositionPct: ${config.maxPositionPct}%, confidence: ${(signal.confidence * 100).toFixed(0)}%)`
+            );
             return this.reject(REJECTION_REASONS.INSUFFICIENT_COLLATERAL);
         }
 
@@ -376,7 +381,8 @@ export class RiskManager {
     /**
      * Create rejection response
      */
-    private reject(reason: string): RiskAssessment {
+    private reject(reason: string, asset?: string): RiskAssessment {
+        logger.info(`[RISK_MANAGER] Trade rejected${asset ? ` for ${asset}` : ''}: ${reason}`);
         return {
             canTrade: false,
             reason,

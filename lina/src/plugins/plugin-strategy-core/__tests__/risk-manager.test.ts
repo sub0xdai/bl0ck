@@ -98,7 +98,7 @@ describe('RiskManager', () => {
             const result = await riskManager.assessTrade(TEST_USER_ID, signal, testConfig);
 
             expect(result.canTrade).toBe(false);
-            expect(result.reason).toBe(REJECTION_REASONS.INSUFFICIENT_CONFIDENCE);
+            expect(result.reason).toContain(REJECTION_REASONS.INSUFFICIENT_CONFIDENCE);
         });
 
         it('should accept when confidence is at threshold', async () => {
