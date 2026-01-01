@@ -315,13 +315,51 @@ export function AutomationModalContent({
     field: keyof AutomationConfig,
     value: number | undefined,
     suffix: string = '%',
-    _min: number = 0,
-    _max: number = 100
+    min: number = 0,
+    max: number = 100
   ) => {
+    const isEditing = editingField === field;
+
+    if (isEditing) {
+      return (
+        <div className="inline-flex items-center gap-1">
+          <input
+            type="number"
+            className="w-16 px-1 py-0.5 bg-transparent border border-primary/50 rounded text-primary font-mono text-right focus:outline-none focus:border-primary"
+            defaultValue={value ?? ''}
+            min={min}
+            max={max}
+            autoFocus
+            onBlur={(e) => {
+              const newValue = e.target.value ? Number(e.target.value) : undefined;
+              if (newValue !== undefined && newValue >= min && newValue <= max) {
+                handleFieldChange(field, newValue);
+              } else {
+                setEditingField(null);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const newValue = (e.target as HTMLInputElement).value ? Number((e.target as HTMLInputElement).value) : undefined;
+                if (newValue !== undefined && newValue >= min && newValue <= max) {
+                  handleFieldChange(field, newValue);
+                } else {
+                  setEditingField(null);
+                }
+              } else if (e.key === 'Escape') {
+                setEditingField(null);
+              }
+            }}
+          />
+          <span className="text-primary font-mono" aria-hidden="true">{suffix}</span>
+        </div>
+      );
+    }
+
     return (
       <div className="inline-flex items-center gap-1">
         <span
-          className="editable-value cursor-text hover:text-primary transition-colors"
+          className="editable-value cursor-text hover:text-primary transition-colors underline decoration-dotted underline-offset-4 decoration-primary/30"
           onClick={() => setEditingField(field)}
           role="button"
           tabIndex={0}
