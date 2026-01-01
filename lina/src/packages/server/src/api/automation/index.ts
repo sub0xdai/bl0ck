@@ -45,8 +45,56 @@ function getDriftService(elizaOS: ElizaOS): DriftServiceInterface | null {
  * Creates the Automation router for strategy-core status and control
  * All endpoints require JWT authentication
  */
-export function automationRouter(elizaOS: ElizaOS, _serverInstance: AgentServer): express.Router {
+export function automationRouter(elizaOS: ElizaOS, serverInstance: AgentServer): express.Router {
   const router = express.Router();
+
+  /**
+   * Send an immediate chat message (used for automation status updates)
+   */
+  async function sendChatMessage(channelId: string, content: string, thought?: string, actions?: string[]): Promise<void> {
+    try {
+      const agents = elizaOS.getAgents();
+      const agentId = agents[0]?.agentId;
+      if (!agentId) {
+        logger.warn('[Automation API] No agent found to send message');
+        return;
+      }
+
+      const newRootMessageData = {
+        channelId,
+        authorId: agentId,
+        content,
+        rawMessage: {
+          thought: thought || content,
+          actions: actions || [],
+        },
+        sourceType: 'agent_response',
+        metadata: {
+          agentName: 'Lina',
+        },
+      };
+
+      const createdMessage = await serverInstance.createMessage(newRootMessageData);
+
+      // Emit to SocketIO for real-time GUI updates
+      if (serverInstance.socketIO) {
+        serverInstance.socketIO.to(channelId).emit('messageBroadcast', {
+          senderId: agentId,
+          senderName: 'Lina',
+          text: content,
+          roomId: channelId,
+          serverId: '00000000-0000-0000-0000-000000000000',
+          createdAt: new Date(createdMessage.createdAt).getTime(),
+          source: createdMessage.sourceType,
+          id: createdMessage.id,
+          thought: thought || content,
+          actions: actions || [],
+        });
+      }
+    } catch (error) {
+      logger.error('[Automation API] Failed to send chat message:', error instanceof Error ? error.message : String(error));
+    }
+  }
 
   // SECURITY: Require authentication for all Automation operations
   router.use(requireAuth);
@@ -166,6 +214,27 @@ export function automationRouter(elizaOS: ElizaOS, _serverInstance: AgentServer)
         updates.channelId = channelId;
       }
       await stateStore.updateState(userId, updates);
+
+      // Send immediate status message
+      const targetChannelId = channelId || state.channelId;
+      if (targetChannelId) {
+        if (enabled) {
+          const assets = state.config.assets?.map((a: string) => a.replace('-PERP', '')).join(', ') || 'SOL';
+          await sendChatMessage(
+            targetChannelId,
+            `Automation activated. I'll analyze ${assets} every 5 minutes and share trading opportunities here.`,
+            'Automation system enabled - beginning market analysis',
+            ['AUTOMATION_ENABLED']
+          );
+        } else {
+          await sendChatMessage(
+            targetChannelId,
+            `Automation deactivated. I'll no longer execute trades automatically.`,
+            'Automation system disabled',
+            ['AUTOMATION_DISABLED']
+          );
+        }
+      }
 
       // Return updated state
       const updatedState = await stateStore.getState(userId);
