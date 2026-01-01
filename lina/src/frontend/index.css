@@ -379,13 +379,15 @@
   padding: 0.5rem 1rem;
   border-radius: 9999px;
   border: 1px solid;
-  transition: all 0.3s ease;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   font-family: 'Roboto Mono', monospace;
   text-transform: uppercase;
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.05em;
+  min-width: 120px;
+  justify-content: center;
 }
 
 .toggle-pill--standby {
@@ -394,20 +396,71 @@
   color: #a6adc8;
 }
 
-.toggle-pill--standby:hover {
-  border-color: rgba(166, 173, 200, 0.5);
+.toggle-pill--standby:hover:not(:disabled) {
+  border-color: rgba(166, 173, 200, 0.6);
   background: rgba(166, 173, 200, 0.05);
+  transform: scale(1.02);
+}
+
+.toggle-pill--standby:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.toggle-pill--standby:focus-visible {
+  outline: 2px solid rgba(166, 173, 200, 0.8);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(166, 173, 200, 0.2);
 }
 
 .toggle-pill--active {
-  border-color: rgba(203, 166, 247, 0.6);
-  background: rgba(203, 166, 247, 0.1);
+  border-color: rgba(203, 166, 247, 0.8);
+  background: rgba(203, 166, 247, 0.15);
   color: #cba6f7;
   animation: toggle-glow 2s ease-in-out infinite;
 }
 
-.toggle-pill--active:hover {
-  background: rgba(203, 166, 247, 0.15);
+.toggle-pill--active:hover:not(:disabled) {
+  background: rgba(203, 166, 247, 0.2);
+  transform: scale(1.02);
+  box-shadow: 
+    0 0 20px rgba(203, 166, 247, 0.5),
+    inset 0 0 12px rgba(203, 166, 247, 0.15);
+}
+
+.toggle-pill--active:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.toggle-pill--active:focus-visible {
+  outline: 2px solid rgba(203, 166, 247, 0.9);
+  outline-offset: 2px;
+  box-shadow: 
+    0 0 0 3px rgba(203, 166, 247, 0.3),
+    0 0 16px rgba(203, 166, 247, 0.4);
+}
+
+.toggle-pill:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Loading spinner inside toggle pill */
+.toggle-pill--loading {
+  pointer-events: none;
+}
+
+@keyframes toggle-spin {
+  to { transform: rotate(360deg); }
+}
+
+.toggle-pill__spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: toggle-spin 0.6s linear infinite;
 }
 
 /* Toggle Knob */
@@ -415,7 +468,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  transition: all 0.3s ease;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .toggle-knob--off {
@@ -608,22 +661,98 @@
   50% { opacity: 0.5; }
 }
 
-/* Halt Button */
-.halt-btn {
-  background: linear-gradient(135deg, #f38ba8 0%, #eba0ac 100%);
-  color: #1e1e2e;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  padding: 0.375rem 0.75rem;
-  border-radius: 0.375rem;
-  transition: all 0.2s ease;
-  box-shadow: 0 0 8px rgba(243, 139, 168, 0.3);
+/* Enhanced number spinners */
+.cyber-number-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
-.halt-btn:hover {
-  box-shadow: 0 0 16px rgba(243, 139, 168, 0.5);
-  transform: translateY(-1px);
+.cyber-number-spinners {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cyber-number-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 10px;
+  background: transparent;
+  border: 1px solid rgba(203, 166, 247, 0.3);
+  color: #cba6f7;
+  cursor: pointer;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  font-size: 8px;
+}
+
+.cyber-number-btn:hover:not(:disabled) {
+  background: rgba(203, 166, 247, 0.15);
+  border-color: #cba6f7;
+  box-shadow: 0 0 6px rgba(203, 166, 247, 0.3);
+  transform: scale(1.1);
+}
+
+.cyber-number-btn:active:not(:disabled) {
+  transform: scale(0.95);
+  background: rgba(203, 166, 247, 0.25);
+}
+
+.cyber-number-btn:focus-visible {
+  outline: 1px solid rgba(203, 166, 247, 0.8);
+  outline-offset: 1px;
+}
+
+.cyber-number-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.cyber-number-btn--up::before {
+  content: "▲";
+}
+
+.cyber-number-btn--down::before {
+  content: "▼";
+}
+
+/* Automation Modal - Chat Integration Notice */
+.chat-integration-notice {
+  border: 1px solid rgba(203, 166, 247, 0.15);
+}
+
+/* Automation Modal - First Time Hint */
+.automation-hint {
+  animation: hint-fade-in 0.3s ease-out;
+}
+
+@keyframes hint-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Confirmation dialog styles */
+.confirmation-dialog-overlay {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+}
+
+.confirmation-dialog-content {
+  background: linear-gradient(135deg, rgba(30, 30, 46, 0.98) 0%, rgba(24, 24, 37, 0.98) 100%);
+  border: 1px solid rgba(203, 166, 247, 0.3);
+  box-shadow: 
+    0 0 40px rgba(203, 166, 247, 0.2),
+    inset 0 0 20px rgba(203, 166, 247, 0.05);
 }
 
 .group:hover .animate-marquee-pulse,
