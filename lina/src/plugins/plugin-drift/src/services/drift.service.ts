@@ -734,15 +734,17 @@ export class DriftService extends Service {
     const settledPnl = userAccount.settledPerpPnl || new BN(0);
     const cumulativeFunding = userAccount.cumulativePerpFunding || new BN(0);
 
+    // Convert from QUOTE_PRECISION (6 decimals) to human-readable USD
+    const QUOTE_PRECISION = 1_000_000;
     return {
       authority: userAccount.authority.toBase58(),
       subAccountId: userAccount.subAccountId,
-      collateral: totalCollateral.toString(),
-      freeCollateral: user.getFreeCollateral().toString(),
-      totalPositionValue: totalPositionValue.toString(),
-      unrealizedPnl: user.getUnrealizedPNL().toString(),
-      settledPnl: settledPnl.toString(),
-      cumulativeFunding: cumulativeFunding.toString(),
+      collateral: (Number(totalCollateral.toString()) / QUOTE_PRECISION).toString(),
+      freeCollateral: (Number(user.getFreeCollateral().toString()) / QUOTE_PRECISION).toString(),
+      totalPositionValue: (Number(totalPositionValue.toString()) / QUOTE_PRECISION).toString(),
+      unrealizedPnl: (Number(user.getUnrealizedPNL().toString()) / QUOTE_PRECISION).toString(),
+      settledPnl: (Number(settledPnl.toString()) / QUOTE_PRECISION).toString(),
+      cumulativeFunding: (Number(cumulativeFunding.toString()) / QUOTE_PRECISION).toString(),
       marginRatio: marginRatio.toFixed(2),
       leverage: user.getLeverage() / 10000,
     };
