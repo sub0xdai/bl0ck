@@ -8,18 +8,18 @@
 
 **Session: Jan 1, 2026**
 
-1. **UI Automation Button** - Brutalist "AUTO" button with shine animation
-2. **Automation Modal** - Roman-Cyberpunk aesthetic:
-   - Pill toggle with glow animation (STANDBY/ACTIVE)
-   - Lina breathing indicator (subtle pulse when active)
-   - Persona-driven status messages
-   - Editable values with dotted underline + primary color
-   - Custom cyberpunk number spinners
+1. **UI Automation Button** - Brutalist "AUTO" button with glow when active
+2. **Automation Modal** - Chat-first UX with cyberpunk aesthetic:
+   - Header: "Trading: Lina" (clearer intent)
+   - First-time user hint explaining chat integration
+   - Chat integration notice showing where updates appear
+   - Action-oriented status messages ("I'll share my analysis in chat")
+   - PnL display only when there's activity
+   - Confirmation dialog when stopping with open positions
 3. **REST API for Automation Control** - Toggle and config via REST (no chat required):
-   - `POST /api/automation/toggle` - Enable/disable automation
+   - `POST /api/automation/toggle` - Enable/disable + stores channelId
    - `POST /api/automation/config` - Update configuration
-   - Fixed: STANDBY toggle now works without active chat channel
-4. **Real-Time Status API** - GET endpoint with 5s polling
+4. **Chat Integration** - channelId stored when enabling for trading updates
 
 **Previous (Dec 31):**
 - Automation Phase 1-4 complete, production @ app.lina4rmdabl0ck.xyz
@@ -32,12 +32,12 @@
 |-----------|--------|
 | Drift LONG/SHORT | Working |
 | Automation System | Live in prod |
-| REST API Control | ✓ Toggle + Config |
-| UI Automation Modal | Functional |
+| REST API Control | Toggle + Config + channelId |
+| UI Automation Modal | Chat-first UX |
 | Tests | 175 passing |
 | Production | Railway deployed |
 
-**Commits today:** `491e6fb` (spinner fix), `dd6aff0` (REST API for automation)
+**Commits today:** `dd6aff0` (REST API), `ca812d3` (chat-first UX)
 
 ---
 
@@ -53,8 +53,12 @@ StrategyLoop (5min cycles)
 
 REST API Endpoints:
     ├── GET  /api/automation/status  - Current state + positions
-    ├── POST /api/automation/toggle  - Enable/disable
+    ├── POST /api/automation/toggle  - Enable/disable (stores channelId)
     └── POST /api/automation/config  - Update configuration
+
+Chat Integration:
+    - channelId stored in AutomationState when enabling
+    - StrategyLoop can send trading updates to user's chat (pending)
 ```
 
 ---
@@ -67,6 +71,7 @@ REST API Endpoints:
   maxPositionPct, maxExposurePct, maxLeverage,
   circuitBreakerPct, cooldownMinutes, maxSlippageBps,
   stopLossPct?, takeProfitPct?, maxHoldMinutes?,
+  channelId? // for chat trading updates
 }
 ```
 
@@ -88,6 +93,10 @@ packages/server/src/api/automation/
 
 packages/api-client/src/services/
 └── automation.ts          # Client methods: getStatus(), toggle(), updateConfig()
+
+frontend/components/automation/
+├── automation-modal-content.tsx  # Main modal with chat-first UX
+└── confirmation-dialog.tsx       # Stop confirmation with positions warning
 ```
 
 ---
@@ -96,8 +105,10 @@ packages/api-client/src/services/
 
 - [x] UI button for automation
 - [x] Automation modal with controls
-- [x] Real-time status updates (REST + 5s polling)
 - [x] REST API for toggle/config (no chat required)
+- [x] Chat-first UX (hints, notices, status messages)
+- [x] channelId infrastructure for chat updates
+- [ ] StrategyLoop sends trading reasoning to chat
 - [ ] Live trade execution (currently observer mode)
 - [ ] Telegram/Discord notifications
 
