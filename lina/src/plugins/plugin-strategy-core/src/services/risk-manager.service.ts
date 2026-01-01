@@ -429,6 +429,22 @@ export class RiskManager {
     }
 
     /**
+     * Check if circuit breaker is currently tripped for a user
+     */
+    isCircuitBreakerTripped(userId: string): boolean {
+        const circuitBreaker = this.circuitBreakers.get(userId);
+        return circuitBreaker?.isTripped() ?? false;
+    }
+
+    /**
+     * Get circuit breaker session PnL for a user
+     */
+    getSessionPnL(userId: string): number {
+        const circuitBreaker = this.circuitBreakers.get(userId);
+        return circuitBreaker?.getState().sessionPnL ?? 0;
+    }
+
+    /**
      * Export state for persistence
      */
     exportState(userId: string): {

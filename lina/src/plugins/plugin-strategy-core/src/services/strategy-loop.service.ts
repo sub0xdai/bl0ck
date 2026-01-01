@@ -101,6 +101,52 @@ export class StrategyLoop extends Service {
         this.stateStore = getAutomationStateStore();
     }
 
+    /**
+     * Send a chat message to the user's channel for trading updates
+     */
+    private async sendChatMessage(
+        channelId: string,
+        content: string,
+        thought?: string,
+        actions?: string[]
+    ): Promise<void> {
+        try {
+            const serverPort = process.env.SERVER_PORT || '3000';
+            const serverUrl = `http://localhost:${serverPort}`;
+            const agentId = this.runtime.agentId;
+
+            const response = await fetch(`${serverUrl}/api/messaging/submit`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    channel_id: channelId,
+                    server_id: '00000000-0000-0000-0000-000000000000',
+                    author_id: agentId,
+                    content,
+                    source_type: 'agent_response',
+                    raw_message: {
+                        thought: thought || content,
+                        actions: actions || [],
+                    },
+                    metadata: {
+                        agentName: 'Lina',
+                    },
+                }),
+            });
+
+            if (!response.ok) {
+                logger.warn(`[STRATEGY_LOOP] Failed to send chat message: ${response.status}`);
+            }
+        } catch (error) {
+            logger.error(
+                '[STRATEGY_LOOP] Error sending chat message:',
+                error instanceof Error ? error.message : String(error)
+            );
+        }
+    }
+
     static async start(runtime: IAgentRuntime): Promise<StrategyLoop> {
         const svc = new StrategyLoop(runtime);
         await svc.initialize();
@@ -408,9 +454,24 @@ export class StrategyLoop extends Service {
             });
 
             if (result.success) {
+                // Check if circuit breaker was NOT tripped before this trade
+                const wasTrippedBefore = this.riskManager.isCircuitBreakerTripped(userId);
+
                 // Record realized PnL for circuit breaker tracking
                 if (config) {
                     await this.riskManager.recordTrade(userId, trigger.asset, realizedPnL, config);
+                }
+
+                // Check if circuit breaker tripped after this trade
+                const isTrippedNow = this.riskManager.isCircuitBreakerTripped(userId);
+                if (!wasTrippedBefore && isTrippedNow && state?.channelId) {
+                    const sessionPnL = this.riskManager.getSessionPnL(userId);
+                    await this.sendChatMessage(
+                        state.channelId,
+                        `⚠️ Circuit breaker triggered · Session PnL: $${sessionPnL.toFixed(2)} · Trading paused`,
+                        `Circuit breaker tripped at ${config?.circuitBreakerPct || 10}% drawdown threshold`,
+                        ['CIRCUIT_BREAKER', 'TRADING_PAUSED']
+                    );
                 }
 
                 // Clear position tracking
@@ -419,12 +480,36 @@ export class StrategyLoop extends Service {
                     await this.stateStore.saveState(state);
                 }
 
+                // Notify user of position close
+                if (state?.channelId) {
+                    const assetName = trigger.asset.replace('-PERP', '');
+                    const pnlSign = realizedPnL >= 0 ? '+' : '';
+                    const pnlIcon = realizedPnL >= 0 ? '✅' : '🔴';
+
+                    await this.sendChatMessage(
+                        state.channelId,
+                        `${pnlIcon} Closed ${assetName} · ${pnlSign}$${realizedPnL.toFixed(2)} (${reasonLabel})`,
+                        `Position closed due to ${trigger.reason === 'stop_loss' ? 'stop-loss limit' : trigger.reason === 'take_profit' ? 'take-profit target' : 'max hold time'}`,
+                        ['CLOSE_POSITION', (trigger.reason || 'exit').toUpperCase()]
+                    );
+                }
+
                 logger.info(
                     `[STRATEGY_LOOP] [${reasonLabel}] ${trigger.asset} closed successfully ` +
                     `(realized PnL: $${realizedPnL.toFixed(2)})`
                 );
             } else {
                 logger.error(`[STRATEGY_LOOP] Failed to close position: ${result.error}`);
+
+                // Notify user of failed close
+                if (state?.channelId) {
+                    await this.sendChatMessage(
+                        state.channelId,
+                        `⚠️ Failed to close ${trigger.asset.replace('-PERP', '')}: ${result.error || 'Unknown error'}`,
+                        'Position close failed',
+                        ['CLOSE_FAILED']
+                    );
+                }
             }
         } catch (error) {
             logger.error(
@@ -510,9 +595,21 @@ export class StrategyLoop extends Service {
         const dryRun = !config.enabled; // Safety: treat disabled as dry-run
 
         const results: CycleAssetResult[] = [];
+        const channelId = state.channelId;
 
         // Get signals for all assets
         const signals = await this.signalsService.getSignalsForAssets(assets);
+
+        // Notify user of cycle start (only if not dry-run and channelId exists)
+        if (!dryRun && channelId) {
+            const assetNames = assets.map(a => a.replace('-PERP', '')).join(', ');
+            await this.sendChatMessage(
+                channelId,
+                `Analyzing ${assetNames} for trading opportunities...`,
+                `Starting cycle ${state.cycleCount} - scanning market signals`,
+                ['CYCLE_START']
+            );
+        }
 
         for (const signal of signals) {
             // Skip neutral signals
@@ -567,6 +664,29 @@ export class StrategyLoop extends Service {
                     riskAssessment,
                     config
                 );
+
+                // Notify user of trade execution
+                if (channelId && executionResult.success) {
+                    const direction = signal.direction;
+                    const assetName = signal.asset.replace('-PERP', '');
+                    const size = riskAssessment.suggestedSizeUsd.toFixed(0);
+                    const leverage = riskAssessment.suggestedLeverage;
+                    const icon = direction === 'LONG' ? '🔵' : '🔴';
+
+                    await this.sendChatMessage(
+                        channelId,
+                        `${icon} Opened ${direction} ${assetName} · $${size} @ ${leverage}x leverage`,
+                        `Signal confidence: ${(signal.confidence * 100).toFixed(0)}%`,
+                        ['OPEN_POSITION', direction]
+                    );
+                } else if (channelId && !executionResult.success) {
+                    await this.sendChatMessage(
+                        channelId,
+                        `Failed to execute ${signal.direction} on ${signal.asset.replace('-PERP', '')}: ${executionResult.error || 'Unknown error'}`,
+                        'Trade execution failed',
+                        ['EXECUTION_FAILED']
+                    );
+                }
 
                 results.push({
                     asset: signal.asset,

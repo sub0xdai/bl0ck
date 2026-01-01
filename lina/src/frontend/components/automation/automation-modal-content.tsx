@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button';
 import { X, Zap, ChevronRight, Shield, ShieldAlert, MessageSquare, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { elizaClient } from '@/lib/elizaClient';
-import type { AutomationStatusResponse, AutomationPosition } from '@elizaos/api-client';
 import { ConfirmationDialog } from './confirmation-dialog';
 
 interface AutomationModalContentProps {
@@ -35,6 +34,15 @@ interface AutomationState {
   cycleCount: number;
   errors: string[];
   lastCycleAt?: number;
+}
+
+interface AutomationPosition {
+  marketSymbol: string;
+  side: 'long' | 'short';
+  notionalValue: string;
+  unrealizedPnl: string;
+  entryPrice: string;
+  markPrice: string;
 }
 
 const POLL_INTERVAL_MS = 5000;
