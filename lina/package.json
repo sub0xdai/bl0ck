@@ -1,6 +1,6 @@
 {
   "name": "@elizaos/lina",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Lina is a DeFi-focused ElizaOS agent powered by custom bootstrap plugin and custom build of the ElizaOS server",
   "type": "module",
   "main": "dist/src/index.js",
