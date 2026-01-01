@@ -6,22 +6,19 @@
 
 ## Summary
 
-**Session: Jan 1, 2026 (continued)**
+**Session: Jan 1, 2026 (evening)**
 
-1. **Fixed Perps Wallet Display** - Mark prices showing $0.00 → now shows real prices
-   - Root cause: Frontend double-divided already-normalized backend values
-   - Fixed: formatMarkPrice, formatSize, formatPnl no longer divide
-   - Ghost positions filtered (size < 0.0001)
+4. **Fixed Signals Always NEUTRAL** - 94 cycles ran, all returned 0% confidence
+   - Root cause: News/volume signals return 0. Trend (weight 50%) max = 50% confidence. Threshold was 60%.
+   - Fixed: Lowered SIGNAL_CONFIDENCE_THRESHOLD from 60% to 20%
+   - Fixed: Lowered TREND_THRESHOLD_PCT from 5% to 2% (more sensitive)
+   - Added raw signal logging: `[SIGNALS] SOL-PERP raw: trend=0.54, news=0.00, volume=0.00`
 
-2. **Fixed Autotrading Not Executing** - 68 cycles ran but no trades
-   - Root cause: $2.54 collateral × 5% MAX_POSITION = $0.12 < $1 minimum
-   - Fixed: Lowered minimum trade from $1 to $0.10
-   - Added logging: All rejection reasons now visible in server logs
+**Session: Jan 1, 2026 (earlier)**
 
-3. **UI Cleanup** - Automation modal improvements
-   - Removed wonky spinner arrows
-   - Added inline editing: click value → input field → Enter/Escape/blur
-   - Dotted underline indicates clickable values
+1. **Fixed Perps Wallet Display** - Mark prices showing $0.00
+2. **Fixed Autotrading Min Size** - Lowered from $1 to $0.10
+3. **UI Cleanup** - Inline editing for automation modal
 
 ---
 
@@ -30,10 +27,10 @@
 | Component | Status |
 |-----------|--------|
 | Drift LONG/SHORT | Working |
-| Automation System | Live (v1.0.2) |
+| Automation System | Live (v1.0.3) |
+| SignalsService | Trend working, news/volume returning 0 |
 | REST API Control | Toggle + Config + channelId |
 | UI Automation Modal | Inline editing |
-| Perps Wallet | Real prices displayed |
 | Tests | 175 passing |
 
 ---
@@ -42,19 +39,29 @@
 
 ```
 StrategyLoop (5min cycles)
-    ├── SignalsService (CoinGecko/CoinDesk/DeFiLlama)
+    ├── SignalsService (CoinGecko trend only - news/volume broken)
     ├── RiskManager (exposure, sizing, circuit breaker, cooldown)
     ├── PositionMonitor (SL/TP/hold time - 30s checks)
     ├── ExecutionCoordinator (per-asset mutex locks)
-    ├── DriftService (slippage-protected execution)
-    └── sendChatMessage() → POST /api/messaging/submit
+    └── DriftService (slippage-protected execution)
 
-Logging (new):
+Logging:
     [STRATEGY_LOOP] Cycle X for user... | mode: LIVE | enabled: true
-    [SIGNALS] SOL-PERP: LONG (confidence: 65%) from 2 sources
-    [RISK_MANAGER] Trade rejected for SOL-PERP: INSUFFICIENT_CONFIDENCE (50% < 60%)
-    [RISK_MANAGER] Trade approved for SOL-PERP: $0.30 @ 3x
+    [SIGNALS] SOL-PERP raw: trend=0.54(w:0.50), news=0.00(w:0.30), volume=0.00(w:0.20)
+    [SIGNALS] SOL-PERP: LONG (confidence: 27%) from 3 sources
+    [RISK_MANAGER] Trade approved/rejected
 ```
+
+---
+
+## Signal Thresholds
+
+| Setting | Original | Current | Notes |
+|---------|----------|---------|-------|
+| SIGNAL_CONFIDENCE_THRESHOLD | 60% | 20% | With only trend working (50% weight), 60% was impossible |
+| TREND_THRESHOLD_PCT | 5% | 2% | More sensitive to price changes |
+
+**Current formula:** `trend_value × 0.5 = confidence` (news/volume contribute 0)
 
 ---
 
@@ -66,60 +73,48 @@ Logging (new):
   maxPositionPct, maxExposurePct, maxLeverage,
   circuitBreakerPct, cooldownMinutes, maxSlippageBps,
   stopLossPct?, takeProfitPct?, maxHoldMinutes?,
-  channelId? // for chat trading updates
+  channelId?
 }
 ```
 
-**Minimum requirements for trading:**
-- Collateral × maxPositionPct × confidence ≥ $0.10
-- Signal confidence ≥ 60%
-- Example: $3 collateral, 12% position, 70% confidence = $0.25 trade
+**Minimum requirements:**
+- Trade size ≥ $0.10
+- Signal confidence ≥ 20%
 
 ---
 
 ## Key Files
 
 ```
-plugin-strategy-core/src/services/
-├── strategy-loop.service.ts  # Execution mode logging
-├── risk-manager.service.ts   # Rejection logging, $0.10 minimum
-└── position-monitor.service.ts
-
-plugin-drift/src/services/
-└── drift.service.ts          # Server-side dust filtering
-
-frontend/components/
-├── automation/automation-modal-content.tsx  # Inline editing
-└── dashboard/cdp-wallet-card/DriftTab.tsx   # Fixed formatters
+plugin-strategy-core/src/
+├── services/strategy-loop.service.ts  # console.log for Railway
+├── services/signals.service.ts        # Raw value logging
+├── types/signals.ts                   # Threshold constants
+└── services/risk-manager.service.ts   # $0.10 minimum
 ```
 
 ---
 
 ## Next Steps
 
-- [x] UI button for automation
-- [x] Automation modal with controls
-- [x] REST API for toggle/config
-- [x] Chat-first UX (hints, notices)
-- [x] StrategyLoop sends trading updates to chat
-- [x] Fix perps wallet display (mark prices)
-- [x] Fix autotrading execution
-- [ ] Test live trading end-to-end
+- [x] Fix perps wallet display
+- [x] Fix autotrading min size
+- [x] Fix signals always NEUTRAL
+- [ ] Fix news/volume signal sources
+- [ ] Test live trade execution end-to-end
 - [ ] Telegram/Discord notifications
 
 ---
 
-## Debugging Autotrading
+## Debugging
 
-Check server logs for:
+Check Railway logs for:
 ```
-[STRATEGY_LOOP] mode: LIVE    # Should NOT be DRY-RUN
-[SIGNALS] confidence: X%      # Must be ≥60%
-[RISK_MANAGER] rejected/approved
+[SIGNALS] SOL-PERP raw: trend=X.XX    # Should be non-zero
+[SIGNALS] SOL-PERP: LONG/SHORT        # Not NEUTRAL
+[RISK_MANAGER] approved/rejected
 ```
 
-If no trades happen:
-1. Check collateral (need enough for $0.10+ trade)
-2. Check signal confidence (must be ≥60%)
-3. Check cooldown (5 min between trades per asset)
-4. Check exposure (must be < maxExposurePct)
+If NEUTRAL with 0%:
+1. CoinGecko API might be failing (check for errors)
+2. SOL price flat (< 2% weekly move)
