@@ -28,6 +28,7 @@ interface AutomationConfig {
 
 interface AutomationState {
   config: AutomationConfig;
+  channelId?: string; // Chat channel for trading updates
   circuitBreakerTripped: boolean;
   circuitBreakerTrippedAt?: number;
   sessionPnL: number;
@@ -106,6 +107,7 @@ export function AutomationModalContent({
       if (response.automation) {
         setState({
           config: response.automation.config,
+          channelId: response.automation.channelId,
           circuitBreakerTripped: response.automation.circuitBreakerTripped,
           circuitBreakerTrippedAt: response.automation.circuitBreakerTrippedAt,
           sessionPnL: response.automation.sessionPnL,
@@ -159,6 +161,26 @@ export function AutomationModalContent({
       setShowFirstTimeHint(true);
     }
   }, []);
+
+  // Sync channelId when modal opens if automation is enabled but channelId is missing/different
+  useEffect(() => {
+    if (
+      !isLoading &&
+      state?.config.enabled &&
+      channelId &&
+      state.channelId !== channelId
+    ) {
+      console.log('[Automation] Syncing channelId:', {
+        current: state.channelId,
+        new: channelId,
+      });
+      elizaClient.automation.updateChannel(channelId).catch((err) => {
+        console.error('[Automation] Failed to sync channelId:', err);
+      });
+      // Update local state immediately
+      setState((prev) => prev ? { ...prev, channelId } : null);
+    }
+  }, [isLoading, state?.config.enabled, state?.channelId, channelId]);
 
   const dismissFirstTimeHint = () => {
     localStorage.setItem(FIRST_TIME_HINT_KEY, 'true');

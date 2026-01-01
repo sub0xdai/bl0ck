@@ -101,6 +101,7 @@ export function automationRouter(elizaOS: ElizaOS, _serverInstance: AgentServer)
         automation: automationState ? {
           userId: automationState.userId,
           config: automationState.config,
+          channelId: automationState.channelId, // For chat trading updates
           circuitBreakerTripped: automationState.circuitBreakerTripped,
           circuitBreakerTrippedAt: automationState.circuitBreakerTrippedAt,
           sessionPnL: automationState.sessionPnL,
@@ -248,6 +249,53 @@ export function automationRouter(elizaOS: ElizaOS, _serverInstance: AgentServer)
         500,
         'CONFIG_UPDATE_FAILED',
         'Failed to update configuration',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  });
+
+  /**
+   * PUT /api/automation/channel
+   * Update the channelId for chat trading updates (used when modal opens with existing automation)
+   * Body: { channelId: string }
+   */
+  router.put('/channel', async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.userId!;
+      const { channelId } = req.body as { channelId: string };
+
+      if (!channelId || typeof channelId !== 'string') {
+        return sendError(res, 400, 'INVALID_REQUEST', 'channelId must be a non-empty string');
+      }
+
+      logger.info(`[Automation API] Updating channelId for user ${userId.substring(0, 8)}... to ${channelId.substring(0, 8)}...`);
+
+      const stateStore = AutomationStateStore.getInstance();
+      await stateStore.initialize();
+
+      // Only update if automation state exists
+      const state = await stateStore.getState(userId);
+      if (!state) {
+        return sendError(res, 404, 'NOT_FOUND', 'No automation state found for user');
+      }
+
+      // Update channelId
+      await stateStore.updateState(userId, { channelId });
+
+      sendSuccess(res, {
+        message: 'Channel ID updated',
+        channelId,
+      });
+    } catch (error) {
+      logger.error(
+        '[Automation API] Error updating channel:',
+        error instanceof Error ? error.message : String(error)
+      );
+      sendError(
+        res,
+        500,
+        'CHANNEL_UPDATE_FAILED',
+        'Failed to update channel ID',
         error instanceof Error ? error.message : String(error)
       );
     }

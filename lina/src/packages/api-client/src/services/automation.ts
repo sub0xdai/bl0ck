@@ -25,6 +25,7 @@ export interface AutomationConfig {
 export interface AutomationState {
   userId: string;
   config: AutomationConfig;
+  channelId?: string; // Chat channel for trading updates
   circuitBreakerTripped: boolean;
   circuitBreakerTrippedAt?: number;
   sessionPnL: number;
@@ -91,5 +92,13 @@ export class AutomationService extends BaseApiClient {
    */
   async updateConfig(config: Partial<AutomationConfig>): Promise<AutomationUpdateResponse> {
     return this.post<AutomationUpdateResponse>('/api/automation/config', config);
+  }
+
+  /**
+   * Update the channelId for chat trading updates
+   * Used when modal opens with existing automation but different/missing channelId
+   */
+  async updateChannel(channelId: string): Promise<{ message: string; channelId: string }> {
+    return this.put<{ message: string; channelId: string }>('/api/automation/channel', { channelId });
   }
 }
