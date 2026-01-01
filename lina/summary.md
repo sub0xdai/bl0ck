@@ -18,7 +18,10 @@
    - Fixed: Lowered minimum trade from $1 to $0.10
    - Added logging: All rejection reasons now visible in server logs
 
-3. **UI Cleanup** - Removed wonky spinner arrows from automation modal
+3. **UI Cleanup** - Automation modal improvements
+   - Removed wonky spinner arrows
+   - Added inline editing: click value → input field → Enter/Escape/blur
+   - Dotted underline indicates clickable values
 
 ---
 
@@ -29,7 +32,7 @@
 | Drift LONG/SHORT | Working |
 | Automation System | Live (v1.0.2) |
 | REST API Control | Toggle + Config + channelId |
-| UI Automation Modal | Clean (no spinners) |
+| UI Automation Modal | Inline editing |
 | Perps Wallet | Real prices displayed |
 | Tests | 175 passing |
 
@@ -86,7 +89,7 @@ plugin-drift/src/services/
 └── drift.service.ts          # Server-side dust filtering
 
 frontend/components/
-├── automation/automation-modal-content.tsx  # No spinner arrows
+├── automation/automation-modal-content.tsx  # Inline editing
 └── dashboard/cdp-wallet-card/DriftTab.tsx   # Fixed formatters
 ```
 
