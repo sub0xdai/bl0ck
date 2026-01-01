@@ -2,11 +2,16 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "jsx": "react-jsx",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
+    "emitDeclarationOnly": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
@@ -17,13 +22,25 @@
     "outDir": "./dist",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/frontend/*"],
-      "@/managers/*": ["./src/managers/*"],
-      "@/constants/*": ["./src/constants/*"],
-      "@/repositories/*": ["./src/repositories/*"]
+      "@/*": [
+        "./src/frontend/*"
+      ],
+      "@/managers/*": [
+        "./src/managers/*"
+      ],
+      "@/constants/*": [
+        "./src/constants/*"
+      ],
+      "@/repositories/*": [
+        "./src/repositories/*"
+      ]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
-

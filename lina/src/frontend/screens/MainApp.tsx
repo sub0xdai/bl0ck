@@ -593,6 +593,7 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
           isNewUser={isNewUser}
           agentEvmAddress={agentEvmAddress}
           agentSolanaAddress={agentSolanaAddress}
+          isAutomationActive={isAutomationActive} // Pass automation status
         />
       </SidebarProvider>
     </AgentWalletProvider>
@@ -626,6 +627,7 @@ function AppContent({
   isNewUser,
   agentEvmAddress,
   agentSolanaAddress,
+  isAutomationActive, // Receive automation status
 }: any) {
   const { setOpenMobile } = useSidebar();
   const { showModal, hideModal } = useModal();
@@ -753,15 +755,17 @@ function AppContent({
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
-                          className={`btn-shine rounded-full px-3 py-2 transition-all flex items-center gap-2 border ${
-                            isAutomationActive
-                              ? 'border-primary bg-primary/20 shadow-[0_0_12px_rgba(203,166,247,0.4)]'
-                              : 'border-primary/30 hover:bg-accent'
-                          }`}
+                          className={`btn-shine rounded-full px-3 py-2 flex items-center gap-2 border ${isAutomationActive
+                            ? 'border-primary bg-primary/20'
+                            : 'border-primary/30 hover:bg-accent'
+                            }`}
                           onClick={handleOpenAutomation}
+                          data-active={isAutomationActive}
+                          aria-label="Trading Automation"
+                          aria-pressed={isAutomationActive}
                         >
                           <Zap className={`size-4 md:size-5 ${isAutomationActive ? 'text-primary lina-breath' : 'text-primary'}`} />
-                          <span className="text-sm md:text-base text-primary uppercase">AUTO</span>
+                          <span className="text-sm md:text-base text-primary uppercase font-medium">AUTO</span>
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="bottom" sideOffset={8}>
@@ -820,7 +824,7 @@ function AppContent({
           <div className="col-span-3 hidden lg:block relative">
             <div className="space-y-gap py-sides h-full flex flex-col overflow-hidden">
               <Widget />
-              <CDPWalletCard userId={userId} walletAddress={userProfile?.walletAddress} onBalanceChange={handleBalanceChange} />
+              <CDPWalletCard userId={userId} onBalanceChange={handleBalanceChange} />
               <CollapsibleNotifications />
             </div>
           </div>

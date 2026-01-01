@@ -478,7 +478,7 @@ export class SolanaTransactionManager {
           }
         }
       } catch (cgServiceError) {
-        logger.warn('[SolanaTransactionManager] CoinGecko service failed:', cgServiceError);
+        logger.warn('[SolanaTransactionManager] CoinGecko service failed:', cgServiceError instanceof Error ? cgServiceError.message : String(cgServiceError));
       }
 
       // Fallback: direct CoinGecko API
@@ -491,7 +491,7 @@ export class SolanaTransactionManager {
             logger.debug(`[SolanaTransactionManager] SOL price from CoinGecko direct: $${usdPrice}`);
           }
         } catch (cgDirectError) {
-          logger.warn('[SolanaTransactionManager] CoinGecko direct API failed:', cgDirectError);
+          logger.warn('[SolanaTransactionManager] CoinGecko direct API failed:', cgDirectError instanceof Error ? cgDirectError.message : String(cgDirectError));
         }
       }
 
@@ -507,7 +507,7 @@ export class SolanaTransactionManager {
             logger.debug(`[SolanaTransactionManager] SOL price from Jupiter: $${usdPrice}`);
           }
         } catch (jupError) {
-          logger.warn('[SolanaTransactionManager] Jupiter price API failed:', jupError);
+          logger.warn('[SolanaTransactionManager] Jupiter price API failed:', jupError instanceof Error ? jupError.message : String(jupError));
         }
       }
 

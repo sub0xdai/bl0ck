@@ -33,15 +33,15 @@ class MockBN {
   isZero(): boolean { return this.value === BigInt(0); }
   abs(): MockBN { return new MockBN(this.value < BigInt(0) ? -this.value : this.value); }
   gt(other: MockBN | number): boolean {
-    const otherVal = (other as any).value !== undefined ? (other as MockBN).value : BigInt(other);
+    const otherVal = other instanceof MockBN ? other.value : BigInt(other);
     return this.value > otherVal;
   }
   mul(other: MockBN | number): MockBN {
-    const otherVal = (other as any).value !== undefined ? (other as MockBN).value : BigInt(other);
+    const otherVal = other instanceof MockBN ? other.value : BigInt(other);
     return new MockBN(this.value * otherVal);
   }
   div(other: MockBN | number): MockBN {
-    const otherVal = (other as any).value !== undefined ? (other as MockBN).value : BigInt(other);
+    const otherVal = other instanceof MockBN ? other.value : BigInt(other);
     return new MockBN(this.value / otherVal);
   }
   toString(): string { return String(this.value); }
@@ -242,6 +242,8 @@ const resetMocksToDefault = () => {
       authority: new MockPublicKey('mockAuthority123'),
       subAccountId: 0,
       spotPositions: [], // Required for validation
+      settledPerpPnl: new MockBN(25000000),
+      cumulativePerpFunding: new MockBN(-2000000),
     }),
     getSpotPosition: (index: number) => ({ scaledBalance: BigInt(1000000000), marketIndex: index }),
     getPerpPosition: (index: number) => ({
@@ -393,17 +395,25 @@ describe('DriftService - Client Management (Per-User Isolation)', () => {
         if (!accountInitialized) {
           throw new Error("User account not initialized");
         }
-        return { authority: new MockPublicKey('mockAuth'), subAccountId: 0 };
+        return {
+          authority: new MockPublicKey('mockAuth'),
+          subAccountId: 0,
+          spotPositions: [],
+          settledPerpPnl: new MockBN(0),
+          cumulativePerpFunding: new MockBN(0)
+        };
       },
-      getSpotPosition: () => ({ scaledBalance: BigInt(1000000000) }),
-      getPerpPosition: () => ({ baseAssetAmount: new MockBN(100000000), quoteAssetAmount: new MockBN(-67000000000) }),
+      getSpotPosition: () => ({ scaledBalance: BigInt(1000000000), marketIndex: 0 }),
+      getPerpPosition: () => ({ baseAssetAmount: new MockBN(100000000), quoteAssetAmount: new MockBN(-67000000000), lastCumulativeFundingRate: new MockBN(0), marketIndex: 0 }),
       getFreeCollateral: () => new MockBN(50000000),
       getTotalCollateral: () => new MockBN(100000000),
       getTotalPerpPositionValue: () => new MockBN(200000000),
-  getTotalAssetValue: () => new MockBN(200000000),
+      getTotalAssetValue: () => new MockBN(200000000),
       getUnrealizedPNL: () => new MockBN(5000000),
       getLeverage: () => 50000,
-      subscribe: mock(() => Promise.resolve()),
+      subscribe: mock(() => Promise.resolve(true)),
+      isSubscribed: true,
+      fetchAccounts: mock(() => Promise.resolve()),
     }));
 
     // When initializeUserAccount is called, mark account as initialized
@@ -427,15 +437,17 @@ describe('DriftService - Client Management (Per-User Isolation)', () => {
     // Mock: account doesn't exist AND insufficient SOL
     mockGetUser.mockImplementationOnce(() => ({
       getUserAccount: () => { throw new Error("User account not initialized"); },
-      getSpotPosition: () => ({ scaledBalance: BigInt(1000000000) }),
-      getPerpPosition: () => ({ baseAssetAmount: new MockBN(100000000) }),
+      getSpotPosition: () => ({ scaledBalance: BigInt(1000000000), marketIndex: 0 }),
+      getPerpPosition: () => ({ baseAssetAmount: new MockBN(100000000), quoteAssetAmount: new MockBN(0), lastCumulativeFundingRate: new MockBN(0), marketIndex: 0 }),
       getFreeCollateral: () => new MockBN(50000000),
       getTotalCollateral: () => new MockBN(100000000),
       getTotalPerpPositionValue: () => new MockBN(200000000),
-  getTotalAssetValue: () => new MockBN(200000000),
+      getTotalAssetValue: () => new MockBN(200000000),
       getUnrealizedPNL: () => new MockBN(5000000),
       getLeverage: () => 50000,
-      subscribe: mock(() => Promise.resolve()),
+      subscribe: mock(() => Promise.resolve(true)),
+      isSubscribed: true,
+      fetchAccounts: mock(() => Promise.resolve()),
     }));
     mockGetBalance.mockImplementationOnce(() => Promise.resolve(1000000)); // 0.001 SOL (insufficient)
 
@@ -847,7 +859,13 @@ describe('DriftService - Position Operations', () => {
     // 1. During getClientForUser initialization check
     // 2. During the actual closePosition operation
     const noPositionMock = () => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0, spotPositions: [] }),
+      getUserAccount: () => ({
+        authority: new MockPublicKey('mockAuth'),
+        subAccountId: 0,
+        spotPositions: [],
+        settledPerpPnl: new MockBN(0),
+        cumulativePerpFunding: new MockBN(0)
+      }),
       getPerpPosition: () => ({
         baseAssetAmount: new MockBN(0),
         quoteAssetAmount: new MockBN(0),
@@ -907,7 +925,13 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       },
     }));
     mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getUserAccount: () => ({
+        authority: new MockPublicKey('mockAuth'),
+        subAccountId: 0,
+        spotPositions: [],
+        settledPerpPnl: new MockBN(0),
+        cumulativePerpFunding: new MockBN(0)
+      }),
       getSpotPosition: () => ({ scaledBalance: BigInt(10000000), marketIndex: 0 }), // $10 USDC
       getPerpPosition: () => ({
         baseAssetAmount: new MockBN(0),
@@ -918,10 +942,12 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       getFreeCollateral: () => new MockBN(10000000), // $10 - insufficient for $20 margin
       getTotalCollateral: () => new MockBN(10000000),
       getTotalPerpPositionValue: () => new MockBN(0),
-  getTotalAssetValue: () => new MockBN(0),
+      getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+      isSubscribed: true,
+      fetchAccounts: mock(() => Promise.resolve()),
+      subscribe: mock(() => Promise.resolve(true)),
     }));
 
     // Mock sufficient SOL balance for swap (1 SOL)
@@ -957,7 +983,13 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
   it('should skip swap when user has sufficient USDC collateral', async () => {
     // Mock: user already has $100 USDC - sufficient for $50 position
     mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getUserAccount: () => ({
+        authority: new MockPublicKey('mockAuth'),
+        subAccountId: 0,
+        spotPositions: [],
+        settledPerpPnl: new MockBN(0),
+        cumulativePerpFunding: new MockBN(0)
+      }),
       getSpotPosition: () => ({ scaledBalance: BigInt(100000000), marketIndex: 0 }),
       getPerpPosition: () => ({
         baseAssetAmount: new MockBN(0),
@@ -968,10 +1000,12 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       getFreeCollateral: () => new MockBN(100000000), // $100 USDC - sufficient
       getTotalCollateral: () => new MockBN(100000000),
       getTotalPerpPositionValue: () => new MockBN(0),
-  getTotalAssetValue: () => new MockBN(0),
+      getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+      isSubscribed: true,
+      fetchAccounts: mock(() => Promise.resolve()),
+      subscribe: mock(() => Promise.resolve(true)),
     }));
 
     const params: OpenPositionParams = {
@@ -1001,7 +1035,13 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       },
     }));
     mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getUserAccount: () => ({
+        authority: new MockPublicKey('mockAuth'),
+        subAccountId: 0,
+        spotPositions: [],
+        settledPerpPnl: new MockBN(0),
+        cumulativePerpFunding: new MockBN(0)
+      }),
       getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
       getPerpPosition: () => ({
         baseAssetAmount: new MockBN(0),
@@ -1012,10 +1052,12 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       getFreeCollateral: () => new MockBN(0), // $0 - needs swap
       getTotalCollateral: () => new MockBN(0),
       getTotalPerpPositionValue: () => new MockBN(0),
-  getTotalAssetValue: () => new MockBN(0),
+      getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+      isSubscribed: true,
+      fetchAccounts: mock(() => Promise.resolve()),
+      subscribe: mock(() => Promise.resolve(true)),
     }));
 
     const params: OpenPositionParams = {
@@ -1040,7 +1082,13 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       },
     }));
     mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getUserAccount: () => ({
+        authority: new MockPublicKey('mockAuth'),
+        subAccountId: 0,
+        spotPositions: [],
+        settledPerpPnl: new MockBN(0),
+        cumulativePerpFunding: new MockBN(0)
+      }),
       getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
       getPerpPosition: () => ({
         baseAssetAmount: new MockBN(0),
@@ -1051,10 +1099,12 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       getFreeCollateral: () => new MockBN(0), // $0 - needs swap
       getTotalCollateral: () => new MockBN(0),
       getTotalPerpPositionValue: () => new MockBN(0),
-  getTotalAssetValue: () => new MockBN(0),
+      getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+      isSubscribed: true,
+      fetchAccounts: mock(() => Promise.resolve()),
+      subscribe: mock(() => Promise.resolve(true)),
     }));
 
     // Mock Jupiter swap failure
@@ -1082,7 +1132,13 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       },
     }));
     mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getUserAccount: () => ({
+        authority: new MockPublicKey('mockAuth'),
+        subAccountId: 0,
+        spotPositions: [],
+        settledPerpPnl: new MockBN(0),
+        cumulativePerpFunding: new MockBN(0)
+      }),
       getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
       getPerpPosition: () => ({
         baseAssetAmount: new MockBN(0),
@@ -1093,10 +1149,12 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       getFreeCollateral: () => new MockBN(0), // $0 - needs swap
       getTotalCollateral: () => new MockBN(0),
       getTotalPerpPositionValue: () => new MockBN(0),
-  getTotalAssetValue: () => new MockBN(0),
+      getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+      isSubscribed: true,
+      fetchAccounts: mock(() => Promise.resolve()),
+      subscribe: mock(() => Promise.resolve(true)),
     }));
 
     const params: OpenPositionParams = {
@@ -1124,7 +1182,13 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       },
     }));
     mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getUserAccount: () => ({
+        authority: new MockPublicKey('mockAuth'),
+        subAccountId: 0,
+        spotPositions: [],
+        settledPerpPnl: new MockBN(0),
+        cumulativePerpFunding: new MockBN(0)
+      }),
       getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
       getPerpPosition: () => ({
         baseAssetAmount: new MockBN(0),
@@ -1135,10 +1199,12 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       getFreeCollateral: () => new MockBN(0), // $0
       getTotalCollateral: () => new MockBN(0),
       getTotalPerpPositionValue: () => new MockBN(0),
-  getTotalAssetValue: () => new MockBN(0),
+      getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+      isSubscribed: true,
+      fetchAccounts: mock(() => Promise.resolve()),
+      subscribe: mock(() => Promise.resolve(true)),
     }));
 
     // Mock sufficient SOL balance for swap (1 SOL)
@@ -1168,7 +1234,13 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       },
     }));
     mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getUserAccount: () => ({
+        authority: new MockPublicKey('mockAuth'),
+        subAccountId: 0,
+        spotPositions: [],
+        settledPerpPnl: new MockBN(0),
+        cumulativePerpFunding: new MockBN(0)
+      }),
       getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
       getPerpPosition: () => ({
         baseAssetAmount: new MockBN(0),
@@ -1179,10 +1251,12 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       getFreeCollateral: () => new MockBN(0), // $0 - needs swap
       getTotalCollateral: () => new MockBN(0),
       getTotalPerpPositionValue: () => new MockBN(0),
-  getTotalAssetValue: () => new MockBN(0),
+      getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+      isSubscribed: true,
+      fetchAccounts: mock(() => Promise.resolve()),
+      subscribe: mock(() => Promise.resolve(true)),
     }));
 
     // Mock very low SOL balance (0.001 SOL - not enough for swap)
@@ -1213,7 +1287,13 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       },
     }));
     mockGetUser.mockImplementation(() => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getUserAccount: () => ({
+        authority: new MockPublicKey('mockAuth'),
+        subAccountId: 0,
+        spotPositions: [],
+        settledPerpPnl: new MockBN(0),
+        cumulativePerpFunding: new MockBN(0)
+      }),
       getSpotPosition: () => ({ scaledBalance: BigInt(0), marketIndex: 0 }),
       getPerpPosition: () => ({
         baseAssetAmount: new MockBN(0),
@@ -1224,10 +1304,12 @@ describe('DriftService - Auto-Collateral (Jupiter Integration)', () => {
       getFreeCollateral: () => new MockBN(0), // $0 - needs swap
       getTotalCollateral: () => new MockBN(0),
       getTotalPerpPositionValue: () => new MockBN(0),
-  getTotalAssetValue: () => new MockBN(0),
+      getTotalAssetValue: () => new MockBN(0),
       getUnrealizedPNL: () => new MockBN(0),
       getLeverage: () => 0,
-      subscribe: mock(() => Promise.resolve()),
+      isSubscribed: true,
+      fetchAccounts: mock(() => Promise.resolve()),
+      subscribe: mock(() => Promise.resolve(true)),
     }));
 
     // Mock sufficient SOL balance for swap (1 SOL)
@@ -1277,7 +1359,13 @@ describe('DriftService - Query Operations', () => {
   it('should return null for non-existent position', async () => {
     // Mock no position - need to set up for both getUser() calls
     const noPositionMock = () => ({
-      getUserAccount: () => ({ authority: new MockPublicKey('mockAuth'), subAccountId: 0 }),
+      getUserAccount: () => ({
+        authority: new MockPublicKey('mockAuth'),
+        subAccountId: 0,
+        spotPositions: [],
+        settledPerpPnl: new MockBN(0),
+        cumulativePerpFunding: new MockBN(0)
+      }),
       getPerpPosition: () => ({
         baseAssetAmount: new MockBN(0),
         quoteAssetAmount: new MockBN(0),
@@ -1288,10 +1376,12 @@ describe('DriftService - Query Operations', () => {
       getFreeCollateral: () => new MockBN(50000000),
       getTotalCollateral: () => new MockBN(100000000),
       getTotalPerpPositionValue: () => new MockBN(200000000),
-  getTotalAssetValue: () => new MockBN(200000000),
+      getTotalAssetValue: () => new MockBN(200000000),
       getUnrealizedPNL: () => new MockBN(5000000),
       getLeverage: () => 50000,
-      subscribe: mock(() => Promise.resolve()),
+      isSubscribed: true,
+      fetchAccounts: mock(() => Promise.resolve()),
+      subscribe: mock(() => Promise.resolve(true)),
     });
     mockGetUser.mockImplementationOnce(noPositionMock);
     mockGetUser.mockImplementationOnce(noPositionMock);
@@ -1482,6 +1572,8 @@ describe('DriftService - withdraw', () => {
         authority: new MockPublicKey('mockAuth'),
         subAccountId: 0,
         spotPositions: [],
+        settledPerpPnl: new MockBN(0),
+        cumulativePerpFunding: new MockBN(0)
       }),
       getFreeCollateral: () => new MockBN(100_000_000), // $100 free
       getTotalCollateral: () => new MockBN(150_000_000),
@@ -1491,6 +1583,14 @@ describe('DriftService - withdraw', () => {
       isSubscribed: true,
       subscribe: mock(() => Promise.resolve(true)),
       fetchAccounts: mock(() => Promise.resolve()),
+      getSpotPosition: () => ({ scaledBalance: BigInt(1000000000), marketIndex: 0 }),
+      getTotalPerpPositionValue: () => new MockBN(0),
+      getPerpPosition: () => ({
+        baseAssetAmount: new MockBN(0),
+        quoteAssetAmount: new MockBN(0),
+        lastCumulativeFundingRate: new MockBN(0),
+        marketIndex: 0,
+      }),
     }));
 
     const mockRuntime = {
@@ -1522,6 +1622,8 @@ describe('DriftService - withdraw', () => {
         authority: new MockPublicKey('mockAuth'),
         subAccountId: 0,
         spotPositions: [],
+        settledPerpPnl: new MockBN(0),
+        cumulativePerpFunding: new MockBN(0)
       }),
       getFreeCollateral: () => new MockBN(30_000_000), // $30 free
       getTotalCollateral: () => new MockBN(100_000_000),
@@ -1531,6 +1633,14 @@ describe('DriftService - withdraw', () => {
       isSubscribed: true,
       subscribe: mock(() => Promise.resolve(true)),
       fetchAccounts: mock(() => Promise.resolve()),
+      getSpotPosition: () => ({ scaledBalance: BigInt(1000000000), marketIndex: 0 }),
+      getTotalPerpPositionValue: () => new MockBN(0),
+      getPerpPosition: () => ({
+        baseAssetAmount: new MockBN(0),
+        quoteAssetAmount: new MockBN(0),
+        lastCumulativeFundingRate: new MockBN(0),
+        marketIndex: 0,
+      }),
     }));
 
     const result = await service.withdraw('user-123', 50);
@@ -1554,6 +1664,8 @@ describe('DriftService - withdraw', () => {
         authority: new MockPublicKey('mockAuth'),
         subAccountId: 0,
         spotPositions: [],
+        settledPerpPnl: new MockBN(0),
+        cumulativePerpFunding: new MockBN(0)
       }),
       getFreeCollateral: () => {
         // Return different values based on call count to simulate post-withdrawal balance
@@ -1567,6 +1679,14 @@ describe('DriftService - withdraw', () => {
       isSubscribed: true,
       subscribe: mock(() => Promise.resolve(true)),
       fetchAccounts: mock(() => Promise.resolve()),
+      getSpotPosition: () => ({ scaledBalance: BigInt(1000000000), marketIndex: 0 }),
+      getTotalPerpPositionValue: () => new MockBN(0),
+      getPerpPosition: () => ({
+        baseAssetAmount: new MockBN(0),
+        quoteAssetAmount: new MockBN(0),
+        lastCumulativeFundingRate: new MockBN(0),
+        marketIndex: 0,
+      }),
     }));
 
     const result = await service.withdraw('user-123', 50);
@@ -1620,6 +1740,8 @@ describe('DriftService - closeAllPositions', () => {
       isSubscribed: true,
       subscribe: mock(() => Promise.resolve(true)),
       fetchAccounts: mock(() => Promise.resolve()),
+      getSpotPosition: () => ({ scaledBalance: BigInt(1000000000), marketIndex: 0 }),
+      getTotalPerpPositionValue: () => new MockBN(0),
     }));
 
     const result = await service.closeAllPositions('user-123');
@@ -1652,6 +1774,8 @@ describe('DriftService - closeAllPositions', () => {
       isSubscribed: true,
       subscribe: mock(() => Promise.resolve(true)),
       fetchAccounts: mock(() => Promise.resolve()),
+      getSpotPosition: () => ({ scaledBalance: BigInt(1000000000), marketIndex: 0 }),
+      getTotalPerpPositionValue: () => new MockBN(0),
     }));
 
     const result = await service.closeAllPositions('user-123');
