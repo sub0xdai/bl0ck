@@ -108,7 +108,12 @@ export function DriftTab({ userId, isActive = true }: DriftTabProps) {
         elizaClient.drift.getAccountInfo(),
       ]) as [DriftPositionsResponse, DriftAccountResponse];
 
-      setPositions(positionsRes.positions || []);
+      // Filter out ghost positions (size = 0)
+      const activePositions = (positionsRes.positions || []).filter(p => {
+        const size = parseFloat(p.size);
+        return Number.isFinite(size) && Math.abs(size) > 0;
+      });
+      setPositions(activePositions);
       setAccount(accountRes.account);
       setHasAccount(positionsRes.hasAccount || accountRes.hasAccount);
       setLastUpdated(new Date());

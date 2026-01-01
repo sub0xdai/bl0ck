@@ -102,7 +102,12 @@ export function AutomationModalContent({
     try {
       const response = await elizaClient.automation.getStatus();
       setStoreAvailable(response.storeAvailable);
-      setPositions(response.positions || []);
+      // Filter out ghost positions (size = 0 or near-zero notional value)
+      const activePositions = (response.positions || []).filter(p => {
+        const notional = parseFloat(p.notionalValue);
+        return Number.isFinite(notional) && Math.abs(notional) > 0.01;
+      });
+      setPositions(activePositions);
 
       if (response.automation) {
         setState({
