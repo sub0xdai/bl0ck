@@ -69,6 +69,9 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
   const [agentEvmAddress, setAgentEvmAddress] = useState<string | null>(null);
   const [agentSolanaAddress, setAgentSolanaAddress] = useState<string | null>(null);
 
+  // Automation status (for button indicator)
+  const [isAutomationActive, setIsAutomationActive] = useState(false);
+
   // Stabilize balance change callback to prevent wallet re-renders
   const handleBalanceChange = useCallback((balance: number) => {
     setTotalBalance(balance);
@@ -120,6 +123,22 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
   });
 
   const agentId = agentsData?.[0]?.id;
+
+  // Poll automation status for button indicator
+  useEffect(() => {
+    const checkAutomationStatus = async () => {
+      try {
+        const response = await elizaClient.automation.getStatus();
+        setIsAutomationActive(response.automation?.config?.enabled ?? false);
+      } catch {
+        // Silently ignore - automation may not be available
+      }
+    };
+
+    checkAutomationStatus();
+    const interval = setInterval(checkAutomationStatus, 10000); // Poll every 10s
+    return () => clearInterval(interval);
+  }, []);
 
   // Sync user entity whenever userId or agent changes
   useEffect(() => {
@@ -734,16 +753,22 @@ function AppContent({
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
-                          className="btn-shine rounded-full px-3 py-2 transition-colors hover:bg-accent flex items-center gap-2 border border-primary/30"
+                          className={`btn-shine rounded-full px-3 py-2 transition-all flex items-center gap-2 border ${
+                            isAutomationActive
+                              ? 'border-primary bg-primary/20 shadow-[0_0_12px_rgba(203,166,247,0.4)]'
+                              : 'border-primary/30 hover:bg-accent'
+                          }`}
                           onClick={handleOpenAutomation}
                         >
-                          <Zap className="size-4 md:size-5 text-primary" />
+                          <Zap className={`size-4 md:size-5 ${isAutomationActive ? 'text-primary lina-breath' : 'text-primary'}`} />
                           <span className="text-sm md:text-base text-primary uppercase">AUTO</span>
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="bottom" sideOffset={8}>
                         <p className="font-medium">Trading Automation</p>
-                        <p className="text-xs opacity-80">Configure automated trading strategies</p>
+                        <p className="text-xs opacity-80">
+                          {isAutomationActive ? 'Automation is ACTIVE' : 'Configure automated trading strategies'}
+                        </p>
                       </TooltipContent>
                     </Tooltip>
                     {/* About Button */}
