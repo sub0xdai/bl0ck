@@ -455,6 +455,9 @@ export class StrategyLoop extends Service {
      * Execute cycle for all enabled users
      */
     private async executeCycleForAllUsers(): Promise<void> {
+        // Refresh enabled users from database to pick up REST API changes
+        await this.loadEnabledUsers();
+
         const enabledUsers = Array.from(this.userStates.entries())
             .filter(([_, state]) => state.config.enabled);
 
