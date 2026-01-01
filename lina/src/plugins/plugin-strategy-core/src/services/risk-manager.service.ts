@@ -142,8 +142,8 @@ export class RiskManager {
             signal.confidence
         );
 
-        // Minimum position check ($0.10 for testing with low collateral)
-        const MIN_POSITION_USD = 0.10;
+        // Minimum position check ($0.05 for testing with very low collateral)
+        const MIN_POSITION_USD = 0.05;
         if (suggestedSize < MIN_POSITION_USD) {
             logger.info(
                 `[RISK_MANAGER] Trade rejected for ${asset}: suggestedSize $${suggestedSize.toFixed(2)} < $${MIN_POSITION_USD} minimum ` +
