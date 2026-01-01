@@ -209,6 +209,12 @@ export class SignalsService {
         // Aggregate signals
         const signal = aggregateSignals(asset, normalizedSources);
 
+        // Detailed logging for debugging
+        const sourceDetails = normalizedSources.map(s =>
+            `${s.name}=${s.value.toFixed(2)}(w:${s.weight.toFixed(2)})`
+        ).join(', ');
+        console.log(`[SIGNALS] ${asset} raw: ${sourceDetails}`);
+
         logger.info(
             `[SIGNALS] ${asset}: ${signal.direction} (confidence: ${(signal.confidence * 100).toFixed(1)}%) ` +
             `from ${sources.length} sources`

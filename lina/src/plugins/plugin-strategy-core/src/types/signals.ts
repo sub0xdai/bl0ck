@@ -66,8 +66,9 @@ export const SIGNAL_CONFIDENCE_THRESHOLD = 0.6;
 
 /**
  * Trend threshold for determining bullish/bearish (7d price change %).
+ * Lower = more sensitive to small moves. Original: 5, lowered for testing.
  */
-export const TREND_THRESHOLD_PCT = 5;
+export const TREND_THRESHOLD_PCT = 2;
 
 /**
  * Calculate aggregated signal from multiple sources.
