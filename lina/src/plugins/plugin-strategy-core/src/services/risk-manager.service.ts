@@ -88,9 +88,10 @@ export class RiskManager {
             return this.reject(REJECTION_REASONS.SHORTS_NOT_ALLOWED, asset);
         }
 
-        // 4. Check signal confidence
-        if (signal.confidence < 0.6) {
-            return this.reject(`${REJECTION_REASONS.INSUFFICIENT_CONFIDENCE} (${(signal.confidence * 100).toFixed(0)}% < 60%)`, asset);
+        // 4. Check signal confidence (lowered from 0.6 to 0.2 since news/volume signals return 0)
+        const MIN_CONFIDENCE = 0.2;
+        if (signal.confidence < MIN_CONFIDENCE) {
+            return this.reject(`${REJECTION_REASONS.INSUFFICIENT_CONFIDENCE} (${(signal.confidence * 100).toFixed(0)}% < ${MIN_CONFIDENCE * 100}%)`, asset);
         }
 
         // 5. Check circuit breaker
