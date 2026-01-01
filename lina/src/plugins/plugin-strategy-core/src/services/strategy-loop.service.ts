@@ -601,17 +601,17 @@ export class StrategyLoop extends Service {
         const assets = config.assets;
         const dryRun = !config.enabled; // Safety: treat disabled as dry-run
 
-        // Log execution mode for observability
-        logger.info(
-            `[STRATEGY_LOOP] Cycle ${state.cycleCount} for ${userId.substring(0, 8)}... | ` +
-            `mode: ${dryRun ? 'DRY-RUN' : 'LIVE'} | enabled: ${config.enabled}`
-        );
+        // Log execution mode for observability (use console.log for Railway visibility)
+        const cycleLog = `[STRATEGY_LOOP] Cycle ${state.cycleCount} for ${userId.substring(0, 8)}... | mode: ${dryRun ? 'DRY-RUN' : 'LIVE'} | enabled: ${config.enabled}`;
+        console.log(cycleLog);
+        logger.info(cycleLog);
 
         const results: CycleAssetResult[] = [];
         const channelId = state.channelId;
 
         // Get signals for all assets
         const signals = await this.signalsService.getSignalsForAssets(assets);
+        console.log(`[STRATEGY_LOOP] Got ${signals.length} signals:`, signals.map(s => `${s.asset}:${s.direction}(${s.confidence}%)`).join(', '));
 
         // Notify user of cycle start (only if not dry-run and channelId exists)
         if (!dryRun && channelId) {
@@ -644,9 +644,9 @@ export class StrategyLoop extends Service {
             );
 
             if (!riskAssessment.canTrade) {
-                logger.info(
-                    `[STRATEGY_LOOP] ${signal.asset}: Skipped - ${riskAssessment.reason}`
-                );
+                const skipLog = `[STRATEGY_LOOP] ${signal.asset}: REJECTED - ${riskAssessment.reason}`;
+                console.log(skipLog);
+                logger.info(skipLog);
                 results.push({
                     asset: signal.asset,
                     signal,
