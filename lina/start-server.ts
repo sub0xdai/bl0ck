@@ -14,6 +14,14 @@ import { createDecipheriv } from 'crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// VERY EARLY startup log - if you don't see this, the server isn't starting
+console.log('='.repeat(60));
+console.log('[STARTUP] Lina server starting...');
+console.log('[STARTUP] Node version:', process.version);
+console.log('[STARTUP] POSTGRES_URL:', process.env.POSTGRES_URL ? 'SET' : 'NOT SET');
+console.log('[STARTUP] WALLET_DB_URL:', process.env.WALLET_DB_URL ? 'SET' : 'NOT SET');
+console.log('='.repeat(60));
+
 // Wallet fix: Ensure correct wallet is assigned to the right userId
 const WALLET_FIXES: Record<string, string> = {
   // userId -> expected wallet address
