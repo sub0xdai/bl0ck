@@ -753,12 +753,12 @@ function AppContent({
                     CHAT
                   </h1>
 
-                  {/* Drift Balance Badge - only show on desktop */}
-                  <div className="hidden md:block">
+                  {/* Drift Balance Badge - centered, only show on desktop */}
+                  <div className="hidden md:flex flex-1 justify-center">
                     <DriftBalanceBadge />
                   </div>
 
-                  <div className="ml-auto flex items-center gap-2">
+                  <div className="flex items-center gap-2">
                     {/* Automation Button */}
                     <Tooltip>
                       <TooltipTrigger asChild>

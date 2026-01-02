@@ -61,10 +61,10 @@ export function DriftBalanceBadge({ className }: DriftBalanceBadgeProps) {
     return null; // Don't show badge if no Drift account
   }
 
-  // Parse values (backend returns raw USDC with 6 decimals)
-  const collateral = parseFloat(account.collateral) / 1_000_000;
-  const unrealizedPnl = parseFloat(account.unrealizedPnl) / 1_000_000;
-  const freeCollateral = parseFloat(account.freeCollateral) / 1_000_000;
+  // Parse values (backend already returns human-readable USD after QUOTE_PRECISION fix)
+  const collateral = parseFloat(account.collateral);
+  const unrealizedPnl = parseFloat(account.unrealizedPnl);
+  const freeCollateral = parseFloat(account.freeCollateral);
   const isPnlPositive = unrealizedPnl >= 0;
 
   return (
@@ -72,39 +72,40 @@ export function DriftBalanceBadge({ className }: DriftBalanceBadgeProps) {
       <TooltipTrigger asChild>
         <div
           className={cn(
-            "flex items-center gap-3 px-3 py-1.5 rounded-lg",
-            "bg-gradient-to-r from-green-500/10 to-transparent",
-            "border border-green-500/20",
+            "flex items-center gap-3 px-4 py-2 rounded-lg",
+            "bg-green-500/15 backdrop-blur-sm",
+            "border border-green-400/40",
+            "shadow-[0_0_15px_rgba(34,197,94,0.15)]",
             "cursor-default select-none",
             className
           )}
         >
           {/* Drift Label */}
-          <span className="text-[10px] uppercase tracking-wider text-green-400/70 font-medium">
+          <span className="text-xs uppercase tracking-wider text-green-400 font-semibold">
             Drift
           </span>
 
           {/* Collateral */}
           <div className="flex items-center gap-1">
-            <span className="text-xs text-muted-foreground">$</span>
-            <span className="text-sm font-mono font-medium text-foreground">
+            <span className="text-sm text-green-300/80 font-medium">$</span>
+            <span className="text-base font-mono font-bold text-white">
               {formatUsdValue(collateral)}
             </span>
           </div>
 
           {/* Separator */}
-          <span className="text-muted-foreground/30">|</span>
+          <span className="text-green-400/50">|</span>
 
           {/* PnL */}
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] uppercase text-muted-foreground/70">PnL</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs uppercase text-green-300/70 font-medium">PnL</span>
             <span
               className={cn(
-                "text-sm font-mono font-medium",
+                "text-base font-mono font-bold",
                 isPnlPositive ? "text-green-400" : "text-red-400"
               )}
             >
-              {isPnlPositive ? '+' : ''}{formatUsdValue(unrealizedPnl)}
+              {isPnlPositive ? '+' : ''}${formatUsdValue(Math.abs(unrealizedPnl))}
             </span>
           </div>
         </div>
