@@ -380,6 +380,7 @@ export class DriftService extends Service {
       // Convert USD size to base asset amount
       // BN only handles integers, so multiply by 1e6 first to preserve decimals
       // Formula: (USD_Size_Micro * BASE_PRECISION) / Oracle_Price_Raw * Leverage
+      const PRICE_PRECISION = new BN(1_000_000);
       const sizeInMicroUsd = Math.floor(params.size * 1_000_000); // $0.064 → 64000
       const baseAssetAmount = new BN(sizeInMicroUsd)
         .mul(new BN(1_000_000_000)) // BASE_PRECISION (9 decimals)
