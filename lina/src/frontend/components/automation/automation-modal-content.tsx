@@ -473,28 +473,51 @@ export function AutomationModalContent({
 
         {/* Status Row - Integrated, no inner box */}
         <div className="flex items-center gap-6 flex-wrap">
-          {/* Enhanced Toggle Pill */}
+          {/* Glassmorphism Auto Button */}
           <button
             ref={firstFocusableRef}
             className={cn(
-              "toggle-pill",
-              config.enabled ? "toggle-pill--active" : "toggle-pill--standby",
-              isSaving && "toggle-pill--loading"
+              "relative group flex items-center justify-center gap-3 px-8 py-3 rounded-full transition-all duration-500 overflow-hidden",
+              // Base Glassmorphism
+              "border border-primary/20 bg-primary/5 backdrop-blur-md",
+              // Active State (Glowing)
+              config.enabled 
+                ? "bg-primary/15 border-primary/50 shadow-[0_0_30px_-5px_rgba(185,147,255,0.3)]" 
+                : "hover:bg-primary/10 hover:border-primary/30",
+              isSaving && "opacity-80 cursor-wait"
             )}
             onClick={handleToggle}
             disabled={isSaving}
-            aria-label={`Automation is ${config.enabled ? 'active' : 'on standby'}. Click to ${config.enabled ? 'stop' : 'start'}.`}
+            aria-label={`Automation is ${config.enabled ? 'active' : 'inactive'}. Click to ${config.enabled ? 'stop' : 'start'}.`}
             aria-pressed={config.enabled}
           >
-            {isSaving ? (
-              <span className="toggle-pill__spinner" />
-            ) : (
+            {/* Inner Glow Bloom */}
+            <div className={cn(
+              "absolute inset-0 bg-primary/20 blur-xl transition-opacity duration-500",
+              config.enabled ? "opacity-100" : "opacity-0 group-hover:opacity-50"
+            )} />
+
+            {/* Content Container (z-index to sit above bloom) */}
+            <div className="relative z-10 flex items-center gap-3">
+              {isSaving ? (
+                <div className="size-4 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+              ) : (
+                <Zap 
+                  className={cn(
+                    "size-4 transition-all duration-300",
+                    config.enabled ? "fill-primary text-primary drop-shadow-[0_0_8px_rgba(185,147,255,0.8)]" : "text-muted-foreground group-hover:text-primary"
+                  )} 
+                  strokeWidth={2.5}
+                />
+              )}
+              
               <span className={cn(
-                "toggle-knob",
-                config.enabled ? "toggle-knob--on" : "toggle-knob--off"
-              )} />
-            )}
-            <span>{isSaving ? 'SAVING...' : config.enabled ? 'ACTIVE' : 'STANDBY'}</span>
+                "font-sans font-semibold tracking-[0.2em] text-sm transition-colors duration-300",
+                config.enabled ? "text-primary drop-shadow-[0_0_5px_rgba(185,147,255,0.5)]" : "text-muted-foreground group-hover:text-primary"
+              )}>
+                {isSaving ? 'SAVING' : config.enabled ? 'AUTO' : 'ENABLE'}
+              </span>
+            </div>
           </button>
 
           {/* PnL Display - Only show when there's activity */}
