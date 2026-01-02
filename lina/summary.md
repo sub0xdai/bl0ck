@@ -6,19 +6,26 @@
 
 ## Summary
 
-**Session: Jan 2, 2026 (continued)**
+**Session: Jan 2, 2026 (latest)**
 
-8. **Fixed BN Truncation Bug** - baseAssetAmount was 0
-   - Root cause: `new BN(0.064)` truncates to 0 (BN only handles integers)
-   - $0.064 → BN(0) → baseAssetAmount = 0 → "Simulation failed"
-   - Fixed: Convert to micro-USD first: `$0.064 * 1e6 = 64000`
-   - Now: sizeInMicroUsd: 64295, baseAssetAmount: 1520565 ✓
+9. **Fixed Messaging** - StrategyLoop can now post to chat
+   - Replaced HTTP loopback with direct `internalMessageBus.emit()`
+   - No auth token needed - bypasses HTTP entirely
+   - Exported `internalMessageBus` from `@elizaos/server`
+
+10. **Fixed News Signal** - Service lookup mismatch
+    - Changed `'WEB_SEARCH'` → `'TAVILY'` in signals.service.ts
+    - News signal now works (or enable OpenBB for full macro data)
+
+11. **Fixed Volume Signal** - Replaced broken DeFiLlama TVL with CoinGecko
+    - Added `getTokenVolume()` to CoinGeckoService
+    - Returns 24h volume + price momentum for any token
+    - Works for SOL, BTC, ETH, memecoins (universal coverage)
 
 **Session: Jan 2, 2026 (earlier)**
 
-5. Fixed QUOTE_PRECISION Bug - Trade sizes 1,000,000x too large
-6. Fixed Multiple Minimum Thresholds - Three checks blocking $0.06 trades
-7. Added Validation Logging - Silent failures now logged
+8. Fixed BN Truncation - baseAssetAmount was 0 → now 1,520,565 ✓
+5-7. Fixed QUOTE_PRECISION, thresholds, validation logging
 
 **Session: Jan 1, 2026**
 
@@ -86,8 +93,11 @@ plugin-strategy-core/src/
 - [x] Fix QUOTE_PRECISION (1e6 scaling)
 - [x] Fix all minimum thresholds
 - [x] Fix BN truncation (baseAssetAmount = 0)
+- [x] Fix messaging (direct bus emit)
+- [x] Fix news signal (TAVILY lookup)
+- [x] Fix volume signal (CoinGecko 24h volume)
 - [ ] **Confirm first automated trade on Drift**
-- [ ] Fix news/volume signal sources
+- [ ] Enable OpenBB for macro signals (optional)
 - [ ] Telegram/Discord notifications
 
 ---

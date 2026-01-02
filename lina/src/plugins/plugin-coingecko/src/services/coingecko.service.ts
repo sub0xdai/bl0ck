@@ -20,6 +20,7 @@ interface MarketRow {
   market_cap?: number | null;
   total_volume?: number | null;
   market_cap_rank?: number | null;
+  price_change_percentage_24h?: number | null;
 }
 
 export interface TokenMetadataCandidate {
@@ -163,6 +164,51 @@ export class CoinGeckoService extends Service {
     }
 
     return results;
+  }
+
+  /**
+   * Get 24h trading volume and price change for a token.
+   * Used by SignalsService for volume-based trading signals.
+   * @param symbol Token symbol (e.g., 'SOL', 'BTC', 'ETH')
+   * @returns Volume and price momentum data
+   */
+  async getTokenVolume(symbol: string): Promise<{ volume24h: number; priceChange24h: number }> {
+    // Map symbol to CoinGecko ID using nativeTokenIds or lowercase
+    const normalizedSymbol = symbol.toLowerCase();
+    const coinId = nativeTokenIds[normalizedSymbol] || normalizedSymbol;
+
+    try {
+      const rows = await this.fetchMarketRows([coinId]);
+      if (rows.length > 0) {
+        const row = rows[0];
+        return {
+          volume24h: row.total_volume ?? 0,
+          priceChange24h: row.price_change_percentage_24h ?? 0,
+        };
+      }
+
+      // If direct lookup fails, try resolving through candidates
+      const candidates = await this.resolveCandidates(symbol);
+      if (candidates.length > 0) {
+        const resolvedRows = await this.fetchMarketRows([candidates[0].coinId]);
+        if (resolvedRows.length > 0) {
+          const row = resolvedRows[0];
+          return {
+            volume24h: row.total_volume ?? 0,
+            priceChange24h: row.price_change_percentage_24h ?? 0,
+          };
+        }
+      }
+
+      logger.debug(`[CoinGecko] No volume data found for ${symbol}`);
+      return { volume24h: 0, priceChange24h: 0 };
+    } catch (error) {
+      logger.warn(
+        `[CoinGecko] Failed to get volume for ${symbol}:`,
+        error instanceof Error ? error.message : String(error)
+      );
+      return { volume24h: 0, priceChange24h: 0 };
+    }
   }
 
   private async fetchByContractAddress(

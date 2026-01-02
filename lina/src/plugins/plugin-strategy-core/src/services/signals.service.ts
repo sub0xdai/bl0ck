@@ -352,7 +352,7 @@ export class SignalsService {
 
         // Fallback: use web search for recent news
         try {
-            const webSearchService = this.runtime?.getService('WEB_SEARCH') as any;
+            const webSearchService = this.runtime?.getService('TAVILY') as any;
 
             if (webSearchService?.search) {
                 const results = await this.withTimeout(
@@ -388,53 +388,53 @@ export class SignalsService {
     }
 
     /**
-     * Get volume/TVL signal from DeFiLlama
+     * Get volume signal from CoinGecko 24h trading volume
+     * Uses price momentum as a proxy for volume-backed conviction
      */
     private async getVolumeSignal(
         symbol: string
     ): Promise<{ value: number; rawData: unknown } | null> {
-        // Volume signal based on protocol TVL changes (for DeFi tokens)
-        // For majors like BTC/ETH/SOL, this is less relevant
-
         try {
-            const defiLlamaService = this.runtime?.getService('defillama_protocols') as any;
+            const coingeckoService = this.runtime?.getService('COINGECKO_SERVICE') as any;
 
-            if (defiLlamaService?.getProtocolTvlHistory) {
-                // Try to find a protocol matching the symbol
-                const protocolName = this.getProtocolName(symbol);
-                if (!protocolName) {
-                    // Return neutral for tokens without known DeFi protocol
-                    return { value: 0, rawData: { source: 'not_applicable' } };
-                }
-
-                const tvlHistory = await this.withTimeout(
-                    defiLlamaService.getProtocolTvlHistory(protocolName, 7),
+            if (coingeckoService?.getTokenVolume) {
+                const volumeData = await this.withTimeout(
+                    coingeckoService.getTokenVolume(symbol),
                     this.config.timeoutMs
                 );
+                const { volume24h, priceChange24h } = volumeData as { volume24h: number; priceChange24h: number };
 
-                const tvlData = tvlHistory as Array<{ tvl: number }> | undefined;
-                if (tvlData && tvlData.length >= 2) {
-                    const firstTVL = tvlData[0].tvl;
-                    const lastTVL = tvlData[tvlData.length - 1].tvl;
-                    const tvlChange = ((lastTVL - firstTVL) / firstTVL) * 100;
-
-                    // TVL growth = bullish, TVL decline = bearish
-                    let value = 0;
-                    if (tvlChange > 10) {
-                        value = Math.min(1, tvlChange / 50); // Cap at 50% change
-                    } else if (tvlChange < -10) {
-                        value = Math.max(-1, tvlChange / 50);
-                    }
-
-                    return {
-                        value,
-                        rawData: { source: 'defillama', tvlChange7d: tvlChange },
-                    };
+                // Use price momentum as volume signal:
+                // High positive change = bullish with volume conviction
+                // High negative change = bearish with volume conviction
+                // Near zero = neutral/consolidation
+                let value = 0;
+                if (priceChange24h > 10) {
+                    value = Math.min(1, priceChange24h / 20); // Strong bullish
+                } else if (priceChange24h > 5) {
+                    value = 0.5; // Moderate bullish
+                } else if (priceChange24h > 0) {
+                    value = 0.25; // Slight bullish
+                } else if (priceChange24h < -10) {
+                    value = Math.max(-1, priceChange24h / 20); // Strong bearish
+                } else if (priceChange24h < -5) {
+                    value = -0.5; // Moderate bearish
+                } else if (priceChange24h < 0) {
+                    value = -0.25; // Slight bearish
                 }
+
+                logger.debug(
+                    `[SIGNALS] Volume signal for ${symbol}: priceChange=${priceChange24h}%, volume=${volume24h}, signal=${value}`
+                );
+
+                return {
+                    value,
+                    rawData: { source: 'coingecko', volume24h, priceChange24h },
+                };
             }
         } catch (error) {
             logger.debug(
-                `[SIGNALS] DeFiLlama volume signal failed:`,
+                `[SIGNALS] CoinGecko volume signal failed:`,
                 error instanceof Error ? error.message : String(error)
             );
         }

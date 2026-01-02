@@ -1667,3 +1667,6 @@ export * from './types';
 
 // Export ElizaOS from core (re-export for convenience)
 export { ElizaOS } from '@elizaos/core';
+
+// Export internal message bus for direct plugin access (avoids HTTP loopback)
+export { default as internalMessageBus } from './bus.js';

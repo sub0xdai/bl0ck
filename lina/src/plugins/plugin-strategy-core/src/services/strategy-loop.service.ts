@@ -12,7 +12,9 @@ import {
     Service,
     type IAgentRuntime,
     logger,
+    type UUID,
 } from '@elizaos/core';
+import { internalMessageBus } from '@elizaos/server';
 import { BehaviorSubject } from 'rxjs';
 import {
     type AutomationConfig,
@@ -103,6 +105,7 @@ export class StrategyLoop extends Service {
 
     /**
      * Send a chat message to the user's channel for trading updates
+     * Uses direct internal bus emit - no HTTP, no auth needed
      */
     private async sendChatMessage(
         channelId: string,
@@ -111,34 +114,30 @@ export class StrategyLoop extends Service {
         actions?: string[]
     ): Promise<void> {
         try {
-            const serverPort = process.env.SERVER_PORT || '3000';
-            const serverUrl = `http://localhost:${serverPort}`;
             const agentId = this.runtime.agentId;
+            const messageId = `strategy-${Date.now()}-${Math.random().toString(36).slice(2, 9)}` as UUID;
+            const serverId = '00000000-0000-0000-0000-000000000000' as UUID;
 
-            const response = await fetch(`${serverUrl}/api/messaging/submit`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
+            // Emit directly to internal message bus (no HTTP loopback)
+            internalMessageBus.emit('new_message', {
+                id: messageId,
+                channel_id: channelId,
+                server_id: serverId,
+                author_id: agentId,
+                content,
+                created_at: Date.now(),
+                source_type: 'agent_response',
+                raw_message: {
+                    thought: thought || content,
+                    actions: actions || [],
                 },
-                body: JSON.stringify({
-                    channel_id: channelId,
-                    server_id: '00000000-0000-0000-0000-000000000000',
-                    author_id: agentId,
-                    content,
-                    source_type: 'agent_response',
-                    raw_message: {
-                        thought: thought || content,
-                        actions: actions || [],
-                    },
-                    metadata: {
-                        agentName: 'Lina',
-                    },
-                }),
+                metadata: {
+                    agentName: 'Lina',
+                    isAutomatedTrade: true,
+                },
             });
 
-            if (!response.ok) {
-                logger.warn(`[STRATEGY_LOOP] Failed to send chat message: ${response.status}`);
-            }
+            logger.debug(`[STRATEGY_LOOP] Emitted message to bus: ${messageId}`);
         } catch (error) {
             logger.error(
                 '[STRATEGY_LOOP] Error sending chat message:',
