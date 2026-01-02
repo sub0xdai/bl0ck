@@ -96,7 +96,7 @@ export interface AutomationState {
 export const DEFAULT_AUTOMATION_CONFIG: AutomationConfig = {
     enabled: false,
     intervalMinutes: 5,
-    maxPositionPct: 5,
+    maxPositionPct: 25,
     maxExposurePct: 25,
     maxLeverage: 3,
     assets: ['SOL-PERP', 'BTC-PERP', 'ETH-PERP'],

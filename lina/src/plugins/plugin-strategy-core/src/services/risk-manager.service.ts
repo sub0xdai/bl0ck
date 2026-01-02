@@ -143,7 +143,7 @@ export class RiskManager {
         );
 
         // Minimum position check - Drift requires 0.01 SOL (~$1.26) minimum
-        const MIN_POSITION_USD = 2.00;
+        const MIN_POSITION_USD = 1.30;
         if (suggestedSize < MIN_POSITION_USD) {
             logger.info(
                 `[RISK_MANAGER] Trade rejected for ${asset}: suggestedSize $${suggestedSize.toFixed(2)} < $${MIN_POSITION_USD} minimum ` +
