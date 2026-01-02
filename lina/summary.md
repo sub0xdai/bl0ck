@@ -6,27 +6,23 @@
 
 ## Summary
 
-**Session: Jan 2, 2026**
+**Session: Jan 2, 2026 (continued)**
 
-5. **Fixed QUOTE_PRECISION Bug** - Trade sizes were 1,000,000x too large
-   - Root cause: `getAccountInfo` returned raw BN values (6 decimals), RiskManager parsed as USD
-   - $2.57 collateral → interpreted as $2,570,000 → $64k trades attempted
-   - Fixed: Divide by QUOTE_PRECISION (1e6) before returning
+8. **Fixed BN Truncation Bug** - baseAssetAmount was 0
+   - Root cause: `new BN(0.064)` truncates to 0 (BN only handles integers)
+   - $0.064 → BN(0) → baseAssetAmount = 0 → "Simulation failed"
+   - Fixed: Convert to micro-USD first: `$0.064 * 1e6 = 64000`
+   - Now: sizeInMicroUsd: 64295, baseAssetAmount: 1520565 ✓
 
-6. **Fixed Multiple Minimum Thresholds** - Three separate checks blocking $0.06 trades
-   - RiskManager MIN_POSITION_USD: $0.10 → $0.05
-   - RiskManager confidence threshold: 60% → 20%
-   - DriftService MIN_COLLATERAL: $1.00 → $0.01
+**Session: Jan 2, 2026 (earlier)**
 
-7. **Added Validation Logging** - Silent failures now logged
-   - DriftService validation errors now logged before returning
+5. Fixed QUOTE_PRECISION Bug - Trade sizes 1,000,000x too large
+6. Fixed Multiple Minimum Thresholds - Three checks blocking $0.06 trades
+7. Added Validation Logging - Silent failures now logged
 
 **Session: Jan 1, 2026**
 
-1. Fixed Perps Wallet Display - Mark prices showing $0.00
-2. Fixed Autotrading Min Size - Lowered from $1 to $0.10
-3. UI Cleanup - Inline editing for automation modal
-4. Fixed Signals Always NEUTRAL - Lowered thresholds
+1-4. Fixed perps display, min sizes, UI, signals thresholds
 
 ---
 
@@ -34,11 +30,12 @@
 
 | Component | Status |
 |-----------|--------|
-| Drift LONG/SHORT | Manual working, auto pending test |
-| Automation System | Live (v1.0.4) |
-| SignalsService | Trend working (27-44% confidence) |
-| Trade Sizing | Fixed ($0.06 for $2.57 collateral) |
-| Trade Execution | Awaiting first live trade |
+| Automation System | Live (v1.0.5) |
+| SignalsService | Working (27-44% confidence) |
+| RiskManager | Approving trades |
+| Trade Sizing | $0.06 (correct) |
+| baseAssetAmount | 1,520,565 (non-zero!) |
+| Trade Execution | **Awaiting Drift confirmation** |
 
 ---
 
@@ -46,51 +43,50 @@
 
 ```
 StrategyLoop (5min cycles)
-    ├── SignalsService (CoinGecko trend only)
-    ├── RiskManager (min $0.05, 20% confidence)
-    ├── PositionMonitor (SL/TP/hold time)
-    └── DriftService (min $0.01, validation logging)
+    ├── SignalsService → LONG 27%
+    ├── RiskManager → approved $0.06 @ 3x
+    └── DriftService → baseAssetAmount: 1520565 → submit to Drift
 
-Flow:
-Signal (27%) → RiskManager approves $0.06 → DriftService opens position
+Size calculation:
+$0.064 → 64000 micro-USD → × 1e9 / oracle / leverage → 1,520,565 base units
 ```
 
 ---
 
-## Minimum Thresholds (All Fixed)
+## All Fixes Applied
 
-| Location | Setting | Value |
-|----------|---------|-------|
-| signals.ts | SIGNAL_CONFIDENCE_THRESHOLD | 20% |
-| signals.ts | TREND_THRESHOLD_PCT | 2% |
-| risk-manager | MIN_POSITION_USD | $0.05 |
-| risk-manager | MIN_CONFIDENCE | 20% |
-| drift constants | MIN_COLLATERAL | $0.01 |
+| Bug | Root Cause | Fix |
+|-----|-----------|-----|
+| $64k trades | QUOTE_PRECISION not divided | ÷ 1e6 in getAccountInfo |
+| baseAssetAmount = 0 | BN truncates decimals | × 1e6 before BN |
+| MIN_COLLATERAL | $1 too high | → $0.01 |
+| MIN_POSITION_USD | $0.10 too high | → $0.05 |
+| Confidence threshold | 60% impossible | → 20% |
+| NEUTRAL signals | Trend threshold 5% | → 2% |
 
 ---
 
 ## Key Files
 
 ```
-plugin-drift/src/
-├── constants.ts              # MIN_COLLATERAL = $0.01
-└── services/drift.service.ts # QUOTE_PRECISION fix, validation logging
+plugin-drift/src/services/drift.service.ts
+├── Line 383: sizeInMicroUsd = size * 1e6
+├── Line 385: baseAssetAmount calculation
+└── Line 742: QUOTE_PRECISION division
 
 plugin-strategy-core/src/
-├── services/risk-manager.ts  # MIN_POSITION_USD = $0.05, confidence 20%
-├── services/signals.service.ts
-└── types/signals.ts          # Threshold constants
+├── services/risk-manager.ts  # MIN = $0.05, confidence 20%
+└── types/signals.ts          # Thresholds
 ```
 
 ---
 
 ## Next Steps
 
-- [x] Fix perps wallet display
-- [x] Fix signals always NEUTRAL
 - [x] Fix QUOTE_PRECISION (1e6 scaling)
 - [x] Fix all minimum thresholds
-- [ ] Confirm first automated trade executes
+- [x] Fix BN truncation (baseAssetAmount = 0)
+- [ ] **Confirm first automated trade on Drift**
 - [ ] Fix news/volume signal sources
 - [ ] Telegram/Discord notifications
 
@@ -98,16 +94,15 @@ plugin-strategy-core/src/
 
 ## Debugging
 
-Check Railway logs for trade flow:
+Expected successful trade flow:
 ```
-[SIGNALS] SOL-PERP: LONG (confidence: 27%)
 [RISK_MANAGER] Trade approved for SOL-PERP: $0.06 @ 3x
 [DRIFT_SERVICE] === openPosition START === long SOL-PERP $0.06
-[DRIFT_SERVICE] [T+0ms] Getting client...
-[DRIFT_SERVICE] Free collateral: $2.57, Required: $0.02
+[DRIFT_SERVICE] sizeInMicroUsd: 64295, baseAssetAmount: 1520565
+[DRIFT_SERVICE] Submitted order tx: <signature>
+[STRATEGY_LOOP] SOL-PERP: LONG executed - $0.06 | tx: <sig>...
 ```
 
-If validation fails:
-```
-[DRIFT_SERVICE] Validation failed: Size $X below minimum $0.01
-```
+If still failing, check for:
+- "Simulation failed" → Drift SDK issue
+- "Insufficient SOL" → Need gas for tx
