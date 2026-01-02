@@ -22,6 +22,7 @@ import {
 import { UUID } from '@elizaos/core';
 import { AboutModalContent } from '../components/about/about-modal-content';
 import { AutomationModalContent } from '../components/automation/automation-modal-content';
+import { DriftBalanceBadge } from '../components/drift/DriftBalanceBadge';
 import {
   DepositOnboardingContent,
   shouldShowOnboarding,
@@ -751,6 +752,12 @@ function AppContent({
                   <h1 className="text-xl lg:text-4xl font-display leading-none mb-1">
                     CHAT
                   </h1>
+
+                  {/* Drift Balance Badge - only show on desktop */}
+                  <div className="hidden md:block">
+                    <DriftBalanceBadge />
+                  </div>
+
                   <div className="ml-auto flex items-center gap-2">
                     {/* Automation Button */}
                     <Tooltip>

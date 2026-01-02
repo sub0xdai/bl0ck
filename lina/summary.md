@@ -8,19 +8,13 @@
 
 **Session: Jan 2, 2026 (latest)**
 
-9. **Fixed Messaging** - StrategyLoop can now post to chat
-   - Replaced HTTP loopback with direct `internalMessageBus.emit()`
-   - No auth token needed - bypasses HTTP entirely
-   - Exported `internalMessageBus` from `@elizaos/server`
+12. **Added Drift Balance Header Badge** - Shows collateral + PnL in header
+    - New component: `src/frontend/components/drift/DriftBalanceBadge.tsx`
+    - Displays: `CHAT [Drift $11.82 | PnL +$0.00] ⚡AUTO ⓘABOUT`
+    - Auto-refreshes every 30s, hover for full details
+    - Only shows when user has Drift account
 
-10. **Fixed News Signal** - Service lookup mismatch
-    - Changed `'WEB_SEARCH'` → `'TAVILY'` in signals.service.ts
-    - News signal now works (or enable OpenBB for full macro data)
-
-11. **Fixed Volume Signal** - Replaced broken DeFiLlama TVL with CoinGecko
-    - Added `getTokenVolume()` to CoinGeckoService
-    - Returns 24h volume + price momentum for any token
-    - Works for SOL, BTC, ETH, memecoins (universal coverage)
+9-11. Fixed messaging (direct bus emit), news signal (TAVILY), volume signal (CoinGecko)
 
 **Session: Jan 2, 2026 (earlier)**
 
@@ -38,11 +32,11 @@
 | Component | Status |
 |-----------|--------|
 | Automation System | Live (v1.0.5) |
-| SignalsService | Working (27-44% confidence) |
-| RiskManager | Approving trades |
-| Trade Sizing | $0.06 (correct) |
-| baseAssetAmount | 1,520,565 (non-zero!) |
-| Trade Execution | **Awaiting Drift confirmation** |
+| SignalsService | Working (55% confidence with volume) |
+| RiskManager | MIN_POSITION_USD = $2.00 |
+| Trade Sizing | Needs $2+ (Drift min: 0.01 SOL) |
+| Drift UI | **Complete** (Perps tab + header badge) |
+| Trade Execution | **Awaiting first trade** |
 
 ---
 
@@ -96,6 +90,8 @@ plugin-strategy-core/src/
 - [x] Fix messaging (direct bus emit)
 - [x] Fix news signal (TAVILY lookup)
 - [x] Fix volume signal (CoinGecko 24h volume)
+- [x] Raise MIN_POSITION_USD to $2.00 (Drift minimum)
+- [x] Display Drift balance in UI (Perps tab)
 - [ ] **Confirm first automated trade on Drift**
 - [ ] Enable OpenBB for macro signals (optional)
 - [ ] Telegram/Discord notifications
