@@ -67,7 +67,7 @@ $0.064 → 64000 micro-USD → × 1e9 / oracle / leverage → 1,520,565 base uni
 | $64k trades | QUOTE_PRECISION not divided | ÷ 1e6 in getAccountInfo |
 | baseAssetAmount = 0 | BN truncates decimals | × 1e6 before BN |
 | MIN_COLLATERAL | $1 too high | → $0.01 |
-| MIN_POSITION_USD | $0.10 too high | → $0.05 |
+| MIN_POSITION_USD | Below Drift min | → $2.00 (Drift needs 0.01 SOL) |
 | Confidence threshold | 60% impossible | → 20% |
 | NEUTRAL signals | Trend threshold 5% | → 2% |
 
