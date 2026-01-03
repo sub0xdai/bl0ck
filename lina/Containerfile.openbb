@@ -1,0 +1,17 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies if needed (e.g. for some numpy/pandas extensions)
+# RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
+
+# Install OpenBB and Uvicorn
+# We pin to a recent version to ensure stability, or use latest if preferred
+RUN pip install --no-cache-dir openbb uvicorn
+
+# Expose the API port
+EXPOSE 8000
+
+# Run the API
+# Host 0.0.0.0 is crucial for Docker networking
+CMD ["uvicorn", "openbb_core.api.rest_api:app", "--host", "0.0.0.0", "--port", "8000"]

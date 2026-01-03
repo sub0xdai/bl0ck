@@ -10,10 +10,25 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+      - OPENBB_API_URL=http://openbb:8000
+    depends_on:
+      - openbb
     volumes:
       # CRITICAL: Persist wallet data
       - lina-data:/app/data
     restart: unless-stopped
 
+  openbb:
+    build:
+      context: .
+      dockerfile: Containerfile.openbb
+    image: openbb-platform
+    ports:
+      - "8000:8000"
+    volumes:
+      - openbb-data:/root/.openbb_platform
+    restart: unless-stopped
+
 volumes:
   lina-data:
+  openbb-data:
