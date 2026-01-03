@@ -110,24 +110,24 @@ export function DriftBalanceBadge({ className }: DriftBalanceBadgeProps) {
       <TooltipContent
         side="bottom"
         sideOffset={8}
-        className="glass-panel text-foreground border-border"
+        className="!bg-black/95 !border-purple-500/30 backdrop-blur-md shadow-lg shadow-purple-500/10"
       >
-        <div className="space-y-2">
-          <p className="font-display tracking-widest text-xs text-primary">DRIFT MARGIN ACCOUNT</p>
+        <div className="space-y-2 p-1">
+          <p className="font-display tracking-widest text-xs text-purple-400">DRIFT MARGIN ACCOUNT</p>
           <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs font-mono">
-            <span className="text-muted-foreground">Collateral</span>
-            <span className="text-right text-foreground">${formatUsdValue(collateral)}</span>
-            
-            <span className="text-muted-foreground">Free</span>
-            <span className="text-right text-foreground">${formatUsdValue(freeCollateral)}</span>
-            
-            <span className="text-muted-foreground">Unrealized PnL</span>
-            <span className={cn("text-right", isPnlPositive ? "text-success" : "text-destructive")}>
+            <span className="text-gray-400">Collateral</span>
+            <span className="text-right text-white">${formatUsdValue(collateral)}</span>
+
+            <span className="text-gray-400">Free</span>
+            <span className="text-right text-white">${formatUsdValue(freeCollateral)}</span>
+
+            <span className="text-gray-400">Unrealized PnL</span>
+            <span className={cn("text-right", isPnlPositive ? "text-green-400" : "text-red-400")}>
               {isPnlPositive ? '+' : ''}${formatUsdValue(Math.abs(unrealizedPnl))}
             </span>
-            
-            <span className="text-muted-foreground">Leverage</span>
-            <span className="text-right text-primary">{account.leverage.toFixed(2)}x</span>
+
+            <span className="text-gray-400">Leverage</span>
+            <span className="text-right text-purple-400">{account.leverage.toFixed(2)}x</span>
           </div>
         </div>
       </TooltipContent>
