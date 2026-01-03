@@ -200,11 +200,23 @@ export class StrategyLoop extends Service {
 
     /**
      * Load users with automation enabled from database
+     * CRITICAL: Syncs in-memory state with DB - removes users no longer enabled
      */
     private async loadEnabledUsers(): Promise<void> {
         try {
             const enabledStates = await this.stateStore.getEnabledUsers();
+            const enabledUserIds = new Set(enabledStates.map(s => s.userId));
 
+            // Remove users that are no longer enabled in DB (prevents zombie users)
+            for (const userId of this.userStates.keys()) {
+                if (!enabledUserIds.has(userId)) {
+                    logger.info(`[STRATEGY_LOOP] Removing disabled/deleted user: ${userId.substring(0, 8)}...`);
+                    this.userStates.delete(userId);
+                    this.stopMonitoringForUser(userId);
+                }
+            }
+
+            // Add/update enabled users
             for (const state of enabledStates) {
                 this.userStates.set(state.userId, state);
 
@@ -221,7 +233,7 @@ export class StrategyLoop extends Service {
                 );
             }
 
-            logger.info(`[STRATEGY_LOOP] Loaded ${enabledStates.length} enabled user states`);
+            logger.info(`[STRATEGY_LOOP] Synced ${enabledStates.length} enabled user states`);
         } catch (error) {
             logger.warn(
                 '[STRATEGY_LOOP] Failed to load enabled users:',
