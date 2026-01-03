@@ -110,20 +110,24 @@ export function DriftBalanceBadge({ className }: DriftBalanceBadgeProps) {
           </div>
         </div>
       </TooltipTrigger>
-      <TooltipContent side="bottom" sideOffset={8} className="max-w-xs">
+      <TooltipContent
+        side="bottom"
+        sideOffset={8}
+        className="max-w-xs bg-zinc-900 border-zinc-700 text-zinc-100"
+      >
         <div className="space-y-1.5">
-          <p className="font-medium text-sm">Drift Margin Account</p>
+          <p className="font-medium text-sm text-white">Drift Margin Account</p>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            <span className="text-muted-foreground">Collateral:</span>
-            <span className="font-mono">${formatUsdValue(collateral)}</span>
-            <span className="text-muted-foreground">Free:</span>
-            <span className="font-mono">${formatUsdValue(freeCollateral)}</span>
-            <span className="text-muted-foreground">Unrealized PnL:</span>
+            <span className="text-zinc-400">Collateral:</span>
+            <span className="font-mono text-zinc-100">${formatUsdValue(collateral)}</span>
+            <span className="text-zinc-400">Free:</span>
+            <span className="font-mono text-zinc-100">${formatUsdValue(freeCollateral)}</span>
+            <span className="text-zinc-400">Unrealized PnL:</span>
             <span className={cn("font-mono", isPnlPositive ? "text-green-400" : "text-red-400")}>
               {isPnlPositive ? '+' : ''}${formatUsdValue(Math.abs(unrealizedPnl))}
             </span>
-            <span className="text-muted-foreground">Leverage:</span>
-            <span className="font-mono">{account.leverage.toFixed(2)}x</span>
+            <span className="text-zinc-400">Leverage:</span>
+            <span className="font-mono text-zinc-100">{account.leverage.toFixed(2)}x</span>
           </div>
         </div>
       </TooltipContent>
