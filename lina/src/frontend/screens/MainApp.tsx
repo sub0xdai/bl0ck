@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { elizaClient } from '../lib/elizaClient';
 import { socketManager } from '../lib/socketManager';
-import { cn } from '../../lib/utils';
+import { cn } from '@/lib/utils';
 import { ChatInterface } from '../components/chat/chat-interface';
 import { SidebarProvider, useSidebar } from '../components/ui/sidebar';
 import { DashboardSidebar } from '../components/dashboard/sidebar';
