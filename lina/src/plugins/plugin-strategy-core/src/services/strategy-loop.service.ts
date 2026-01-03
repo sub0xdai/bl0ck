@@ -674,6 +674,11 @@ export class StrategyLoop extends Service {
         const results: CycleAssetResult[] = [];
         const channelId = state.channelId;
 
+        // Warn if no channelId - messages won't appear in chat
+        if (!channelId) {
+            console.warn('[STRATEGY_LOOP] No channelId set - chat messages will NOT be sent. Enable automation from the chat screen.');
+        }
+
         // Get signals for all assets
         const signals = await this.signalsService.getSignalsForAssets(assets);
         console.log(`[STRATEGY_LOOP] Got ${signals.length} signals:`, signals.map(s => `${s.asset}:${s.direction}(${s.confidence}%)`).join(', '));

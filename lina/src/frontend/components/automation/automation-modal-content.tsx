@@ -4,11 +4,20 @@ import { X, Zap, ChevronRight, Shield, ShieldAlert, MessageSquare, Sparkles } fr
 import { cn } from '@/lib/utils';
 import { elizaClient } from '@/lib/elizaClient';
 import { ConfirmationDialog } from './confirmation-dialog';
+import { UUID } from '@elizaos/core';
 
 interface AutomationModalContentProps {
   onClose: () => void;
   /** Optional channel ID for trading updates (stored when enabling automation) */
   channelId?: string | null;
+  /** User ID for creating channels */
+  userId?: string;
+  /** Agent ID for creating channels */
+  agentId?: string;
+  /** Server ID for creating channels */
+  serverId?: string;
+  /** Callback when a new channel is created for automation */
+  onChannelCreated?: (channelId: string) => void;
 }
 
 interface AutomationConfig {
@@ -80,6 +89,10 @@ const getStatusMessage = (config: AutomationConfig, state: AutomationState | nul
 export function AutomationModalContent({
   onClose,
   channelId,
+  userId,
+  agentId,
+  serverId,
+  onChannelCreated,
 }: AutomationModalContentProps) {
   const [state, setState] = useState<AutomationState | null>(null);
   const [positions, setPositions] = useState<AutomationPosition[]>([]);
@@ -226,8 +239,33 @@ export function AutomationModalContent({
         });
       }
 
+      // If enabling but no channel exists, create one for trading updates
+      let effectiveChannelId = channelId;
+      if (newEnabled && !channelId && userId && agentId && serverId) {
+        console.log('[Automation] No channel - creating one for trading updates...');
+        const now = Date.now();
+        const newChannel = await elizaClient.messaging.createGroupChannel({
+          name: 'Lina Trading Updates',
+          participantIds: [userId as UUID, agentId as UUID],
+          metadata: {
+            server_id: serverId,
+            type: 'DM',
+            isDm: true,
+            user1: userId,
+            user2: agentId,
+            forAgent: agentId,
+            createdAt: new Date(now).toISOString(),
+            isAutomationChannel: true,
+          },
+        });
+        console.log('[Automation] Created channel:', newChannel.id);
+        effectiveChannelId = newChannel.id;
+        // Notify parent to set this as active channel
+        onChannelCreated?.(newChannel.id);
+      }
+
       // Then toggle (pass channelId when enabling for trading updates)
-      const response = await elizaClient.automation.toggle(newEnabled, newEnabled && channelId ? channelId : undefined);
+      const response = await elizaClient.automation.toggle(newEnabled, newEnabled && effectiveChannelId ? effectiveChannelId : undefined);
 
       // Update local state from response
       if (response.automation) {

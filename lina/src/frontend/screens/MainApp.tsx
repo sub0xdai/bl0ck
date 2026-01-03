@@ -686,6 +686,21 @@ function AppContent({
       <AutomationModalContent
         onClose={() => hideModal(AUTOMATION_MODAL_ID)}
         channelId={activeChannelId}
+        userId={userId}
+        agentId={agentId}
+        serverId={userId} // serverId = userId for user-specific isolation
+        onChannelCreated={(newChannelId) => {
+          console.log('[MainApp] Automation created channel:', newChannelId);
+          // Set this as the active channel and refresh the list
+          setActiveChannelId(newChannelId);
+          setIsNewChatMode(false);
+          // Join the Socket.IO room for this channel
+          socketManager.joinChannel(newChannelId, userId, { isDm: true });
+          // Refresh channels list
+          elizaClient.messaging.getServerChannels(userId as UUID).then((response) => {
+            setChannels(response.channels);
+          }).catch(console.error);
+        }}
       />,
       AUTOMATION_MODAL_ID,
       {
