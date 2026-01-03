@@ -1,0 +1,22 @@
+{
+  "agent": {
+    "name": "LINA",
+    "role": "DEFI 交易代理"
+  },
+  "chatHistory": "聊天记录",
+  "noConversations": "暂无对话",
+  "startNewChat": "点击 + 开始新对话",
+  "deleteConfirm": "删除此对话？此操作无法撤销。",
+  "deleting": "删除中...",
+  "dates": {
+    "today": "今天",
+    "yesterday": "昨天",
+    "last7Days": "最近7天",
+    "last30Days": "最近30天",
+    "older": "更早",
+    "unknownDate": "未知日期"
+  },
+  "user": "用户",
+  "account": "账户",
+  "newChat": "新对话"
+}

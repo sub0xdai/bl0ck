@@ -1,0 +1,22 @@
+{
+  "agent": {
+    "name": "LINA",
+    "role": "DEFI TRADING AGENT"
+  },
+  "chatHistory": "Chat History",
+  "noConversations": "No conversations yet",
+  "startNewChat": "Click + to start a new chat",
+  "deleteConfirm": "Delete this chat? This action cannot be undone.",
+  "deleting": "Deleting...",
+  "dates": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "last7Days": "Last 7 Days",
+    "last30Days": "Last 30 Days",
+    "older": "Older",
+    "unknownDate": "Unknown Date"
+  },
+  "user": "User",
+  "account": "Account",
+  "newChat": "New Chat"
+}

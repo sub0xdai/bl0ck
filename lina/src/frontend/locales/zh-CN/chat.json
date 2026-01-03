@@ -1,0 +1,54 @@
+{
+  "header": "聊天",
+  "placeholder": "输入消息... (使用 / 查看命令)",
+  "thinking": "LINA 正在思考",
+  "analyzing": "正在分析您的请求",
+  "processing": "正在处理您的请求",
+  "executing": "正在执行 {{action}} 操作",
+  "seeSteps": "查看执行步骤",
+  "completed": "已完成",
+  "selectChat": "选择一个对话开始聊天",
+  "noAgent": "暂无可用代理",
+  "loadingAgent": "正在加载代理...",
+  "loadingChannels": "正在加载频道...",
+  "connectingServer": "正在连接服务器...",
+  "initializing": "正在初始化...",
+  "syncingProfile": "正在同步用户资料...",
+  "loadingProfile": "正在加载资料...",
+  "failedCreateChat": "创建对话失败",
+  "plugins": {
+    "quickStart": "快速开始",
+    "cdp": {
+      "name": "CDP 钱包",
+      "description": "管理您的钱包和资产"
+    },
+    "coingecko": {
+      "name": "价格与市场数据",
+      "description": "代币价格和市场趋势"
+    },
+    "webSearch": {
+      "name": "网络与新闻",
+      "description": "搜索网络和加密新闻"
+    },
+    "defillama": {
+      "name": "DeFi 分析",
+      "description": "协议 TVL 和 DeFi 指标"
+    },
+    "relay": {
+      "name": "跨链桥",
+      "description": "跨链转移资产"
+    },
+    "etherscan": {
+      "name": "交易检查器",
+      "description": "验证交易确认"
+    }
+  },
+  "beta": "Lina 目前处于测试阶段。建议先使用小额进行测试。",
+  "automation": {
+    "button": "自动",
+    "tooltip": "交易自动化",
+    "active": "自动化已启用",
+    "configure": "配置自动交易策略"
+  },
+  "about": "关于"
+}

@@ -1,0 +1,23 @@
+{
+  "title": "LINA",
+  "subtitle": "AI DeFi Agent",
+  "sessionExpired": "Session expired. Please sign in again.",
+  "connected": "Connected",
+  "connectWallet": {
+    "title": "Connect Your Wallet",
+    "description": "Sign in with your wallet to access Lina.",
+    "button": "Connect Wallet"
+  },
+  "signIn": {
+    "button": "Sign In with Wallet",
+    "signing": "Signing in...",
+    "changeWallet": "Use Different Wallet",
+    "noGas": "Sign a message to verify wallet ownership.",
+    "noGasExtra": "This does not cost any gas."
+  },
+  "chains": {
+    "ethereum": "Ethereum",
+    "solana": "Solana"
+  },
+  "footer": "Your keys, your crypto. Lina never has access to your private keys."
+}

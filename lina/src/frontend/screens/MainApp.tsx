@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { elizaClient } from '../lib/elizaClient';
 import { socketManager } from '../lib/socketManager';
 import { cn } from '@/lib/utils';
@@ -56,6 +57,7 @@ const AUTOMATION_MODAL_ID = 'automation-modal';
  * Contains the full chat interface, sidebar, and dashboard.
  */
 function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
+  const { t } = useTranslation('chat');
   const { showLoading, hide } = useLoadingPanel();
   const [connected, setConnected] = useState(false);
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -83,7 +85,7 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
   // Determine loading state and message
   const getLoadingMessage = (): string[] | null => {
     if (isLoadingUserProfile) {
-      return ['Loading Profile...', 'Syncing user profile...'];
+      return [t('loadingProfile'), t('syncingProfile')];
     }
     return null;
   };
@@ -104,12 +106,12 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
     const loadingPanelId = 'app-loading';
 
     if (loadingMessage && loadingMessage.length > 0) {
-      showLoading('Initializing...', loadingMessage, loadingPanelId);
+      showLoading(t('initializing'), loadingMessage, loadingPanelId);
     } else if (currentView === 'chat' && (!connected || isLoadingChannels || (!activeChannelId && !isNewChatMode))) {
-      const message = !connected ? 'Connecting to server...' :
-        isLoadingChannels ? 'Loading channels...' :
-          'Select a chat';
-      showLoading('Loading Chat...', message, loadingPanelId);
+      const message = !connected ? t('connectingServer') :
+        isLoadingChannels ? t('loadingChannels') :
+          t('selectChat');
+      showLoading(t('loadingAgent'), message, loadingPanelId);
     } else {
       hide(loadingPanelId);
     }
@@ -580,7 +582,7 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
           <p className="mt-4 text-muted-foreground uppercase tracking-wider text-sm font-mono">
-            Loading agent...
+            {t('loadingAgent')}
           </p>
         </div>
       </div>
@@ -591,7 +593,7 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
     return (
       <div className="min-h-screen bg-muted flex items-center justify-center">
         <div className="text-center">
-          <p className="text-xl text-foreground font-mono uppercase tracking-wider">No agent available</p>
+          <p className="text-xl text-foreground font-mono uppercase tracking-wider">{t('noAgent')}</p>
           <p className="text-sm text-muted-foreground mt-2 font-mono">
             Please start the server with an agent configured.
           </p>
@@ -665,6 +667,7 @@ function AppContent({
   agentSolanaAddress,
   isAutomationActive, // Receive automation status
 }: any) {
+  const { t } = useTranslation('chat');
   const { setOpenMobile } = useSidebar();
   const { showModal, hideModal } = useModal();
   const { refreshAll } = useAgentWallet();
@@ -801,7 +804,7 @@ function AppContent({
                 {/* Header */}
                 <div className="flex items-center lg:items-center gap-2.5 md:gap-4 px-4 md:px-6 py-3 md:py-4 sticky top-header-mobile lg:top-0 z-10 border-b border-white/5 bg-background/80 backdrop-blur-xl">
                   <h1 className="text-xl lg:text-3xl font-display tracking-widest leading-none text-primary/90 text-glow-subtle">
-                    CHAT
+                    {t('header')}
                   </h1>
 
                   {/* Drift Balance + Active Positions - Ticker Style */}
@@ -823,29 +826,29 @@ function AppContent({
                           )}
                           onClick={handleOpenAutomation}
                           data-active={isAutomationActive}
-                          aria-label="Trading Automation"
+                          aria-label={t('automation.tooltip')}
                           aria-pressed={isAutomationActive}
                         >
                           <Zap className={cn("size-3.5", isAutomationActive && "lina-breath")} />
-                          <span>AUTO</span>
+                          <span>{t('automation.button')}</span>
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="bottom" sideOffset={8}>
-                        <p className="font-medium">Trading Automation</p>
+                        <p className="font-medium">{t('automation.tooltip')}</p>
                         <p className="text-xs opacity-80">
-                          {isAutomationActive ? 'Automation is ACTIVE' : 'Configure automated trading strategies'}
+                          {isAutomationActive ? t('automation.active') : t('automation.configure')}
                         </p>
                       </TooltipContent>
                     </Tooltip>
-                    
+
                     {/* About Button */}
                     <button
                       className="neon-ghost rounded-full px-4 py-1.5 flex items-center gap-2 text-xs font-bold tracking-wider opacity-70 hover:opacity-100"
-                      title="About"
+                      title={t('about')}
                       onClick={handleOpenAbout}
                     >
                       <Info className="size-3.5" />
-                      <span>ABOUT</span>
+                      <span>{t('about')}</span>
                     </button>
                   </div>
                 </div>

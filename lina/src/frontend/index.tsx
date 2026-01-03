@@ -6,6 +6,9 @@ import { ModalProvider } from './contexts/ModalContext';
 import App from './App';
 import './index.css';
 
+// Initialize i18n (must be before App renders)
+import './lib/i18n';
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

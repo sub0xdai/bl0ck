@@ -13,6 +13,7 @@ import type { Agent, UUID } from '@elizaos/core'
 import { Loader2, ArrowLeft, Wallet, TrendingUp, Search, Repeat, Database, CheckCircle2 } from "lucide-react"
 import type React from "react"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Textarea } from "../ui/textarea"
 
 // Plugin definitions with metadata and sample prompts
@@ -145,6 +146,7 @@ const AnimatedDots = () => {
 }
 
 export function ChatInterface({ agent, userId, serverId, channelId, isNewChatMode = false, onChannelCreated, onActionCompleted }: ChatInterfaceProps) {
+  const { t } = useTranslation('chat')
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState("")
   const [isTyping, setIsTyping] = useState(false)
@@ -641,7 +643,7 @@ const resizeObserver = new ResizeObserver(() => {
                   let groupLabel = (
                     <div className="flex items-center justify-between w-full">
                       <div className="flex items-center gap-1">
-                        See execution steps
+                        {t('seeSteps')}
                       </div>
                       <div
                         className={cn(
@@ -649,7 +651,7 @@ const resizeObserver = new ResizeObserver(() => {
                           "bg-green-100 text-green-700 border-green-700 dark:bg-green-900/30 dark:text-green-400 dark:border-green-400 uppercase"
                         )}
                       >
-                        Completed
+                        {t('completed')}
                       </div>
                     </div>
                   )
@@ -660,7 +662,7 @@ const resizeObserver = new ResizeObserver(() => {
                         <div className="flex items-center w-full">
                           <Loader2 className="h-4 w-4 animate-spin text-blue-500 mr-2" />
                           <div className="flex items-center gap-1">
-                            executing {latestActionName} action<AnimatedDots />
+                            {t('executing', { action: latestActionName })}<AnimatedDots />
                           </div>
                         </div>
                       )
@@ -669,7 +671,7 @@ const resizeObserver = new ResizeObserver(() => {
                         <div className="flex items-center w-full">
                           <Loader2 className="h-4 w-4 animate-spin text-blue-500 mr-2" />
                           <div className="flex items-center gap-1">
-                            LINA is thinking<AnimatedDots />
+                            {t('thinking')}<AnimatedDots />
                           </div>
                         </div>
                       )
@@ -780,13 +782,13 @@ const resizeObserver = new ResizeObserver(() => {
                         <div className="flex items-center w-full">
                           <Loader2 className="h-4 w-4 animate-spin text-blue-500 mr-2" />
                           <div className="flex items-center gap-1">
-                            Analyzing your request<AnimatedDots />
+                            {t('analyzing')}<AnimatedDots />
                           </div>
                         </div>
                       }
                     >
                       <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                        <span>Processing your request<AnimatedDots /></span>
+                        <span>{t('processing')}<AnimatedDots /></span>
                       </div>
                     </ToolGroup>
                   </div>
@@ -823,11 +825,11 @@ const resizeObserver = new ResizeObserver(() => {
                       className="flex items-center gap-1 text-[10px] md:text-xs text-muted-foreground hover:text-foreground transition-colors"
                     >
                       <ArrowLeft className="size-3" />
-                      <span className="uppercase tracking-wider font-mono">Back</span>
+                      <span className="uppercase tracking-wider font-mono">{t('common:buttons.back')}</span>
                     </button>
                   )}
                   <p className="text-[10px] md:text-xs uppercase tracking-wider text-muted-foreground font-mono">
-                    {selectedPlugin ? PLUGIN_ACTIONS[selectedPlugin].name : 'Quick Start'}
+                    {selectedPlugin ? t(`plugins.${selectedPlugin}.name`) : t('plugins.quickStart')}
                   </p>
                 </div>
 
@@ -846,9 +848,9 @@ const resizeObserver = new ResizeObserver(() => {
                         >
                           <div className="flex items-center gap-1.5 md:gap-2 text-[10px] md:text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                             <Icon className="size-3 md:size-3.5 text-primary shrink-0" strokeWidth={2} />
-                            <span className="text-foreground">{plugin.name}</span>
+                            <span className="text-foreground">{t(`plugins.${pluginKey}.name`)}</span>
                           </div>
-                          <p className="text-[11px] md:text-sm text-muted-foreground/80 leading-snug md:leading-relaxed">{plugin.description}</p>
+                          <p className="text-[11px] md:text-sm text-muted-foreground/80 leading-snug md:leading-relaxed">{t(`plugins.${pluginKey}.description`)}</p>
                         </button>
                       )
                     })}
@@ -890,7 +892,7 @@ const resizeObserver = new ResizeObserver(() => {
               ref={textareaRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Type your message... (use / for commands)"
+              placeholder={t('placeholder')}
               disabled={isTyping || isCreatingChannel}
               className={cn(
                 "flex-1 rounded-none border-none text-foreground placeholder-foreground/40 text-sm font-mono resize-none overflow-y-auto min-h-10 py-2.5",
@@ -933,7 +935,7 @@ const resizeObserver = new ResizeObserver(() => {
             className="h-10"
           />
           <div className="ml-auto text-[10px] text-muted-foreground text-right max-w-xs">
-            Lina is in beta. We recommend starting with smaller amounts for testing.
+            {t('beta')}
           </div>
         </div>
       </div>

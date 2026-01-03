@@ -1,5 +1,6 @@
 import type * as React from "react"
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import {
   Sidebar,
@@ -65,6 +66,7 @@ export function DashboardSidebar({
   onHomeClick,
   ...props
 }: DashboardSidebarProps) {
+  const { t } = useTranslation('sidebar');
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [deletingChannelId, setDeletingChannelId] = useState<string | null>(null);
 
@@ -83,14 +85,14 @@ export function DashboardSidebar({
             "font-medium text-sm truncate w-full",
             isDeleting && "opacity-50"
           )}>
-            {isDeleting ? 'Deleting...' : channel.name}
+            {isDeleting ? t('deleting') : channel.name}
           </span>
         </SidebarMenuButton>
         {onDeleteChannel && !isDeleting && (
           <button
             onClick={async (e) => {
               e.stopPropagation();
-              const confirmed = window.confirm('Delete this chat? This action cannot be undone.');
+              const confirmed = window.confirm(t('deleteConfirm'));
               if (!confirmed) return;
               setDeletingChannelId(channel.id);
               try {
@@ -137,7 +139,7 @@ export function DashboardSidebar({
     channels.forEach(channel => {
       const timestamp = channel.lastMessageAt || channel.createdAt;
       if (!timestamp || timestamp <= 0) {
-        const dateKey = 'Unknown Date';
+        const dateKey = t('dates.unknownDate');
         if (!groups.older.has(dateKey)) {
           groups.older.set(dateKey, []);
         }
@@ -195,8 +197,8 @@ export function DashboardSidebar({
             <img src="/avatars/otaku-pfp.png" alt="Lina" className="size-11.5 group-hover:scale-[1.7] origin-top-left transition-transform" />
           </div>
           <div className="grid flex-1 text-left text-sm leading-tight">
-            <span className="text-2xl font-display">LINA</span>
-            <span className="text-xs uppercase">DEFI TRADING AGENT</span>
+            <span className="text-2xl font-display">{t('agent.name')}</span>
+            <span className="text-xs uppercase">{t('agent.role')}</span>
           </div>
         </button>
       </SidebarHeader>
@@ -206,7 +208,7 @@ export function DashboardSidebar({
           <SidebarGroupLabel className="flex items-center justify-between shrink-0">
             <div className="flex items-center">
               <Bullet className="mr-2" />
-              <span>Chat History</span>
+              <span>{t('chatHistory')}</span>
             </div>
             <Button
               onClick={onNewChat}
@@ -231,10 +233,10 @@ export function DashboardSidebar({
               {channels.length === 0 ? (
                 <div className="px-2 py-8 text-center">
                   <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                    No conversations yet
+                    {t('noConversations')}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Click + to start a new chat
+                    {t('startNewChat')}
                   </p>
                 </div>
               ) : (
@@ -243,7 +245,7 @@ export function DashboardSidebar({
                   {groupedChannels.today.length > 0 && (
                     <>
                       <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2">
-                        Today
+                        {t('dates.today')}
                       </div>
                       {groupedChannels.today.map(renderChannelItem)}
                     </>
@@ -253,7 +255,7 @@ export function DashboardSidebar({
                   {groupedChannels.yesterday.length > 0 && (
                     <>
                       <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
-                        Yesterday
+                        {t('dates.yesterday')}
                       </div>
                       {groupedChannels.yesterday.map(renderChannelItem)}
                     </>
@@ -263,7 +265,7 @@ export function DashboardSidebar({
                   {groupedChannels.lastWeek.length > 0 && (
                     <>
                       <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
-                        Last 7 Days
+                        {t('dates.last7Days')}
                       </div>
                       {groupedChannels.lastWeek.map(renderChannelItem)}
                     </>
@@ -273,7 +275,7 @@ export function DashboardSidebar({
                   {groupedChannels.lastMonth.length > 0 && (
                     <>
                       <div className="sticky top-0 z-10 bg-sidebar text-[10px] font-mono text-muted-foreground mb-1.5 uppercase tracking-wider border-b border-border/50 pb-1 px-2 mt-2">
-                        Last 30 Days
+                        {t('dates.last30Days')}
                       </div>
                       {groupedChannels.lastMonth.map(renderChannelItem)}
                     </>
@@ -303,7 +305,7 @@ export function DashboardSidebar({
         <SidebarGroup>
           <SidebarGroupLabel>
             <Bullet className="mr-2" />
-            User
+            {t('user')}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -337,7 +339,7 @@ export function DashboardSidebar({
                           }}
                           className="flex items-center px-4 py-2 text-sm hover:bg-accent text-left w-full"
                         >
-                          Account
+                          {t('account')}
                         </button>
                       )}
                       {onSignOut && (
@@ -349,7 +351,7 @@ export function DashboardSidebar({
                           className="flex items-center px-4 py-2 text-sm hover:bg-accent text-left w-full"
                         >
                           <LogOut className="mr-2 h-4 w-4" />
-                          Sign Out
+                          {t('common:buttons.signOut')}
                         </button>
                       )}
                     </div>

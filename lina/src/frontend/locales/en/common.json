@@ -1,0 +1,25 @@
+{
+  "app": {
+    "name": "LINA",
+    "tagline": "AI DeFi Agent"
+  },
+  "buttons": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "dismiss": "Dismiss",
+    "back": "Back",
+    "save": "Save",
+    "signOut": "Sign Out",
+    "send": "Send"
+  },
+  "status": {
+    "loading": "Loading...",
+    "connected": "Connected",
+    "error": "Error",
+    "success": "Success"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "Network error. Please check your connection."
+  }
+}

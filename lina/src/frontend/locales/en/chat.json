@@ -1,0 +1,54 @@
+{
+  "header": "CHAT",
+  "placeholder": "Type your message... (use / for commands)",
+  "thinking": "LINA is thinking",
+  "analyzing": "Analyzing your request",
+  "processing": "Processing your request",
+  "executing": "executing {{action}} action",
+  "seeSteps": "See execution steps",
+  "completed": "Completed",
+  "selectChat": "Select a chat to start messaging",
+  "noAgent": "No agent available",
+  "loadingAgent": "Loading agent...",
+  "loadingChannels": "Loading channels...",
+  "connectingServer": "Connecting to server...",
+  "initializing": "Initializing...",
+  "syncingProfile": "Syncing user profile...",
+  "loadingProfile": "Loading Profile...",
+  "failedCreateChat": "Failed to create chat",
+  "plugins": {
+    "quickStart": "Quick Start",
+    "cdp": {
+      "name": "CDP Wallet",
+      "description": "Manage your wallet and assets"
+    },
+    "coingecko": {
+      "name": "Price & Market Data",
+      "description": "Token prices and market trends"
+    },
+    "webSearch": {
+      "name": "Web & News",
+      "description": "Search the web and crypto news"
+    },
+    "defillama": {
+      "name": "DeFi Analytics",
+      "description": "Protocol TVL and DeFi metrics"
+    },
+    "relay": {
+      "name": "Cross-Chain Bridge",
+      "description": "Bridge assets across chains"
+    },
+    "etherscan": {
+      "name": "Transaction Checker",
+      "description": "Verify transaction confirmations"
+    }
+  },
+  "beta": "Lina is in beta. We recommend starting with smaller amounts for testing.",
+  "automation": {
+    "button": "AUTO",
+    "tooltip": "Trading Automation",
+    "active": "Automation is ACTIVE",
+    "configure": "Configure automated trading strategies"
+  },
+  "about": "ABOUT"
+}

@@ -1,4 +1,5 @@
 import { AlertTriangle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
@@ -15,17 +16,19 @@ export function ConfirmationDialog({
   onCancel,
   positionCount,
 }: ConfirmationDialogProps) {
+  const { t } = useTranslation('modals');
+
   if (!isOpen) return null;
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center confirmation-dialog-overlay"
       onClick={onCancel}
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirmation-title"
     >
-      <div 
+      <div
         className="confirmation-dialog-content max-w-md w-full mx-4 rounded-lg p-6 space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
@@ -35,7 +38,7 @@ export function ConfirmationDialog({
             <AlertTriangle className="size-5 text-warning" />
           </div>
           <h3 id="confirmation-title" className="text-lg font-display text-foreground uppercase">
-            Stop Automation?
+            {t('confirmation.stopAutomation')}
           </h3>
         </div>
 
@@ -44,18 +47,19 @@ export function ConfirmationDialog({
           <p className="text-sm text-muted-foreground">
             {positionCount > 0 ? (
               <>
-                You have <span className="text-warning font-semibold">{positionCount} open position{positionCount > 1 ? 's' : ''}</span>.
-                Stopping automation will <span className="text-foreground">NOT close these positions</span> automatically.
+                {t('confirmation.openPositions', { count: positionCount })}
+                {' '}
+                <span className="text-foreground">{t('confirmation.positionsWarning')}</span>
               </>
             ) : (
               <>
-                This will stop the automation loop. You can re-enable it anytime.
+                {t('confirmation.noPositions')}
               </>
             )}
           </p>
           {positionCount > 0 && (
             <p className="text-xs text-muted-foreground/70 italic border-l-2 border-warning/30 pl-3 mt-2">
-              Manual monitoring recommended for open positions.
+              {t('confirmation.manualMonitoring')}
             </p>
           )}
         </div>
@@ -68,7 +72,7 @@ export function ConfirmationDialog({
             onClick={onCancel}
             className="hover:bg-accent"
           >
-            Cancel
+            {t('common:buttons.cancel')}
           </Button>
           <Button
             size="sm"
@@ -79,7 +83,7 @@ export function ConfirmationDialog({
               "transition-all"
             )}
           >
-            Stop Automation
+            {t('confirmation.stopButton')}
           </Button>
         </div>
       </div>

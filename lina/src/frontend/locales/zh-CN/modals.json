@@ -1,0 +1,45 @@
+{
+  "confirmation": {
+    "stopAutomation": "停止自动化？",
+    "openPositions": "您有 {{count}} 个未平仓头寸。",
+    "openPositions_other": "您有 {{count}} 个未平仓头寸。",
+    "noPositions": "这将停止自动化循环。您可以随时重新启用。",
+    "positionsWarning": "停止自动化不会自动关闭这些头寸。",
+    "manualMonitoring": "建议手动监控未平仓头寸。",
+    "stopButton": "停止自动化"
+  },
+  "preferences": {
+    "title": "偏好设置",
+    "subtitle": "自定义您的仪表板体验",
+    "theme": {
+      "label": "主题",
+      "description": "选择界面主题",
+      "dark": "深色",
+      "light": "浅色",
+      "system": "跟随系统"
+    },
+    "language": {
+      "label": "语言",
+      "description": "选择您的首选语言"
+    },
+    "timezone": {
+      "label": "时区",
+      "description": "您的本地时区"
+    },
+    "compactMode": {
+      "label": "紧凑模式",
+      "description": "减少间距以显示更多内容"
+    },
+    "animations": {
+      "label": "动画效果",
+      "description": "启用界面动画"
+    }
+  },
+  "settings": {
+    "title": "设置",
+    "profile": "个人资料",
+    "preferences": "偏好设置",
+    "notifications": "通知",
+    "security": "安全"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "confirmation": {
+    "stopAutomation": "Stop Automation?",
+    "openPositions": "You have {{count}} open position.",
+    "openPositions_other": "You have {{count}} open positions.",
+    "noPositions": "This will stop the automation loop. You can re-enable it anytime.",
+    "positionsWarning": "Stopping automation will NOT close these positions automatically.",
+    "manualMonitoring": "Manual monitoring recommended for open positions.",
+    "stopButton": "Stop Automation"
+  },
+  "preferences": {
+    "title": "Preferences",
+    "subtitle": "Customize your dashboard experience",
+    "theme": {
+      "label": "Theme",
+      "description": "Choose your interface theme",
+      "dark": "Dark",
+      "light": "Light",
+      "system": "System"
+    },
+    "language": {
+      "label": "Language",
+      "description": "Select your preferred language"
+    },
+    "timezone": {
+      "label": "Timezone",
+      "description": "Your local timezone"
+    },
+    "compactMode": {
+      "label": "Compact Mode",
+      "description": "Reduce spacing for more content"
+    },
+    "animations": {
+      "label": "Animations",
+      "description": "Enable interface animations"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "profile": "Profile",
+    "preferences": "Preferences",
+    "notifications": "Notifications",
+    "security": "Security"
+  }
+}

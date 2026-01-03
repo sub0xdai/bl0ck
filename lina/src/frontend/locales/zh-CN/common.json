@@ -1,0 +1,25 @@
+{
+  "app": {
+    "name": "LINA",
+    "tagline": "AI DeFi 代理"
+  },
+  "buttons": {
+    "cancel": "取消",
+    "confirm": "确认",
+    "dismiss": "关闭",
+    "back": "返回",
+    "save": "保存",
+    "signOut": "退出登录",
+    "send": "发送"
+  },
+  "status": {
+    "loading": "加载中...",
+    "connected": "已连接",
+    "error": "错误",
+    "success": "成功"
+  },
+  "errors": {
+    "generic": "出现问题，请重试。",
+    "network": "网络错误，请检查您的连接。"
+  }
+}

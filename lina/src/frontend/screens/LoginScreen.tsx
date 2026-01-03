@@ -1,5 +1,6 @@
 import type { WalletAuthState } from '../hooks/useWalletAuth';
 import { Button } from '../components/ui/button';
+import { useTranslation } from 'react-i18next';
 
 interface LoginScreenProps {
   /** Optional message to display (e.g., "Session expired") */
@@ -21,6 +22,8 @@ interface LoginScreenProps {
  * 4. User signs -> authenticated
  */
 export function LoginScreen({ message, auth }: LoginScreenProps) {
+  const { t } = useTranslation('login');
+
   const {
     isConnected,
     walletAddress,
@@ -44,8 +47,8 @@ export function LoginScreen({ message, auth }: LoginScreenProps) {
       <div className="max-w-md w-full space-y-8">
         {/* Brand Header */}
         <div className="text-center space-y-2">
-          <h1 className="text-5xl font-display tracking-tight">LINA</h1>
-          <p className="text-muted-foreground">AI DeFi Agent</p>
+          <h1 className="text-5xl font-display tracking-tight">{t('title')}</h1>
+          <p className="text-muted-foreground">{t('subtitle')}</p>
         </div>
 
         {/* Card Container */}
@@ -71,7 +74,7 @@ export function LoginScreen({ message, auth }: LoginScreenProps) {
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/20 rounded-full">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                   <span className="text-xs text-green-500 uppercase tracking-wider">
-                    Connected
+                    {t('connected')}
                   </span>
                 </div>
 
@@ -83,7 +86,7 @@ export function LoginScreen({ message, auth }: LoginScreenProps) {
                 {/* Chain */}
                 {chain && (
                   <p className="text-xs text-muted-foreground uppercase">
-                    {chain === 'evm' ? 'Ethereum' : 'Solana'}
+                    {chain === 'evm' ? t('chains.ethereum') : t('chains.solana')}
                   </p>
                 )}
               </div>
@@ -113,10 +116,10 @@ export function LoginScreen({ message, auth }: LoginScreenProps) {
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       />
                     </svg>
-                    Signing in...
+                    {t('signIn.signing')}
                   </span>
                 ) : (
-                  'Sign In with Wallet'
+                  t('signIn.button')
                 )}
               </Button>
 
@@ -128,13 +131,13 @@ export function LoginScreen({ message, auth }: LoginScreenProps) {
                 size="sm"
                 disabled={isAuthenticating}
               >
-                Use Different Wallet
+                {t('signIn.changeWallet')}
               </Button>
 
               <p className="text-xs text-center text-muted-foreground">
-                Sign a message to verify wallet ownership.
+                {t('signIn.noGas')}
                 <br />
-                This does not cost any gas.
+                {t('signIn.noGasExtra')}
               </p>
             </div>
           )}
@@ -160,15 +163,15 @@ export function LoginScreen({ message, auth }: LoginScreenProps) {
                   </svg>
                 </div>
 
-                <h2 className="text-lg font-medium">Connect Your Wallet</h2>
+                <h2 className="text-lg font-medium">{t('connectWallet.title')}</h2>
                 <p className="text-sm text-muted-foreground">
-                  Sign in with your wallet to access Lina.
+                  {t('connectWallet.description')}
                 </p>
               </div>
 
               {/* Connect button */}
               <Button onClick={connect} className="w-full" size="lg">
-                Connect Wallet
+                {t('connectWallet.button')}
               </Button>
 
               {/* Supported wallets */}
@@ -183,7 +186,7 @@ export function LoginScreen({ message, auth }: LoginScreenProps) {
 
         {/* Footer */}
         <p className="text-xs text-center text-muted-foreground">
-          Your keys, your crypto. Lina never has access to your private keys.
+          {t('footer')}
         </p>
       </div>
     </div>

@@ -1,0 +1,23 @@
+{
+  "title": "LINA",
+  "subtitle": "AI DeFi 代理",
+  "sessionExpired": "会话已过期，请重新登录。",
+  "connected": "已连接",
+  "connectWallet": {
+    "title": "连接您的钱包",
+    "description": "使用钱包登录以访问 Lina。",
+    "button": "连接钱包"
+  },
+  "signIn": {
+    "button": "使用钱包登录",
+    "signing": "登录中...",
+    "changeWallet": "使用其他钱包",
+    "noGas": "签署消息以验证钱包所有权。",
+    "noGasExtra": "这不会消耗任何 Gas。"
+  },
+  "chains": {
+    "ethereum": "以太坊",
+    "solana": "Solana"
+  },
+  "footer": "您的密钥，您的加密货币。Lina 永远无法访问您的私钥。"
+}
