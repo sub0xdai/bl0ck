@@ -429,16 +429,49 @@ function MainAppInner({ userId, walletAddress, onSignOut }: MainAppProps) {
 
         console.log(`[MainApp] Loaded ${sortedChannels.length} DM channels (sorted by creation time)`);
 
+        // Check if automation is enabled and has a channelId - prioritize that channel
+        let automationChannelId: string | null = null;
+        try {
+          const automationStatus = await elizaClient.automation.getStatus();
+          if (automationStatus.automation?.config?.enabled && automationStatus.automation?.channelId) {
+            automationChannelId = automationStatus.automation.channelId;
+            console.log('[MainApp] Automation is active with channelId:', automationChannelId);
+          }
+        } catch {
+          // Automation not available, continue normally
+        }
+
         if (sortedChannels.length === 0 && !hasInitialized.current) {
-          console.log('[MainApp] No channels found, entering new chat mode...');
+          // No channels exist
+          if (automationChannelId) {
+            // Automation has a channel but it's not in the list - try to use it anyway
+            console.log('[MainApp] No channels found but automation has channelId, using it:', automationChannelId);
+            setActiveChannelId(automationChannelId);
+            setIsNewChatMode(false);
+          } else {
+            console.log('[MainApp] No channels found, entering new chat mode...');
+            setIsNewChatMode(true);
+            setActiveChannelId(null);
+          }
           hasInitialized.current = true;
-          setIsNewChatMode(true);
-          setActiveChannelId(null);
         } else if (sortedChannels.length > 0) {
-          setActiveChannelId(sortedChannels[0].id);
+          // Channels exist - prefer automation channel if active
+          if (automationChannelId) {
+            const automationChannel = sortedChannels.find((ch: Channel) => ch.id === automationChannelId);
+            if (automationChannel) {
+              setActiveChannelId(automationChannelId);
+              console.log(`[MainApp] Auto-selected automation channel: ${automationChannel.name}`);
+            } else {
+              // Automation channel not in list, use it anyway (might be from different query)
+              setActiveChannelId(automationChannelId);
+              console.log(`[MainApp] Auto-selected automation channelId (not in loaded list): ${automationChannelId}`);
+            }
+          } else {
+            setActiveChannelId(sortedChannels[0].id);
+            console.log(`[MainApp] Auto-selected latest channel: ${sortedChannels[0].name}`);
+          }
           setIsNewChatMode(false);
           hasInitialized.current = true;
-          console.log(`[MainApp] Auto-selected latest channel: ${sortedChannels[0].name}`);
         }
       } catch (error: any) {
         console.warn('[MainApp] Could not load channels:', error.message);
