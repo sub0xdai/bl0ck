@@ -34,6 +34,7 @@ import {
 } from './position-monitor.service';
 import { AutomationStateStore, getAutomationStateStore } from '../state/automation-state.store';
 import { getExecutionCoordinator } from '../utils/execution-coordinator';
+import { formatMarketUpdate, type MarketUpdateContext } from '../utils/market-update-formatter';
 
 /**
  * Cycle result for a single asset
@@ -437,6 +438,59 @@ export class StrategyLoop extends Service {
     }
 
     /**
+     * Build market context for conversational updates
+     */
+    private async buildMarketContext(userId: string, signals: Signal[]): Promise<MarketUpdateContext> {
+        const driftService = this.runtime.getService('DRIFT_SERVICE') as any;
+
+        let positions: MarketUpdateContext['positions'] = [];
+        let collateral = 0;
+        let unrealizedPnl = 0;
+
+        if (driftService) {
+            try {
+                // Get positions
+                const rawPositions = await driftService.getPositions(userId);
+                if (rawPositions && Array.isArray(rawPositions)) {
+                    positions = rawPositions
+                        .filter((p: any) => parseFloat(p.notionalValue) > 0)
+                        .map((pos: any) => ({
+                            marketSymbol: pos.marketSymbol,
+                            side: pos.side as 'long' | 'short',
+                            entryPrice: parseFloat(pos.entryPrice) || 0,
+                            markPrice: parseFloat(pos.markPrice) || 0,
+                            notionalValue: parseFloat(pos.notionalValue) || 0,
+                            unrealizedPnl: parseFloat(pos.unrealizedPnl) || 0,
+                            unrealizedPnlPct: calculateActualPnlPct(
+                                parseFloat(pos.unrealizedPnl) || 0,
+                                parseFloat(pos.notionalValue) || 0
+                            ),
+                        }));
+                }
+
+                // Get account info
+                const accountInfo = await driftService.getAccountInfo(userId);
+                if (accountInfo) {
+                    collateral = parseFloat(accountInfo.collateral) || 0;
+                    unrealizedPnl = parseFloat(accountInfo.unrealizedPnl) || 0;
+                }
+            } catch (error) {
+                logger.warn(
+                    '[STRATEGY_LOOP] Failed to fetch Drift data for market context:',
+                    error instanceof Error ? error.message : String(error)
+                );
+            }
+        }
+
+        return {
+            signals,
+            positions,
+            collateral,
+            unrealizedPnl,
+        };
+    }
+
+    /**
      * Handle exit triggers from PositionMonitor (SL/TP/max hold time)
      */
     private async handleExitTrigger(userId: string, trigger: ExitTrigger): Promise<void> {
@@ -624,14 +678,15 @@ export class StrategyLoop extends Service {
         const signals = await this.signalsService.getSignalsForAssets(assets);
         console.log(`[STRATEGY_LOOP] Got ${signals.length} signals:`, signals.map(s => `${s.asset}:${s.direction}(${s.confidence}%)`).join(', '));
 
-        // Notify user of cycle start (only if not dry-run and channelId exists)
+        // Build market context and send conversational update
         if (!dryRun && channelId) {
-            const assetNames = assets.map(a => a.replace('-PERP', '')).join(', ');
+            const marketContext = await this.buildMarketContext(userId, signals);
+            const updateMessage = formatMarketUpdate(marketContext);
             await this.sendChatMessage(
                 channelId,
-                `Analyzing ${assetNames} for trading opportunities...`,
-                `Starting cycle ${state.cycleCount} - scanning market signals`,
-                ['CYCLE_START']
+                updateMessage,
+                `Cycle ${state.cycleCount} market analysis`,
+                ['CYCLE_START', 'MARKET_UPDATE']
             );
         }
 
@@ -689,24 +744,38 @@ export class StrategyLoop extends Service {
                     config
                 );
 
-                // Notify user of trade execution
+                // Notify user of trade execution with conversational message
                 if (channelId && executionResult.success) {
-                    const direction = signal.direction;
                     const assetName = signal.asset.replace('-PERP', '');
                     const size = riskAssessment.suggestedSizeUsd.toFixed(0);
                     const leverage = riskAssessment.suggestedLeverage;
-                    const icon = direction === 'LONG' ? '🔵' : '🔴';
+                    const confidence = (signal.confidence * 100).toFixed(0);
 
+                    // Extract trend data for context
+                    const trendSource = signal.sources.find(s => s.name === 'trend');
+                    let reason = 'signals look favorable';
+                    if (trendSource?.rawData) {
+                        const data = trendSource.rawData as { priceChange7d?: number };
+                        if (data.priceChange7d !== undefined) {
+                            const change = data.priceChange7d;
+                            reason = change >= 0
+                                ? `up ${change.toFixed(1)}% this week`
+                                : `looking for a bounce after ${Math.abs(change).toFixed(1)}% drop`;
+                        }
+                    }
+
+                    const actionVerb = signal.direction === 'LONG' ? 'Going long on' : 'Going short on';
                     await this.sendChatMessage(
                         channelId,
-                        `${icon} Opened ${direction} ${assetName} · $${size} @ ${leverage}x leverage`,
-                        `Signal confidence: ${(signal.confidence * 100).toFixed(0)}%`,
-                        ['OPEN_POSITION', direction]
+                        `${actionVerb} ${assetName} with $${size} at ${leverage}x - ${reason}.`,
+                        `Signal confidence: ${confidence}%`,
+                        ['OPEN_POSITION', signal.direction]
                     );
                 } else if (channelId && !executionResult.success) {
+                    const assetName = signal.asset.replace('-PERP', '');
                     await this.sendChatMessage(
                         channelId,
-                        `Failed to execute ${signal.direction} on ${signal.asset.replace('-PERP', '')}: ${executionResult.error || 'Unknown error'}`,
+                        `Couldn't open ${assetName} position: ${executionResult.error || 'Unknown error'}`,
                         'Trade execution failed',
                         ['EXECUTION_FAILED']
                     );

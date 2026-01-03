@@ -23,6 +23,7 @@ import { UUID } from '@elizaos/core';
 import { AboutModalContent } from '../components/about/about-modal-content';
 import { AutomationModalContent } from '../components/automation/automation-modal-content';
 import { DriftBalanceBadge } from '../components/drift/DriftBalanceBadge';
+import { ActivePositionBadge } from '../components/drift/ActivePositionBadge';
 import {
   DepositOnboardingContent,
   shouldShowOnboarding,
@@ -753,9 +754,10 @@ function AppContent({
                     CHAT
                   </h1>
 
-                  {/* Drift Balance Badge - centered, only show on desktop */}
-                  <div className="hidden md:flex flex-1 justify-center">
+                  {/* Drift Balance + Active Positions - centered, only show on desktop */}
+                  <div className="hidden md:flex flex-1 justify-center items-center gap-3">
                     <DriftBalanceBadge />
+                    <ActivePositionBadge />
                   </div>
 
                   <div className="flex items-center gap-2">
