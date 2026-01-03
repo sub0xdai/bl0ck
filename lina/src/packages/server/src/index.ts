@@ -1126,6 +1126,26 @@ export class AgentServer {
       // Initialize Socket.io, passing the AgentServer instance
       this.socketIO = setupSocketIO(this.server, this.elizaOS!, this);
 
+      // Bridge internal message bus to Socket.IO for frontend updates
+      // This allows plugins (like strategy-loop) to send messages that appear in chat
+      internalMessageBus.on('new_message', (data: any) => {
+        if (data?.source_type === 'agent_response' && data?.channel_id && this.socketIO) {
+          this.socketIO.to(data.channel_id).emit('messageBroadcast', {
+            senderId: data.author_id,
+            senderName: data.metadata?.agentName || 'Lina',
+            text: data.content,
+            roomId: data.channel_id,
+            serverId: data.server_id || '00000000-0000-0000-0000-000000000000',
+            createdAt: data.created_at || Date.now(),
+            source: data.source_type,
+            id: data.id,
+            thought: data.raw_message?.thought || data.content,
+            actions: data.raw_message?.actions || [],
+          });
+          logger.debug(`[AgentServer] Bridged message ${data.id} to Socket.IO channel ${data.channel_id}`);
+        }
+      });
+
       logger.success('AgentServer HTTP server and Socket.IO initialized');
     } catch (error) {
       logger.error({ error }, 'Failed to complete server initialization:');
