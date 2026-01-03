@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
 import { elizaClient } from '../../lib/elizaClient';
 import { cn } from '../../lib/utils';
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
@@ -21,8 +21,8 @@ interface ActivePositionBadgeProps {
 }
 
 /**
- * Compact active position badges for header display
- * Shows current positions with unrealized PnL
+ * Compact active position display for header
+ * Refactored to "Ticker" style: Text-based, glowing values, minimal icons.
  */
 export function ActivePositionBadge({ className }: ActivePositionBadgeProps) {
   const [positions, setPositions] = useState<Position[]>([]);
@@ -65,7 +65,10 @@ export function ActivePositionBadge({ className }: ActivePositionBadgeProps) {
   }
 
   return (
-    <div className={cn("flex items-center gap-2", className)}>
+    <div className={cn("flex items-center gap-4", className)}>
+      {/* Separator from Balance */}
+      <div className="w-px h-3 bg-border opacity-50" />
+      
       {positions.slice(0, 2).map((pos) => {
         const pnl = parseFloat(pos.unrealizedPnl);
         const notional = parseFloat(pos.notionalValue);
@@ -77,32 +80,29 @@ export function ActivePositionBadge({ className }: ActivePositionBadgeProps) {
         return (
           <Tooltip key={pos.marketSymbol}>
             <TooltipTrigger asChild>
-              <div
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-default select-none",
-                  "backdrop-blur-sm border",
-                  isPnlPositive
-                    ? "bg-emerald-500/15 border-emerald-400/40 shadow-[0_0_10px_rgba(16,185,129,0.15)]"
-                    : "bg-red-500/15 border-red-400/40 shadow-[0_0_10px_rgba(239,68,68,0.15)]"
-                )}
-              >
-                {/* Direction Icon */}
-                {pos.side === 'long' ? (
-                  <ArrowUpRight className="size-3.5 text-emerald-400" />
-                ) : (
-                  <ArrowDownRight className="size-3.5 text-red-400" />
-                )}
+              <div className="flex items-center gap-2 cursor-default select-none group">
+                {/* Direction Indicator */}
+                <span className={cn(
+                  "flex items-center justify-center size-4 rounded-full bg-opacity-10",
+                  pos.side === 'long' ? "bg-success text-success" : "bg-destructive text-destructive"
+                )}>
+                  {pos.side === 'long' ? (
+                    <ArrowUpRight className="size-3" />
+                  ) : (
+                    <ArrowDownRight className="size-3" />
+                  )}
+                </span>
 
                 {/* Asset Name */}
-                <span className="text-xs font-semibold text-white uppercase tracking-wide">
+                <span className="text-xs font-bold font-mono tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">
                   {assetName}
                 </span>
 
-                {/* PnL */}
+                {/* PnL Value */}
                 <span
                   className={cn(
-                    "text-sm font-mono font-bold",
-                    isPnlPositive ? "text-emerald-400" : "text-red-400"
+                    "text-sm font-mono font-bold transition-all",
+                    isPnlPositive ? "text-success text-glow" : "text-destructive text-glow"
                   )}
                 >
                   {isPnlPositive ? '+' : ''}${pnl.toFixed(2)}
@@ -112,21 +112,31 @@ export function ActivePositionBadge({ className }: ActivePositionBadgeProps) {
             <TooltipContent
               side="bottom"
               sideOffset={8}
-              className="max-w-xs !bg-zinc-900 !border !border-zinc-700 !text-zinc-100"
+              className="glass-panel text-foreground border-border"
             >
-              <div className="space-y-1.5">
-                <p className="font-medium text-sm text-white">
-                  {pos.side.toUpperCase()} {assetName}
-                </p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                  <span className="text-zinc-400">Size:</span>
-                  <span className="font-mono text-zinc-100">${notional.toFixed(2)}</span>
-                  <span className="text-zinc-400">Entry:</span>
-                  <span className="font-mono text-zinc-100">${entry.toFixed(2)}</span>
-                  <span className="text-zinc-400">Mark:</span>
-                  <span className="font-mono text-zinc-100">${mark.toFixed(2)}</span>
-                  <span className="text-zinc-400">PnL:</span>
-                  <span className={cn("font-mono", isPnlPositive ? "text-emerald-400" : "text-red-400")}>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 border-b border-border pb-2 mb-2">
+                  <Activity className="size-3 text-primary" />
+                  <span className="font-display tracking-widest text-xs text-primary uppercase">
+                    {pos.side} POSITION
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs font-mono">
+                  <span className="text-muted-foreground">Asset</span>
+                  <span className="text-right text-foreground font-bold">{assetName}</span>
+
+                  <span className="text-muted-foreground">Size</span>
+                  <span className="text-right text-foreground">${notional.toFixed(2)}</span>
+                  
+                  <span className="text-muted-foreground">Entry Price</span>
+                  <span className="text-right text-foreground">${entry.toFixed(2)}</span>
+                  
+                  <span className="text-muted-foreground">Mark Price</span>
+                  <span className="text-right text-foreground">${mark.toFixed(2)}</span>
+                  
+                  <span className="text-muted-foreground">PnL</span>
+                  <span className={cn("text-right font-bold", isPnlPositive ? "text-success" : "text-destructive")}>
                     {isPnlPositive ? '+' : ''}${pnl.toFixed(2)}
                   </span>
                 </div>

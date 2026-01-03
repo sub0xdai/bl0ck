@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Google Fonts Import */
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;800&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Roboto+Mono:wght@400;700&display=swap');
+
 @font-face {
   font-family: "Rebels";
   src: url("/Rebels-Fett.woff2") format("woff2"),
@@ -13,8 +16,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-display: Cormorant, Rebels, serif;
-  --font-mono: "Roboto Mono", monospace;
+  --font-display: "Cinzel", "Playfair Display", serif;
+  --font-mono: "JetBrains Mono", "Roboto Mono", monospace;
 
   /* ... existing theme mappings ... */
   --color-background: var(--background);
@@ -65,6 +68,7 @@
   --animate-marquee-up: marquee-up 6s ease-in-out infinite;
   --animate-marquee-down: marquee-down 6s ease-in-out infinite;
   --animate-marquee-pulse: marquee-pulse 3s ease-in-out infinite;
+  --animate-breathing-logo: breathing-logo 4s ease-in-out infinite;
 }
 
 :root {
@@ -85,11 +89,11 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 .dark {
   /* 1. BACKGROUNDS - Mocha Base */
-  --background: #1e1e2e;  /* Base */
+  --background: #0f0f14;  /* Deep dark for Cyber-Esoteric */
   --foreground: #cdd6f4;  /* Text */
 
   /* 2. SURFACES - Cards pop with Surface0 */
-  --card: #313244;        /* Surface0 */
+  --card: rgba(15, 15, 20, 0.7);        /* Surface0 */
   --card-foreground: #cdd6f4;
   --popover: #1e1e2e;     /* Base (or Mantle #181825) */
   --popover-foreground: #cdd6f4;
@@ -109,7 +113,7 @@
   --muted-foreground: #a6adc8; /* Subtext0 */
 
   /* 5. BORDERS - Structural */
-  --border: #45475a;      /* Surface1 */
+  --border: rgba(255, 255, 255, 0.05);      /* Subtle border */
   --input: #313244;       /* Surface0 */
   --ring: #cba6f7;        /* Mauve */
 
@@ -127,13 +131,13 @@
   --chart-5: #89b4fa; /* Blue */
 
   /* 8. SIDEBAR - Mantle (Slightly darker for depth) */
-  --sidebar: #181825;     /* Mantle */
+  --sidebar: rgba(15, 15, 20, 0.7);     /* Glass sidebar */
   --sidebar-foreground: #a6adc8;
   --sidebar-primary: #cba6f7;
   --sidebar-primary-foreground: #1e1e2e;
   --sidebar-accent: #313244;
   --sidebar-accent-foreground: #cdd6f4;
-  --sidebar-border: #313244;
+  --sidebar-border: rgba(255, 255, 255, 0.05);
   --sidebar-ring: #cba6f7;
 }
 
@@ -153,10 +157,10 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: "Roboto Mono", monospace;
+    font-family: var(--font-mono);
   }
   .font-display {
-    font-family: Cormorant, Rebels, serif !important;
+    font-family: var(--font-display) !important;
   }
 
   /* SCANLINE OVERLAY - Adapted for Mocha (Overlay1 color) */
@@ -180,7 +184,69 @@
   button, a, [role="button"], .cursor-pointer { cursor: pointer; }
   button:disabled, a:disabled, [disabled] { cursor: not-allowed; }
 
-  /* UTILITIES */
+  /* ═══════════════════════════════════════════════════════════════════════════
+     CYBER-ESOTERIC UTILITIES
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  /* The Glass System */
+  .glass-panel {
+    background: rgba(15, 15, 20, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  /* Neon Ghost Button */
+  .neon-ghost {
+    background: transparent;
+    border: 1px solid rgba(203, 166, 247, 0.3); /* Mauve border */
+    color: #cba6f7;
+    box-shadow: 0 0 10px rgba(203, 166, 247, 0.1);
+    transition: all 0.3s ease;
+    border-radius: 8px;
+  }
+
+  .neon-ghost:hover {
+    background: rgba(203, 166, 247, 0.1);
+    border-color: #cba6f7;
+    box-shadow: 0 0 15px rgba(203, 166, 247, 0.25);
+  }
+
+  /* Glowing Text */
+  .text-glow {
+    text-shadow: 0 0 10px currentColor;
+  }
+  
+  .text-glow-subtle {
+    text-shadow: 0 0 5px currentColor;
+  }
+
+  /* Chat Background Radial */
+  .chat-radial-gradient {
+    background: radial-gradient(circle at center, rgba(138, 43, 226, 0.05) 0%, transparent 70%);
+  }
+  
+  /* Breathing Logo Animation */
+  @keyframes breathing-logo {
+    0%, 100% { opacity: 0.8; transform: scale(1); filter: brightness(1); }
+    50% { opacity: 1; transform: scale(1.02); filter: brightness(1.2) drop-shadow(0 0 8px rgba(203, 166, 247, 0.5)); }
+  }
+  
+  .breathing-logo {
+    animation: breathing-logo 4s ease-in-out infinite;
+  }
+
+  /* Ticker Bar */
+  .ticker-bar {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 0.5rem 1rem;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.02) 20%, rgba(255, 255, 255, 0.02) 80%, transparent);
+    border-top: 1px solid rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  }
+
   .dark .glow-neon {
     box-shadow: 0 0 15px rgba(203, 166, 247, 0.25); /* Mauve glow */
   }

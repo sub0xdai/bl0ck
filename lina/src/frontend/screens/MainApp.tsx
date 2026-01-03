@@ -749,33 +749,35 @@ function AppContent({
             ) : (
               <div className="flex flex-col relative w-full gap-1 min-h-0 h-full">
                 {/* Header */}
-                <div className="flex items-center lg:items-baseline gap-2.5 md:gap-4 px-4 md:px-6 py-3 md:pb-4 lg:pt-7 ring-2 ring-pop sticky top-header-mobile lg:top-0 bg-background z-10">
-                  <h1 className="text-xl lg:text-4xl font-display leading-none mb-1">
+                <div className="flex items-center lg:items-center gap-2.5 md:gap-4 px-4 md:px-6 py-3 md:py-4 sticky top-header-mobile lg:top-0 z-10 border-b border-white/5 bg-background/80 backdrop-blur-xl">
+                  <h1 className="text-xl lg:text-3xl font-display tracking-widest leading-none text-primary/90 text-glow-subtle">
                     CHAT
                   </h1>
 
-                  {/* Drift Balance + Active Positions - centered, only show on desktop */}
-                  <div className="hidden md:flex flex-1 justify-center items-center gap-3">
-                    <DriftBalanceBadge />
-                    <ActivePositionBadge />
+                  {/* Drift Balance + Active Positions - Ticker Style */}
+                  <div className="hidden md:flex flex-1 items-center gap-0 ml-4">
+                    <div className="flex items-center px-4 py-1.5 rounded-full bg-white/5 border border-white/5 backdrop-blur-md">
+                      <DriftBalanceBadge />
+                      <ActivePositionBadge />
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     {/* Automation Button */}
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
-                          className={`btn-shine rounded-full px-3 py-2 flex items-center gap-2 border ${isAutomationActive
-                            ? 'border-primary bg-primary/20'
-                            : 'border-primary/30 hover:bg-accent'
-                            }`}
+                          className={cn(
+                            "neon-ghost rounded-full px-4 py-1.5 flex items-center gap-2 text-xs font-bold tracking-wider",
+                            isAutomationActive ? "bg-primary/10 border-primary text-primary shadow-[0_0_15px_rgba(203,166,247,0.3)]" : "opacity-70 hover:opacity-100"
+                          )}
                           onClick={handleOpenAutomation}
                           data-active={isAutomationActive}
                           aria-label="Trading Automation"
                           aria-pressed={isAutomationActive}
                         >
-                          <Zap className={`size-4 md:size-5 ${isAutomationActive ? 'text-primary lina-breath' : 'text-primary'}`} />
-                          <span className="text-sm md:text-base text-primary uppercase font-medium">AUTO</span>
+                          <Zap className={cn("size-3.5", isAutomationActive && "lina-breath")} />
+                          <span>AUTO</span>
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="bottom" sideOffset={8}>
@@ -785,20 +787,21 @@ function AppContent({
                         </p>
                       </TooltipContent>
                     </Tooltip>
+                    
                     {/* About Button */}
                     <button
-                      className="rounded-full px-3 py-2 transition-colors hover:bg-accent flex items-center gap-2"
+                      className="neon-ghost rounded-full px-4 py-1.5 flex items-center gap-2 text-xs font-bold tracking-wider opacity-70 hover:opacity-100"
                       title="About"
                       onClick={handleOpenAbout}
                     >
-                      <Info className="size-4 md:size-5 text-muted-foreground" />
-                      <span className="text-sm md:text-base text-muted-foreground uppercase">ABOUT</span>
+                      <Info className="size-3.5" />
+                      <span>ABOUT</span>
                     </button>
                   </div>
                 </div>
 
                 {/* Content Area */}
-                <div className="min-h-0 flex-1 flex flex-col px-3 lg:px-6 ring-2 ring-pop bg-background overflow-hidden">
+                <div className="min-h-0 flex-1 flex flex-col px-3 lg:px-6 bg-background overflow-hidden relative chat-radial-gradient">
                   {connected && !isLoadingChannels && (activeChannelId || isNewChatMode) && (
                     <ChatInterface
                       agent={agent}

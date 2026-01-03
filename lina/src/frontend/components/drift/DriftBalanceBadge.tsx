@@ -14,7 +14,7 @@ interface DriftBalanceBadgeProps {
 
 /**
  * Compact Drift balance badge for header display
- * Shows collateral and unrealized PnL with auto-refresh
+ * Refactored to "Ticker" style: Text-based, glowing values, no boxy background.
  */
 export function DriftBalanceBadge({ className }: DriftBalanceBadgeProps) {
   const [account, setAccount] = useState<DriftAccountInfo | null>(null);
@@ -51,8 +51,8 @@ export function DriftBalanceBadge({ className }: DriftBalanceBadgeProps) {
   // Don't show if no account or loading
   if (isLoading) {
     return (
-      <div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 animate-pulse", className)}>
-        <div className="h-3 w-16 bg-muted rounded" />
+      <div className={cn("flex items-center gap-2 px-3 py-1.5 animate-pulse opacity-50", className)}>
+         <span className="text-xs font-mono text-muted-foreground">SYNCING DRIFT...</span>
       </div>
     );
   }
@@ -61,7 +61,7 @@ export function DriftBalanceBadge({ className }: DriftBalanceBadgeProps) {
     return null; // Don't show badge if no Drift account
   }
 
-  // Parse values (backend already returns human-readable USD after QUOTE_PRECISION fix)
+  // Parse values
   const collateral = parseFloat(account.collateral);
   const unrealizedPnl = parseFloat(account.unrealizedPnl);
   const freeCollateral = parseFloat(account.freeCollateral);
@@ -72,37 +72,34 @@ export function DriftBalanceBadge({ className }: DriftBalanceBadgeProps) {
       <TooltipTrigger asChild>
         <div
           className={cn(
-            "flex items-center gap-3 px-4 py-2 rounded-lg",
-            "bg-green-500/15 backdrop-blur-sm",
-            "border border-green-400/40",
-            "shadow-[0_0_15px_rgba(34,197,94,0.15)]",
-            "cursor-default select-none",
+            "flex items-center gap-4 px-2 py-1",
+            "cursor-default select-none transition-opacity hover:opacity-80",
             className
           )}
         >
-          {/* Drift Label */}
-          <span className="text-xs uppercase tracking-wider text-green-400 font-semibold">
-            Drift
+          {/* Label */}
+          <span className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase font-display font-bold">
+            DRIFT
           </span>
 
           {/* Collateral */}
-          <div className="flex items-center gap-1">
-            <span className="text-sm text-green-300/80 font-medium">$</span>
-            <span className="text-base font-mono font-bold text-white">
-              {formatUsdValue(collateral)}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground font-mono">BAL:</span>
+            <span className="text-sm font-mono font-bold text-foreground text-glow-subtle">
+              ${formatUsdValue(collateral)}
             </span>
           </div>
 
-          {/* Separator */}
-          <span className="text-green-400/50">|</span>
+          {/* Separator - subtle vertical line */}
+          <div className="w-px h-3 bg-border" />
 
           {/* PnL */}
           <div className="flex items-center gap-1.5">
-            <span className="text-xs uppercase text-green-300/70 font-medium">PnL</span>
+            <span className="text-xs text-muted-foreground font-mono">PNL:</span>
             <span
               className={cn(
-                "text-base font-mono font-bold",
-                isPnlPositive ? "text-green-400" : "text-red-400"
+                "text-sm font-mono font-bold",
+                isPnlPositive ? "text-success text-glow" : "text-destructive text-glow"
               )}
             >
               {isPnlPositive ? '+' : ''}${formatUsdValue(Math.abs(unrealizedPnl))}
@@ -113,21 +110,24 @@ export function DriftBalanceBadge({ className }: DriftBalanceBadgeProps) {
       <TooltipContent
         side="bottom"
         sideOffset={8}
-        className="max-w-xs !bg-zinc-900 !border !border-zinc-700 !text-zinc-100"
+        className="glass-panel text-foreground border-border"
       >
-        <div className="space-y-1.5">
-          <p className="font-medium text-sm text-white">Drift Margin Account</p>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            <span className="text-zinc-400">Collateral:</span>
-            <span className="font-mono text-zinc-100">${formatUsdValue(collateral)}</span>
-            <span className="text-zinc-400">Free:</span>
-            <span className="font-mono text-zinc-100">${formatUsdValue(freeCollateral)}</span>
-            <span className="text-zinc-400">Unrealized PnL:</span>
-            <span className={cn("font-mono", isPnlPositive ? "text-green-400" : "text-red-400")}>
+        <div className="space-y-2">
+          <p className="font-display tracking-widest text-xs text-primary">DRIFT MARGIN ACCOUNT</p>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs font-mono">
+            <span className="text-muted-foreground">Collateral</span>
+            <span className="text-right text-foreground">${formatUsdValue(collateral)}</span>
+            
+            <span className="text-muted-foreground">Free</span>
+            <span className="text-right text-foreground">${formatUsdValue(freeCollateral)}</span>
+            
+            <span className="text-muted-foreground">Unrealized PnL</span>
+            <span className={cn("text-right", isPnlPositive ? "text-success" : "text-destructive")}>
               {isPnlPositive ? '+' : ''}${formatUsdValue(Math.abs(unrealizedPnl))}
             </span>
-            <span className="text-zinc-400">Leverage:</span>
-            <span className="font-mono text-zinc-100">{account.leverage.toFixed(2)}x</span>
+            
+            <span className="text-muted-foreground">Leverage</span>
+            <span className="text-right text-primary">{account.leverage.toFixed(2)}x</span>
           </div>
         </div>
       </TooltipContent>
