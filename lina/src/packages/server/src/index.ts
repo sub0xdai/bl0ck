@@ -1128,21 +1128,46 @@ export class AgentServer {
 
       // Bridge internal message bus to Socket.IO for frontend updates
       // This allows plugins (like strategy-loop) to send messages that appear in chat
-      internalMessageBus.on('new_message', (data: any) => {
+      internalMessageBus.on('new_message', async (data: any) => {
         if (data?.source_type === 'agent_response' && data?.channel_id && this.socketIO) {
+          let messageId = data.id;
+          let createdAt = data.created_at || Date.now();
+
+          // Persist automation messages to database (detected by strategy- prefix or isAutomatedTrade flag)
+          const isUnpersistedAutomation = data.metadata?.isAutomatedTrade &&
+            (typeof data.id === 'string' && data.id.startsWith('strategy-'));
+
+          if (isUnpersistedAutomation && this.database) {
+            try {
+              const persistedMessage = await (this.database as any).createMessage({
+                channelId: data.channel_id,
+                authorId: data.author_id,
+                content: data.content,
+                rawMessage: data.raw_message,
+                sourceType: data.source_type,
+                metadata: data.metadata,
+              });
+              messageId = persistedMessage.id;
+              createdAt = persistedMessage.createdAt?.getTime?.() || createdAt;
+              logger.info(`[AgentServer] Persisted automation message ${messageId} to database`);
+            } catch (err) {
+              logger.error(`[AgentServer] Failed to persist automation message: ${err}`);
+            }
+          }
+
           this.socketIO.to(data.channel_id).emit('messageBroadcast', {
             senderId: data.author_id,
             senderName: data.metadata?.agentName || 'Lina',
             text: data.content,
             roomId: data.channel_id,
             serverId: data.server_id || '00000000-0000-0000-0000-000000000000',
-            createdAt: data.created_at || Date.now(),
+            createdAt,
             source: data.source_type,
-            id: data.id,
+            id: messageId,
             thought: data.raw_message?.thought || data.content,
             actions: data.raw_message?.actions || [],
           });
-          logger.debug(`[AgentServer] Bridged message ${data.id} to Socket.IO channel ${data.channel_id}`);
+          logger.debug(`[AgentServer] Bridged message ${messageId} to Socket.IO channel ${data.channel_id}`);
         }
       });
 
