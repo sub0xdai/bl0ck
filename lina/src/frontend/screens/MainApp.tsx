@@ -15,7 +15,7 @@ import { MobileHeader } from '../components/dashboard/mobile-header';
 import { LoadingPanelProvider, useLoadingPanel } from '../contexts/LoadingPanelContext';
 import { ModalProvider, useModal } from '../contexts/ModalContext';
 import { AgentWalletProvider, useAgentWallet } from '../contexts/AgentWalletContext';
-import { Info, Zap } from 'lucide-react';
+import { Info, Globe } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -667,7 +667,7 @@ function AppContent({
   agentSolanaAddress,
   isAutomationActive, // Receive automation status
 }: any) {
-  const { t } = useTranslation('chat');
+  const { t, i18n } = useTranslation('chat');
   const { setOpenMobile } = useSidebar();
   const { showModal, hideModal } = useModal();
   const { refreshAll } = useAgentWallet();
@@ -829,7 +829,6 @@ function AppContent({
                           aria-label={t('automation.tooltip')}
                           aria-pressed={isAutomationActive}
                         >
-                          <Zap className={cn("size-3.5", isAutomationActive && "lina-breath")} />
                           <span>{t('automation.button')}</span>
                         </button>
                       </TooltipTrigger>
@@ -850,6 +849,26 @@ function AppContent({
                       <Info className="size-3.5" />
                       <span>{t('about')}</span>
                     </button>
+
+                    {/* Language Switcher */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          className="neon-ghost rounded-full px-4 py-1.5 flex items-center gap-2 text-xs font-bold tracking-wider opacity-70 hover:opacity-100"
+                          onClick={() => {
+                            const newLang = i18n.language.startsWith('zh') ? 'en' : 'zh-CN';
+                            i18n.changeLanguage(newLang);
+                          }}
+                          aria-label="Switch language"
+                        >
+                          <Globe className="size-3.5" />
+                          <span>{i18n.language.startsWith('zh') ? 'EN' : '中文'}</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" sideOffset={8}>
+                        <p className="font-medium">{i18n.language.startsWith('zh') ? 'Switch to English' : '切换到中文'}</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
 
