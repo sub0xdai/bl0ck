@@ -112,31 +112,31 @@ export function ActivePositionBadge({ className }: ActivePositionBadgeProps) {
             <TooltipContent
               side="bottom"
               sideOffset={8}
-              className="glass-panel text-foreground border-border"
+              className="!bg-black/95 !border-purple-500/30 backdrop-blur-md shadow-lg shadow-purple-500/10"
             >
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 border-b border-border pb-2 mb-2">
-                  <Activity className="size-3 text-primary" />
-                  <span className="font-display tracking-widest text-xs text-primary uppercase">
+              <div className="space-y-2 p-1">
+                <div className="flex items-center gap-2 border-b border-purple-500/30 pb-2 mb-2">
+                  <Activity className="size-3 text-purple-400" />
+                  <span className="font-display tracking-widest text-xs text-purple-400 uppercase">
                     {pos.side} POSITION
                   </span>
                 </div>
-                
-                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs font-mono">
-                  <span className="text-muted-foreground">Asset</span>
-                  <span className="text-right text-foreground font-bold">{assetName}</span>
 
-                  <span className="text-muted-foreground">Size</span>
-                  <span className="text-right text-foreground">${notional.toFixed(2)}</span>
-                  
-                  <span className="text-muted-foreground">Entry Price</span>
-                  <span className="text-right text-foreground">${entry.toFixed(2)}</span>
-                  
-                  <span className="text-muted-foreground">Mark Price</span>
-                  <span className="text-right text-foreground">${mark.toFixed(2)}</span>
-                  
-                  <span className="text-muted-foreground">PnL</span>
-                  <span className={cn("text-right font-bold", isPnlPositive ? "text-success" : "text-destructive")}>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs font-mono">
+                  <span className="text-gray-400">Asset</span>
+                  <span className="text-right text-white font-bold">{assetName}</span>
+
+                  <span className="text-gray-400">Size</span>
+                  <span className="text-right text-white">${notional.toFixed(2)}</span>
+
+                  <span className="text-gray-400">Entry Price</span>
+                  <span className="text-right text-white">${entry.toFixed(2)}</span>
+
+                  <span className="text-gray-400">Mark Price</span>
+                  <span className="text-right text-white">${mark.toFixed(2)}</span>
+
+                  <span className="text-gray-400">PnL</span>
+                  <span className={cn("text-right font-bold", isPnlPositive ? "text-green-400" : "text-red-400")}>
                     {isPnlPositive ? '+' : ''}${pnl.toFixed(2)}
                   </span>
                 </div>
