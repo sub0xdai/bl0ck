@@ -363,13 +363,19 @@ export class OpenBBService {
     /**
      * Calculate trend signal from technicals
      *
-     * Returns a value from -1 (bearish) to 1 (bullish)
+     * Returns a value from -1 (bearish) to 1 (bullish) plus details
      *
      * @param ohlcv OHLCV data
      */
-    async calculateTrendSignal(ohlcv: OHLCVData[]): Promise<number> {
+    async calculateTrendSignal(ohlcv: OHLCVData[]): Promise<{ 
+        value: number; 
+        details?: { 
+            rsi?: number; 
+            macd?: { histogram: number; signal: number; macd: number } 
+        } 
+    }> {
         if (ohlcv.length < 30) {
-            return 0; // Neutral if insufficient data
+            return { value: 0 }; // Neutral if insufficient data
         }
 
         try {
@@ -381,10 +387,13 @@ export class OpenBBService {
 
             let signal = 0;
             let weight = 0;
+            const details: any = {};
 
             // RSI signal (weight: 0.4)
             if (rsiData.length > 0) {
                 const latestRSI = rsiData[rsiData.length - 1].rsi;
+                details.rsi = latestRSI;
+                
                 // RSI: 30-70 neutral, <30 oversold (bullish), >70 overbought (bearish)
                 if (latestRSI < 30) {
                     signal += 0.4 * 1; // Bullish
@@ -401,6 +410,12 @@ export class OpenBBService {
             // MACD signal (weight: 0.6)
             if (macdData.length > 0) {
                 const latest = macdData[macdData.length - 1];
+                details.macd = {
+                    histogram: latest.histogram,
+                    signal: latest.signal,
+                    macd: latest.macd
+                };
+
                 // MACD histogram: positive = bullish, negative = bearish
                 const histogramSignal = Math.tanh(latest.histogram / 100); // Normalize to -1 to 1
                 signal += 0.6 * histogramSignal;
@@ -408,13 +423,15 @@ export class OpenBBService {
             }
 
             // Normalize by actual weight used
-            return weight > 0 ? signal / weight * weight : 0;
+            const finalValue = weight > 0 ? signal / weight * weight : 0;
+            
+            return { value: finalValue, details };
         } catch (error) {
             logger.warn(
                 '[OPENBB] Failed to calculate trend signal, returning neutral:',
                 error instanceof Error ? error.message : String(error)
             );
-            return 0;
+            return { value: 0 };
         }
     }
 

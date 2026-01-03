@@ -46,6 +46,8 @@ interface MarketData {
     newsSource?: string;
     newsSentiment?: number;
     newsCount?: number;
+    rsi?: number;
+    macd?: { histogram: number };
 }
 
 /**
@@ -76,6 +78,8 @@ function extractMarketData(signal: Signal): MarketData {
 
         if (source.name === 'trend') {
             if (raw.priceChange7d !== undefined) data.priceChange7d = raw.priceChange7d;
+            if (raw.rsi !== undefined) data.rsi = raw.rsi;
+            if (raw.macd !== undefined) data.macd = raw.macd;
         }
         if (source.name === 'volume') {
             if (raw.priceChange24h !== undefined) data.priceChange24h = raw.priceChange24h;
@@ -112,6 +116,17 @@ function formatPnl(usd: number, pct: number): string {
 function buildMarketAnalysis(signal: Signal): string {
     const data = extractMarketData(signal);
     const parts: string[] = [];
+
+    // Technicals first if available
+    if (data.rsi !== undefined) {
+        const rsiState = data.rsi > 70 ? 'Overbought' : data.rsi < 30 ? 'Oversold' : 'Neutral';
+        parts.push(`RSI ${data.rsi.toFixed(0)} (${rsiState})`);
+    }
+
+    if (data.macd?.histogram !== undefined) {
+        const mom = data.macd.histogram > 0 ? 'Bullish' : 'Bearish';
+        parts.push(`MACD ${mom}`);
+    }
 
     // Weekly trend is most important
     if (data.priceChange7d !== undefined) {

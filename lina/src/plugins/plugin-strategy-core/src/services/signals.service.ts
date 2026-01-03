@@ -233,11 +233,15 @@ export class SignalsService {
         if (this.openBB?.isAvailable()) {
             try {
                 const ohlcv = await this.openBB.fetchOHLCV(symbol, '1d', 30);
-                const trendValue = await this.openBB.calculateTrendSignal(ohlcv);
+                const { value: trendValue, details } = await this.openBB.calculateTrendSignal(ohlcv);
 
                 return {
                     value: trendValue,
-                    rawData: { source: 'openbb', candleCount: ohlcv.length },
+                    rawData: { 
+                        source: 'openbb', 
+                        candleCount: ohlcv.length,
+                        ...details
+                    },
                 };
             } catch (error) {
                 logger.debug(`[SIGNALS] OpenBB trend failed, trying CoinGecko fallback`);

@@ -8,21 +8,19 @@
 
 **Session: Jan 3, 2026 (latest)**
 
+18. **Chinese (zh-CN) i18n Implementation** - Full internationalization
+    - Added `react-i18next` + `i18next-browser-languagedetector`
+    - Created `lib/i18n.ts` configuration with bundled translations
+    - Created 10 JSON translation files (5 en, 5 zh-CN)
+    - Translated: LoginScreen, MainApp, ChatInterface, Sidebar, ConfirmationDialog
+    - Language selector in Settings > Preferences now functional
+
+17. **Technical Indicators Visibility** - RSI/MACD in Chat
+    - Updated `OpenBBService` to return detailed RSI/MACD data
+    - Updated `formatMarketUpdate` to display "RSI 28 (Oversold)" in chat
+
 16. **Added OpenBB Integration** - Dockerized Python API bridge
     - Created `Containerfile.openbb` for Python 3.10 + `openbb` package
-    - Updated `docker-compose.yml` to run OpenBB service on port 8000
-    - Configured `lina` service to connect via `http://openbb:8000`
-
-15. **Fixed Chat Messages** - Socket.IO bridge added
-    - `internalMessageBus` now bridges `agent_response` to Socket.IO
-
-14. **Conversational Trading** - `formatMarketUpdate()` + Ticker UI
-    - "Scanning markets... SOL looks bullish (55% confidence)"
-
-**Session: Jan 2, 2026**
-
-12-13. Drift Balance Badge, Trade Rejection Fixes ($1.30 min)
-9-11. Signals fixes (TAVILY, CoinGecko Volume)
 
 ---
 
@@ -30,11 +28,11 @@
 
 | Component | Status |
 |-----------|--------|
-| Automation System | Live (v1.0.8) |
-| OpenBB Service | **Dockerized** (Port 8000) |
-| Chat Messages | Working (Socket.IO Bridge) |
-| Conversational Updates | Working (Natural Language) |
-| Trade Execution | **Ready for first trade** |
+| Automation System | Live (v1.0.9) |
+| OpenBB Service | Dockerized (Port 8000) |
+| Technical Analysis | Visible in Chat (RSI/MACD) |
+| **i18n Support** | **English + Simplified Chinese** |
+| Trade Execution | Ready for first trade |
 
 ---
 
@@ -46,7 +44,9 @@ Docker Compose Network
 │   ├── StrategyLoop
 │   ├── SignalsService
 │   │   └── OpenBBService ──HTTP──► openbb:8000
-│   └── AgentServer
+│   ├── AgentServer
+│   └── Frontend (React + i18n)
+│       └── react-i18next ──► localStorage (lina-language)
 └── openbb (Python/FastAPI)
     └── REST API ──► Data Providers (FMP, Tiingo)
 ```
@@ -57,11 +57,20 @@ Docker Compose Network
 
 ```
 lina/
-├── Containerfile.openbb           # NEW: OpenBB Docker image
-├── docker-compose.yml             # NEW: Added openbb service
+├── src/frontend/
+│   ├── lib/i18n.ts                    # NEW: i18n configuration
+│   ├── locales/
+│   │   ├── en/*.json                  # NEW: English translations (5 files)
+│   │   └── zh-CN/*.json               # NEW: Chinese translations (5 files)
+│   ├── screens/LoginScreen.tsx        # Translated
+│   ├── screens/MainApp.tsx            # Translated
+│   ├── components/chat/chat-interface.tsx  # Translated
+│   ├── components/dashboard/sidebar/  # Translated
+│   └── components/settings/preferences-settings.tsx  # Language selector
 ├── src/plugins/plugin-strategy-core/
-│   └── services/openbb.service.ts # Consumes http://openbb:8000
-└── src/character.ts               # Defines usage of WEB_SEARCH/OpenBB
+│   ├── services/openbb.service.ts
+│   └── utils/market-update-formatter.ts
+└── docker-compose.yml
 ```
 
 ---
@@ -70,34 +79,46 @@ lina/
 
 | Issue | Fix |
 |-------|-----|
+| No i18n support | Added react-i18next with en + zh-CN |
+| Technicals hidden | Exposed RSI/MACD in `market-update-formatter` |
 | Python dependency | Dockerized `openbb` in separate container |
 | Chat msgs missing | Added Socket.IO bridge in AgentServer |
-| Trade rejection | Lowered min to $1.30, max to 25% |
-| BN truncation | Scaled USD by 1e6 before BN conversion |
 
 ---
 
 ## Next Steps
 
 - [x] **Dockerize OpenBB for TypeScript integration**
-- [ ] Add API keys to `openbb-data` volume (user_settings.json)
+- [x] **Expose Technical Indicators in Chat**
+- [x] **Implement Chinese i18n**
+- [ ] Add API keys to `openbb-data` (Env Vars on Railway)
 - [ ] Confirm first automated trade on Drift
-- [ ] Implement Chinese i18n (Plan: `CHINESE_I18N_PLAN.md`)
 - [ ] Telegram/Discord notifications
+
+---
+
+## i18n Usage
+
+**Change language programmatically:**
+```typescript
+import { useTranslation } from 'react-i18next';
+const { i18n } = useTranslation();
+i18n.changeLanguage('zh-CN'); // or 'en'
+```
+
+**Add new translations:**
+1. Add keys to `locales/en/*.json`
+2. Add Chinese translations to `locales/zh-CN/*.json`
+3. Use `t('namespace:key')` in components
+
+**Persisted to:** `localStorage.getItem('lina-language')`
 
 ---
 
 ## Debugging
 
-OpenBB Connection Check:
-```bash
-# Verify OpenBB is running
-curl http://localhost:8000/docs
-
-# Check Lina logs
-docker compose logs lina | grep "OPENBB"
-```
-
-If connection fails:
-1. Ensure `openbb` service is up: `docker compose ps`
-2. Check `OPENBB_API_URL` in .env matches docker service name
+i18n Check:
+1. Open Settings > Preferences
+2. Change language to "简体中文"
+3. UI should immediately update
+4. Refresh page - language persists
