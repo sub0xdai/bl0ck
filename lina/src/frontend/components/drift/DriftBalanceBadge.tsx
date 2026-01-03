@@ -113,7 +113,7 @@ export function DriftBalanceBadge({ className }: DriftBalanceBadgeProps) {
       <TooltipContent
         side="bottom"
         sideOffset={8}
-        className="max-w-xs bg-zinc-900 border-zinc-700 text-zinc-100"
+        className="max-w-xs !bg-zinc-900 !border !border-zinc-700 !text-zinc-100"
       >
         <div className="space-y-1.5">
           <p className="font-medium text-sm text-white">Drift Margin Account</p>
