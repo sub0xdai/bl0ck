@@ -682,12 +682,13 @@ function AppContent({
   };
 
   const handleOpenAutomation = () => {
+    const currentAgentId = agentId || agent?.id;
     showModal(
       <AutomationModalContent
         onClose={() => hideModal(AUTOMATION_MODAL_ID)}
         channelId={activeChannelId}
         userId={userId}
-        agentId={agentId}
+        agentId={currentAgentId}
         serverId={userId} // serverId = userId for user-specific isolation
         onChannelCreated={(newChannelId) => {
           console.log('[MainApp] Automation created channel:', newChannelId);
