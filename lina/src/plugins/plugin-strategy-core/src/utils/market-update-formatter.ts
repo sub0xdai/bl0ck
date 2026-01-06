@@ -7,7 +7,7 @@
  * Messages include actual market data from API calls - not vague sentiments.
  */
 
-import type { Signal, SignalSource } from '../types';
+import type { Signal, SignalSource, RiskAssessment } from '../types';
 
 /**
  * Position data for formatting
@@ -246,7 +246,7 @@ export function formatMarketUpdate(context: MarketUpdateContext): string {
 /**
  * Format a detailed reasoning string for a trade decision
  */
-export function formatTradeReasoning(signal: Signal, riskAssessment: any): string {
+export function formatTradeReasoning(signal: Signal, riskAssessment: RiskAssessment): string {
     const asset = getAssetName(signal.asset);
     const data = extractMarketData(signal);
     const reasoningParts: string[] = [];
