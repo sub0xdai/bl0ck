@@ -34,7 +34,7 @@ import {
 } from './position-monitor.service';
 import { AutomationStateStore, getAutomationStateStore } from '../state/automation-state.store';
 import { getExecutionCoordinator } from '../utils/execution-coordinator';
-import { formatMarketUpdate, type MarketUpdateContext } from '../utils/market-update-formatter';
+import { formatMarketUpdate, formatTradeReasoning, type MarketUpdateContext } from '../utils/market-update-formatter';
 
 /**
  * Cycle result for a single asset
@@ -354,12 +354,13 @@ export class StrategyLoop extends Service {
         const state = this.userStates.get(userId);
         if (!state) return;
 
-        // Only start if SL, TP, or hold time is configured
+        // Only start if SL, TP, hold time, or ATR sizing is configured
         const config = state.config;
         const hasExitConditions =
             (config.stopLossPct !== undefined && config.stopLossPct > 0) ||
             (config.takeProfitPct !== undefined && config.takeProfitPct > 0) ||
-            (config.maxHoldMinutes !== undefined && config.maxHoldMinutes > 0);
+            (config.maxHoldMinutes !== undefined && config.maxHoldMinutes > 0) ||
+            config.useAtrSizing === true; // ATR sizing uses price-based stops
 
         if (!hasExitConditions) {
             logger.debug(
@@ -371,6 +372,7 @@ export class StrategyLoop extends Service {
         const monitor = new PositionMonitor({
             checkIntervalMs: 30_000, // 30 second checks
             onExitTrigger: this.handleExitTrigger.bind(this),
+            onBreakEvenTrigger: this.handleBreakEvenTrigger.bind(this),
         });
 
         monitor.start(
@@ -381,8 +383,49 @@ export class StrategyLoop extends Service {
 
         this.positionMonitors.set(userId, monitor);
         logger.info(
-            `[STRATEGY_LOOP] Started position monitoring for user ${userId.substring(0, 8)}...`
+            `[STRATEGY_LOOP] Started position monitoring for user ${userId.substring(0, 8)}...` +
+            (config.useAtrSizing ? ' (ATR sizing enabled)' : '')
         );
+    }
+
+    /**
+     * Handle break-even trigger from PositionMonitor
+     * Updates the stop-loss price to entry (break-even) in positionMetadata
+     */
+    private async handleBreakEvenTrigger(
+        userId: string,
+        asset: string,
+        newStopPrice: number
+    ): Promise<void> {
+        const state = this.userStates.get(userId);
+        if (!state) return;
+
+        const metadata = state.positionMetadata[asset];
+        if (!metadata) {
+            logger.warn(`[STRATEGY_LOOP] No position metadata found for ${asset} when handling break-even`);
+            return;
+        }
+
+        // Update stop price to break-even (entry price)
+        metadata.stopPrice = newStopPrice;
+        metadata.breakEvenTriggered = true;
+
+        // Persist to database
+        await this.stateStore.saveState(state);
+
+        logger.info(
+            `[STRATEGY_LOOP] Break-even activated for ${asset}: SL moved to $${newStopPrice.toFixed(2)}`
+        );
+
+        // Notify user in chat
+        if (state.channelId) {
+            await this.sendChatMessage(
+                state.channelId,
+                `🔒 ${asset.replace('-PERP', '')} · Stop moved to break-even @ $${newStopPrice.toFixed(2)}`,
+                'Position protection: stop-loss moved to entry price after reaching 50% of target',
+                ['BREAK_EVEN', 'RISK_MANAGEMENT']
+            );
+        }
     }
 
     /**
@@ -401,6 +444,7 @@ export class StrategyLoop extends Service {
 
     /**
      * Fetch positions from DriftService and convert to MonitoredPosition format
+     * Includes ATR-based stop/target prices from positionMetadata if available
      */
     private async getMonitoredPositions(userId: string): Promise<MonitoredPosition[]> {
         const driftService = this.runtime.getService('DRIFT_SERVICE') as any;
@@ -414,18 +458,26 @@ export class StrategyLoop extends Service {
             if (!positions || !Array.isArray(positions)) return [];
 
             return positions.map((pos: any) => {
+                const marketSymbol = pos.marketSymbol;
                 const unrealizedPnlUsd = parseFloat(pos.unrealizedPnl) || 0;
                 const notionalValueUsd = parseFloat(pos.notionalValue) || 0;
 
+                // Get ATR metadata for this position (if available)
+                const metadata = state.positionMetadata[marketSymbol];
+
                 return {
-                    marketSymbol: pos.marketSymbol,
+                    marketSymbol,
                     side: pos.side as 'long' | 'short',
                     entryPrice: parseFloat(pos.entryPrice) || 0,
                     currentPrice: parseFloat(pos.markPrice) || 0,
                     unrealizedPnlUsd,
                     notionalValueUsd,
                     unrealizedPnlPct: calculateActualPnlPct(unrealizedPnlUsd, notionalValueUsd),
-                    openedAt: state.positionOpenTimes[pos.marketSymbol] || Date.now(),
+                    openedAt: state.positionOpenTimes[marketSymbol] || Date.now(),
+                    // ATR-based risk management data
+                    stopLossPrice: metadata?.stopPrice,
+                    targetPrice: metadata?.targetPrice,
+                    breakEvenTriggered: metadata?.breakEvenTriggered ?? false,
                 };
             });
         } catch (error) {
@@ -546,9 +598,10 @@ export class StrategyLoop extends Service {
                     );
                 }
 
-                // Clear position tracking
+                // Clear position tracking (including ATR metadata)
                 if (state) {
                     delete state.positionOpenTimes[trigger.asset];
+                    delete state.positionMetadata[trigger.asset];
                     await this.stateStore.saveState(state);
                 }
 
@@ -770,10 +823,12 @@ export class StrategyLoop extends Service {
                     }
 
                     const actionVerb = signal.direction === 'LONG' ? 'Going long on' : 'Going short on';
+                    const reasoning = formatTradeReasoning(signal, riskAssessment);
+
                     await this.sendChatMessage(
                         channelId,
                         `${actionVerb} ${assetName} with $${size} at ${leverage}x - ${reason}.`,
-                        `Signal confidence: ${confidence}%`,
+                        reasoning,
                         ['OPEN_POSITION', signal.direction]
                     );
                 } else if (channelId && !executionResult.success) {
@@ -877,6 +932,24 @@ export class StrategyLoop extends Service {
                 const state = this.userStates.get(userId);
                 if (state) {
                     state.positionOpenTimes[signal.asset] = Date.now();
+
+                    // Store ATR-based stop/target if available
+                    if (riskAssessment.atrSizing) {
+                        state.positionMetadata[signal.asset] = {
+                            entryPrice: riskAssessment.atrSizing.stopLossPrice < riskAssessment.atrSizing.takeProfitPrice
+                                ? (riskAssessment.atrSizing.stopLossPrice + riskAssessment.atrSizing.takeProfitPrice) / 2
+                                : (riskAssessment.atrSizing.takeProfitPrice + riskAssessment.atrSizing.stopLossPrice) / 2,
+                            stopPrice: riskAssessment.atrSizing.stopLossPrice,
+                            targetPrice: riskAssessment.atrSizing.takeProfitPrice,
+                            breakEvenTriggered: false,
+                        };
+                        logger.info(
+                            `[STRATEGY_LOOP] ATR metadata stored for ${signal.asset}: ` +
+                            `SL=$${riskAssessment.atrSizing.stopLossPrice.toFixed(2)}, ` +
+                            `TP=$${riskAssessment.atrSizing.takeProfitPrice.toFixed(2)}`
+                        );
+                    }
+
                     await this.stateStore.saveState(state);
                 }
 

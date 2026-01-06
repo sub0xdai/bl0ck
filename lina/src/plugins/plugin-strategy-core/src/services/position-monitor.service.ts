@@ -28,6 +28,17 @@ export interface MonitoredPosition {
     /** Calculated PnL percentage based on actual USD values */
     unrealizedPnlPct: number;
     openedAt: number;
+
+    // === ATR-based risk management fields (optional) ===
+
+    /** Stop-loss price (ATR-based, may be adjusted for break-even) */
+    stopLossPrice?: number;
+
+    /** Take-profit target price */
+    targetPrice?: number;
+
+    /** Whether break-even has been triggered for this position */
+    breakEvenTriggered?: boolean;
 }
 
 /**
@@ -55,6 +66,14 @@ export interface ExitTrigger {
 }
 
 /**
+ * Break-even trigger result
+ */
+export interface BreakEvenTrigger {
+    triggered: boolean;
+    newStopPrice?: number;
+}
+
+/**
  * Position monitor configuration
  */
 export interface PositionMonitorConfig {
@@ -62,6 +81,8 @@ export interface PositionMonitorConfig {
     checkIntervalMs: number;
     /** Callback when exit trigger fires (userId added for coordination) */
     onExitTrigger?: (userId: string, trigger: ExitTrigger) => Promise<void>;
+    /** Callback when break-even is triggered (to update state) */
+    onBreakEvenTrigger?: (userId: string, asset: string, newStopPrice: number) => Promise<void>;
 }
 
 const DEFAULT_CHECK_INTERVAL_MS = 30_000; // 30 seconds
@@ -74,6 +95,7 @@ export class PositionMonitor {
     private isRunning = false;
     private checkIntervalMs: number;
     private onExitTrigger?: (userId: string, trigger: ExitTrigger) => Promise<void>;
+    private onBreakEvenTrigger?: (userId: string, asset: string, newStopPrice: number) => Promise<void>;
 
     // Position tracking for hold time
     private positionOpenTimes: Map<string, number> = new Map();
@@ -84,17 +106,45 @@ export class PositionMonitor {
     constructor(config?: Partial<PositionMonitorConfig>) {
         this.checkIntervalMs = config?.checkIntervalMs ?? DEFAULT_CHECK_INTERVAL_MS;
         this.onExitTrigger = config?.onExitTrigger;
+        this.onBreakEvenTrigger = config?.onBreakEvenTrigger;
     }
 
     /**
      * Check if a position should be exited based on config
+     *
+     * Supports both:
+     * - Price-based stops (ATR-based, from positionMetadata)
+     * - Percentage-based stops (legacy, from config)
      */
     checkExitConditions(
         position: MonitoredPosition,
         config: AutomationConfig
     ): ExitTrigger {
-        // Check stop loss
-        if (config.stopLossPct !== undefined && config.stopLossPct > 0) {
+        // === Check stop loss ===
+        // Priority 1: Price-based stop (ATR-based)
+        if (position.stopLossPrice !== undefined) {
+            let stopHit = false;
+            if (position.side === 'long') {
+                stopHit = position.currentPrice <= position.stopLossPrice;
+            } else {
+                stopHit = position.currentPrice >= position.stopLossPrice;
+            }
+
+            if (stopHit) {
+                logger.info(
+                    `[POSITION_MONITOR] Price-based stop hit for ${position.marketSymbol}: ` +
+                    `current=$${position.currentPrice.toFixed(2)}, stop=$${position.stopLossPrice.toFixed(2)}`
+                );
+                return {
+                    triggered: true,
+                    reason: 'stop_loss',
+                    asset: position.marketSymbol,
+                    pnlPct: position.unrealizedPnlPct,
+                };
+            }
+        }
+        // Priority 2: Percentage-based stop (legacy)
+        else if (config.stopLossPct !== undefined && config.stopLossPct > 0) {
             if (position.unrealizedPnlPct <= -config.stopLossPct) {
                 return {
                     triggered: true,
@@ -105,8 +155,31 @@ export class PositionMonitor {
             }
         }
 
-        // Check take profit
-        if (config.takeProfitPct !== undefined && config.takeProfitPct > 0) {
+        // === Check take profit ===
+        // Priority 1: Price-based target (ATR-based)
+        if (position.targetPrice !== undefined) {
+            let targetHit = false;
+            if (position.side === 'long') {
+                targetHit = position.currentPrice >= position.targetPrice;
+            } else {
+                targetHit = position.currentPrice <= position.targetPrice;
+            }
+
+            if (targetHit) {
+                logger.info(
+                    `[POSITION_MONITOR] Price-based target hit for ${position.marketSymbol}: ` +
+                    `current=$${position.currentPrice.toFixed(2)}, target=$${position.targetPrice.toFixed(2)}`
+                );
+                return {
+                    triggered: true,
+                    reason: 'take_profit',
+                    asset: position.marketSymbol,
+                    pnlPct: position.unrealizedPnlPct,
+                };
+            }
+        }
+        // Priority 2: Percentage-based target (legacy)
+        else if (config.takeProfitPct !== undefined && config.takeProfitPct > 0) {
             if (position.unrealizedPnlPct >= config.takeProfitPct) {
                 return {
                     triggered: true,
@@ -117,7 +190,7 @@ export class PositionMonitor {
             }
         }
 
-        // Check max hold time
+        // === Check max hold time ===
         if (config.maxHoldMinutes !== undefined && config.maxHoldMinutes > 0) {
             const holdMs = Date.now() - position.openedAt;
             const holdMinutes = holdMs / 60_000;
@@ -130,6 +203,69 @@ export class PositionMonitor {
                     holdMinutes,
                 };
             }
+        }
+
+        return { triggered: false };
+    }
+
+    /**
+     * Check if break-even should be triggered for a position
+     *
+     * Break-even triggers when:
+     * - Position has ATR-based stop/target prices set
+     * - Profit reaches breakEvenTriggerRatio (e.g., 50%) of target distance
+     * - Moves stop-loss to entry price (lock in zero loss)
+     *
+     * @returns Break-even trigger result with new stop price if triggered
+     */
+    checkBreakEvenTrigger(
+        position: MonitoredPosition,
+        config: AutomationConfig
+    ): BreakEvenTrigger {
+        // Skip if already triggered or no ATR sizing data
+        if (position.breakEvenTriggered) {
+            return { triggered: false };
+        }
+
+        if (!position.targetPrice || !position.stopLossPrice) {
+            return { triggered: false };
+        }
+
+        const triggerRatio = config.breakEvenTriggerRatio ?? 0.5;
+        const entryPrice = position.entryPrice;
+        const currentPrice = position.currentPrice;
+        const targetPrice = position.targetPrice;
+
+        // Calculate profit progress toward target
+        let profitProgress: number;
+
+        if (position.side === 'long') {
+            // For longs: target is above entry
+            const totalTargetDistance = targetPrice - entryPrice;
+            if (totalTargetDistance <= 0) return { triggered: false };
+
+            const currentProfit = currentPrice - entryPrice;
+            profitProgress = currentProfit / totalTargetDistance;
+        } else {
+            // For shorts: target is below entry
+            const totalTargetDistance = entryPrice - targetPrice;
+            if (totalTargetDistance <= 0) return { triggered: false };
+
+            const currentProfit = entryPrice - currentPrice;
+            profitProgress = currentProfit / totalTargetDistance;
+        }
+
+        // Check if profit has reached trigger threshold
+        if (profitProgress >= triggerRatio) {
+            logger.info(
+                `[POSITION_MONITOR] Break-even triggered for ${position.marketSymbol}: ` +
+                `${(profitProgress * 100).toFixed(1)}% of target reached, moving SL to entry $${entryPrice.toFixed(2)}`
+            );
+
+            return {
+                triggered: true,
+                newStopPrice: entryPrice, // Move stop to entry (break-even)
+            };
         }
 
         return { triggered: false };
@@ -207,6 +343,27 @@ export class PositionMonitor {
                 const coordinator = getExecutionCoordinator();
 
                 for (const position of positions) {
+                    // === Check for break-even trigger first ===
+                    if (!position.breakEvenTriggered && position.targetPrice && position.stopLossPrice) {
+                        const breakEvenResult = this.checkBreakEvenTrigger(position, config);
+
+                        if (breakEvenResult.triggered && breakEvenResult.newStopPrice !== undefined) {
+                            // Update state via callback
+                            if (this.onBreakEvenTrigger) {
+                                await this.onBreakEvenTrigger(
+                                    userId,
+                                    position.marketSymbol,
+                                    breakEvenResult.newStopPrice
+                                );
+                            }
+
+                            // Update position for this check cycle
+                            position.stopLossPrice = breakEvenResult.newStopPrice;
+                            position.breakEvenTriggered = true;
+                        }
+                    }
+
+                    // === Check exit conditions ===
                     const trigger = this.checkExitConditions(position, config);
 
                     if (trigger.triggered && this.onExitTrigger && trigger.asset) {

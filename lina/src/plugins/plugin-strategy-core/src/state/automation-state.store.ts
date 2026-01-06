@@ -26,6 +26,7 @@ interface AutomationStateRow {
     circuit_breaker_tripped_at: number | null;
     last_trade_timestamps: string; // JSON stringified Record<string, number>
     position_open_times: string; // JSON stringified Record<string, number>
+    position_metadata: string; // JSON stringified Record<string, PositionMetadata>
     session_pnl: string; // DECIMAL as string
     cycle_count: number;
     errors: string[]; // TEXT[]
@@ -80,6 +81,20 @@ BEGIN
     ) THEN
         ALTER TABLE lina_automation.automation_states
         ADD COLUMN channel_id TEXT;
+    END IF;
+END $$;
+
+-- Migration for position_metadata (ATR-based risk management - Phase 4)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'lina_automation'
+        AND table_name = 'automation_states'
+        AND column_name = 'position_metadata'
+    ) THEN
+        ALTER TABLE lina_automation.automation_states
+        ADD COLUMN position_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
     END IF;
 END $$;
 
@@ -201,6 +216,9 @@ export class AutomationStateStore {
             positionOpenTimes: typeof row.position_open_times === 'string'
                 ? JSON.parse(row.position_open_times)
                 : (row.position_open_times || {}),
+            positionMetadata: typeof row.position_metadata === 'string'
+                ? JSON.parse(row.position_metadata)
+                : (row.position_metadata || {}),
             sessionPnL: parseFloat(row.session_pnl),
             cycleCount: row.cycle_count,
             errors: row.errors || [],
@@ -254,9 +272,9 @@ export class AutomationStateStore {
                 await client.query(
                     `INSERT INTO lina_automation.automation_states (
                         user_id, config, channel_id, circuit_breaker_tripped, circuit_breaker_tripped_at,
-                        last_trade_timestamps, position_open_times, session_pnl, cycle_count, errors,
+                        last_trade_timestamps, position_open_times, position_metadata, session_pnl, cycle_count, errors,
                         started_at, last_cycle_at
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                     ON CONFLICT (user_id) DO UPDATE SET
                         config = EXCLUDED.config,
                         channel_id = EXCLUDED.channel_id,
@@ -264,6 +282,7 @@ export class AutomationStateStore {
                         circuit_breaker_tripped_at = EXCLUDED.circuit_breaker_tripped_at,
                         last_trade_timestamps = EXCLUDED.last_trade_timestamps,
                         position_open_times = EXCLUDED.position_open_times,
+                        position_metadata = EXCLUDED.position_metadata,
                         session_pnl = EXCLUDED.session_pnl,
                         cycle_count = EXCLUDED.cycle_count,
                         errors = EXCLUDED.errors,
@@ -277,6 +296,7 @@ export class AutomationStateStore {
                         state.circuitBreakerTrippedAt ?? null,
                         JSON.stringify(state.lastTradeTimestamps),
                         JSON.stringify(state.positionOpenTimes),
+                        JSON.stringify(state.positionMetadata),
                         state.sessionPnL,
                         state.cycleCount,
                         state.errors,
@@ -336,6 +356,10 @@ export class AutomationStateStore {
             if (updates.positionOpenTimes !== undefined) {
                 setClauses.push(`position_open_times = $${paramIndex++}`);
                 values.push(JSON.stringify(updates.positionOpenTimes));
+            }
+            if (updates.positionMetadata !== undefined) {
+                setClauses.push(`position_metadata = $${paramIndex++}`);
+                values.push(JSON.stringify(updates.positionMetadata));
             }
             if (updates.sessionPnL !== undefined) {
                 setClauses.push(`session_pnl = $${paramIndex++}`);

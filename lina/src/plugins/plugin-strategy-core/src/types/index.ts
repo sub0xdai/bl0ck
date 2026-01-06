@@ -3,9 +3,17 @@
 export {
     type AutomationConfig,
     type AutomationState,
+    type PositionMetadata,
     DEFAULT_AUTOMATION_CONFIG,
     createInitialState,
 } from './automation-config';
+
+export {
+    type ATRResult,
+    type ATRPositionSizing,
+    type TradeQualification,
+    type PositionSizingInput,
+} from './atr-risk';
 
 export {
     type SignalDirection,

@@ -51,6 +51,14 @@ export interface MACDResult {
 }
 
 /**
+ * ATR (Average True Range) indicator result
+ */
+export interface ATRResult {
+    date: string;
+    atr: number;
+}
+
+/**
  * News article from OpenBB
  */
 export interface NewsArticle {
@@ -313,6 +321,106 @@ export class OpenBBService {
             );
             throw TradingErrors.dataProviderError('OpenBB SMA', error);
         }
+    }
+
+    /**
+     * Calculate ATR (Average True Range)
+     *
+     * ATR = Average of True Range over N periods
+     * True Range = max(high-low, abs(high-prev_close), abs(low-prev_close))
+     *
+     * @param ohlcv OHLCV data array
+     * @param period ATR period (default: 14)
+     */
+    async getATR(ohlcv: OHLCVData[], period: number = 14): Promise<ATRResult[]> {
+        if (ohlcv.length < period + 1) {
+            logger.warn(`[OPENBB] Insufficient data for ATR (need ${period + 1}, have ${ohlcv.length})`);
+            return [];
+        }
+
+        try {
+            const response = await this.fetch('/api/v1/technical/atr', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    data: ohlcv,
+                    length: period,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data: OpenBBResponse<ATRResult> = await response.json();
+            return data.results || [];
+        } catch (error) {
+            logger.error(
+                '[OPENBB] Failed to calculate ATR:',
+                error instanceof Error ? error.message : String(error)
+            );
+            throw TradingErrors.dataProviderError('OpenBB ATR', error);
+        }
+    }
+
+    /**
+     * Calculate ATR locally (fallback when OpenBB ATR endpoint unavailable)
+     *
+     * @param ohlcv OHLCV data array
+     * @param period ATR period (default: 14)
+     * @returns ATR value or null if insufficient data
+     */
+    calculateATRLocally(ohlcv: OHLCVData[], period: number = 14): number | null {
+        if (ohlcv.length < period + 1) {
+            return null;
+        }
+
+        // Calculate True Range for each candle (starting from index 1)
+        const trueRanges: number[] = [];
+        for (let i = 1; i < ohlcv.length; i++) {
+            const high = ohlcv[i].high;
+            const low = ohlcv[i].low;
+            const prevClose = ohlcv[i - 1].close;
+
+            const tr = Math.max(
+                high - low,
+                Math.abs(high - prevClose),
+                Math.abs(low - prevClose)
+            );
+            trueRanges.push(tr);
+        }
+
+        // Calculate ATR as simple moving average of last N true ranges
+        const recentTR = trueRanges.slice(-period);
+        const atr = recentTR.reduce((sum, tr) => sum + tr, 0) / period;
+
+        return atr;
+    }
+
+    /**
+     * Get ATR with local fallback
+     *
+     * Tries OpenBB API first, falls back to local calculation if unavailable.
+     *
+     * @param ohlcv OHLCV data array
+     * @param period ATR period (default: 14)
+     * @returns Latest ATR value or null if unavailable
+     */
+    async getATRValue(ohlcv: OHLCVData[], period: number = 14): Promise<number | null> {
+        // Try OpenBB API first
+        if (this.isHealthy) {
+            try {
+                const atrResults = await this.getATR(ohlcv, period);
+                if (atrResults.length > 0) {
+                    return atrResults[atrResults.length - 1].atr;
+                }
+            } catch {
+                logger.debug('[OPENBB] ATR API failed, falling back to local calculation');
+            }
+        }
+
+        // Fallback to local calculation
+        return this.calculateATRLocally(ohlcv, period);
     }
 
     /**

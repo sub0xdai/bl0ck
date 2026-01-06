@@ -46,6 +46,43 @@ export interface AutomationConfig {
 
     /** Maximum hold time in minutes before forced exit */
     maxHoldMinutes?: number;
+
+    // === Phase 4: ATR-Based Risk Management ===
+
+    /** Enable ATR-based position sizing (default false for backward compatibility) */
+    useAtrSizing?: boolean;
+
+    /** ATR period for volatility calculation (default 14) */
+    atrPeriod?: number;
+
+    /** ATR multiplier for stop-loss distance (default 2.0) */
+    atrStopMultiplier?: number;
+
+    /** Risk per trade as % of account (default 2.0) */
+    riskPerTradePct?: number;
+
+    /** Minimum reward:risk ratio to take trade (default 3.0) */
+    minRewardRiskRatio?: number;
+
+    /** Trigger break-even when profit reaches X ratio of target (default 0.5 = 50%) */
+    breakEvenTriggerRatio?: number;
+}
+
+/**
+ * Metadata for a tracked position (ATR-based risk management).
+ */
+export interface PositionMetadata {
+    /** Entry price when position was opened */
+    entryPrice: number;
+
+    /** Current stop-loss price (may be adjusted for break-even) */
+    stopPrice: number;
+
+    /** Take-profit target price */
+    targetPrice: number;
+
+    /** Whether break-even stop has been triggered */
+    breakEvenTriggered: boolean;
 }
 
 /**
@@ -73,6 +110,9 @@ export interface AutomationState {
 
     /** Position open timestamps per asset (for maxHoldMinutes enforcement) */
     positionOpenTimes: Record<string, number>;
+
+    /** Position metadata per asset (ATR-based stop/target tracking) */
+    positionMetadata: Record<string, PositionMetadata>;
 
     /** Cumulative PnL for this session (for circuit breaker calculation) */
     sessionPnL: number;
@@ -109,6 +149,13 @@ export const DEFAULT_AUTOMATION_CONFIG: AutomationConfig = {
     stopLossPct: undefined,  // Optional - no default stop loss
     takeProfitPct: undefined, // Optional - no default take profit
     maxHoldMinutes: undefined, // Optional - no default hold limit
+    // Phase 4: ATR-Based Risk Management
+    useAtrSizing: false,     // Disabled by default for backward compatibility
+    atrPeriod: 14,           // Standard ATR period
+    atrStopMultiplier: 2.0,  // SL = entry ± (ATR × 2)
+    riskPerTradePct: 2.0,    // Risk 2% of account per trade
+    minRewardRiskRatio: 3.0, // Only take 1:3+ R:R trades
+    breakEvenTriggerRatio: 0.5, // Move SL to BE at 50% to target
 };
 
 /**
@@ -125,6 +172,7 @@ export function createInitialState(
         circuitBreakerTrippedAt: undefined,
         lastTradeTimestamps: {},
         positionOpenTimes: {},
+        positionMetadata: {},
         sessionPnL: 0,
         cycleCount: 0,
         errors: [],

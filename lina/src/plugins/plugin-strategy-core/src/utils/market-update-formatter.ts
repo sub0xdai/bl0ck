@@ -242,3 +242,48 @@ export function formatMarketUpdate(context: MarketUpdateContext): string {
 
     return 'Waiting for market data...';
 }
+
+/**
+ * Format a detailed reasoning string for a trade decision
+ */
+export function formatTradeReasoning(signal: Signal, riskAssessment: any): string {
+    const asset = getAssetName(signal.asset);
+    const data = extractMarketData(signal);
+    const reasoningParts: string[] = [];
+
+    // 1. Technical reasoning
+    if (data.rsi !== undefined) {
+        const rsiState = data.rsi > 70 ? 'overbought' : data.rsi < 30 ? 'oversold' : 'neutral';
+        reasoningParts.push(`RSI is ${data.rsi.toFixed(0)} (${rsiState})`);
+    }
+
+    if (data.macd?.histogram !== undefined) {
+        const mom = data.macd.histogram > 0 ? 'bullish momentum' : 'bearish momentum';
+        reasoningParts.push(`MACD showing ${mom}`);
+    }
+
+    if (data.priceChange7d !== undefined) {
+        const change = Math.abs(data.priceChange7d).toFixed(1);
+        const direction = data.priceChange7d >= 0 ? 'up' : 'down';
+        reasoningParts.push(`7d trend is ${direction} ${change}%`);
+    }
+
+    // 2. News/Sentiment reasoning
+    if (data.newsCount && data.newsCount > 0) {
+        const sentiment = signal.sources.find(s => s.name === 'news')?.value || 0;
+        const mood = sentiment > 0.3 ? 'positive' : sentiment < -0.3 ? 'negative' : 'neutral';
+        reasoningParts.push(`news sentiment is ${mood}`);
+    }
+
+    // 3. Risk reasoning
+    if (riskAssessment.canTrade) {
+        reasoningParts.push(`risk checks passed (size: $${riskAssessment.suggestedSizeUsd.toFixed(0)}, leverage: ${riskAssessment.suggestedLeverage}x)`);
+    } else {
+        reasoningParts.push(`trade skipped: ${riskAssessment.reason}`);
+    }
+
+    const direction = signal.direction === 'LONG' ? 'long' : 'short';
+    const confidence = (signal.confidence * 100).toFixed(0);
+
+    return `Reasoning for ${asset} ${direction} (${confidence}% confidence): ${reasoningParts.join('; ')}.`;
+}

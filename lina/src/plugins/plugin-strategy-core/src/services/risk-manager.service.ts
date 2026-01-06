@@ -13,6 +13,7 @@ import {
     type Signal,
     type RiskAssessment,
     type ExposureSnapshot,
+    type ATRPositionSizing,
     REJECTION_REASONS,
     calculateMaxPositionSize,
     scalePositionByConfidence,
@@ -20,6 +21,12 @@ import {
 } from '../types';
 import { CircuitBreaker } from '../utils/circuit-breaker';
 import { TradeCooldown } from '../utils/trade-cooldown';
+import { OpenBBService, createOpenBBService } from './openbb.service';
+import {
+    calculateATRPositionSizing,
+    qualifyTradeForRR,
+} from './atr-position-sizing.service';
+import type { PositionSizingInput } from '../types/atr-risk';
 
 /**
  * Drift position interface (from DriftService)
@@ -47,6 +54,7 @@ export class RiskManager {
     private runtime: IAgentRuntime | null = null;
     private circuitBreakers: Map<string, CircuitBreaker> = new Map();
     private cooldowns: Map<string, TradeCooldown> = new Map();
+    private openBB: OpenBBService | null = null;
 
     constructor() {}
 
@@ -55,6 +63,24 @@ export class RiskManager {
      */
     async initialize(runtime: IAgentRuntime): Promise<void> {
         this.runtime = runtime;
+
+        // Initialize OpenBB for ATR data (optional, will fallback to local calc)
+        try {
+            this.openBB = await createOpenBBService();
+            if (!this.openBB.isAvailable()) {
+                logger.warn('[RISK_MANAGER] OpenBB not available, ATR sizing will use local calculation');
+                this.openBB = null;
+            } else {
+                logger.info('[RISK_MANAGER] OpenBB service connected for ATR data');
+            }
+        } catch (error) {
+            logger.warn(
+                '[RISK_MANAGER] Failed to initialize OpenBB:',
+                error instanceof Error ? error.message : String(error)
+            );
+            this.openBB = null;
+        }
+
         logger.info('[RISK_MANAGER] RiskManager initialized');
     }
 
@@ -129,18 +155,59 @@ export class RiskManager {
             };
         }
 
-        // 9. Calculate position size
-        const maxSize = calculateMaxPositionSize(
-            exposure.totalCollateral,
-            exposure.exposurePct,
-            config
-        );
+        // 9. Calculate position size (ATR-based or legacy)
+        let suggestedSize: number;
+        let atrSizing: ATRPositionSizing | undefined;
 
-        // Scale by confidence
-        const suggestedSize = scalePositionByConfidence(
-            maxSize,
-            signal.confidence
-        );
+        if (config.useAtrSizing) {
+            // === ATR-Based Position Sizing ===
+            const atrValue = await this.getATRForAsset(asset, config);
+            const currentPrice = await this.getCurrentPrice(userId, asset);
+
+            if (atrValue && currentPrice) {
+                const sizingInput: PositionSizingInput = {
+                    entryPrice: currentPrice,
+                    accountEquity: exposure.totalCollateral,
+                    direction: signal.direction as 'LONG' | 'SHORT',
+                    atrValue,
+                    atrStopMultiplier: config.atrStopMultiplier,
+                    riskPerTradePct: config.riskPerTradePct,
+                    minRewardRiskRatio: config.minRewardRiskRatio,
+                };
+
+                const qualification = qualifyTradeForRR(sizingInput);
+
+                if (!qualification.qualified) {
+                    return this.reject(qualification.reason || 'Trade does not meet R:R criteria', asset);
+                }
+
+                atrSizing = qualification.sizing;
+                suggestedSize = atrSizing!.positionSizeUsd;
+
+                logger.info(
+                    `[RISK_MANAGER] ATR sizing for ${asset}: ` +
+                    `Size=$${suggestedSize.toFixed(2)}, SL=$${atrSizing!.stopLossPrice.toFixed(2)}, ` +
+                    `TP=$${atrSizing!.takeProfitPrice.toFixed(2)}, R:R=${atrSizing!.rewardRiskRatio}`
+                );
+            } else {
+                // Fallback to legacy sizing if ATR/price unavailable
+                logger.warn(`[RISK_MANAGER] ATR/price unavailable for ${asset}, using legacy sizing`);
+                const maxSize = calculateMaxPositionSize(
+                    exposure.totalCollateral,
+                    exposure.exposurePct,
+                    config
+                );
+                suggestedSize = scalePositionByConfidence(maxSize, signal.confidence);
+            }
+        } else {
+            // === Legacy Position Sizing (% based) ===
+            const maxSize = calculateMaxPositionSize(
+                exposure.totalCollateral,
+                exposure.exposurePct,
+                config
+            );
+            suggestedSize = scalePositionByConfidence(maxSize, signal.confidence);
+        }
 
         // Minimum position check - Drift requires 0.01 SOL (~$1.26) minimum
         const MIN_POSITION_USD = 1.30;
@@ -162,7 +229,8 @@ export class RiskManager {
         logger.info(
             `[RISK_MANAGER] Trade approved for ${asset}: ` +
             `$${suggestedSize.toFixed(2)} @ ${suggestedLeverage}x ` +
-            `(exposure: ${exposure.exposurePct.toFixed(1)}%)`
+            `(exposure: ${exposure.exposurePct.toFixed(1)}%)` +
+            (atrSizing ? ` [ATR: SL=$${atrSizing.stopLossPrice.toFixed(2)}, TP=$${atrSizing.takeProfitPrice.toFixed(2)}]` : '')
         );
 
         return {
@@ -171,6 +239,7 @@ export class RiskManager {
             suggestedLeverage,
             currentExposurePct: exposure.exposurePct,
             remainingCapacityUsd,
+            atrSizing,
         };
     }
 
@@ -375,6 +444,77 @@ export class RiskManager {
         try {
             return this.runtime.getService('DRIFT_SERVICE');
         } catch {
+            return null;
+        }
+    }
+
+    /**
+     * Fetch ATR value for an asset
+     *
+     * @param asset Asset symbol (e.g., 'SOL-PERP')
+     * @param config Automation config with ATR settings
+     * @returns ATR value or null if unavailable
+     */
+    private async getATRForAsset(
+        asset: string,
+        config: AutomationConfig
+    ): Promise<number | null> {
+        // Extract base symbol (SOL-PERP -> SOL)
+        const baseSymbol = asset.replace('-PERP', '').replace('1M', '');
+        const period = config.atrPeriod ?? 14;
+
+        // Try OpenBB first if available
+        if (this.openBB?.isAvailable()) {
+            try {
+                const ohlcv = await this.openBB.fetchOHLCV(baseSymbol, '4h', 30);
+                const atrValue = await this.openBB.getATRValue(ohlcv, period);
+
+                if (atrValue !== null) {
+                    logger.debug(`[RISK_MANAGER] ATR for ${asset}: $${atrValue.toFixed(4)}`);
+                    return atrValue;
+                }
+            } catch (error) {
+                logger.warn(
+                    `[RISK_MANAGER] Failed to get ATR from OpenBB for ${asset}:`,
+                    error instanceof Error ? error.message : String(error)
+                );
+            }
+        }
+
+        // Fallback: calculate ATR locally if we can get OHLCV data
+        // For now, return null and let the caller handle the fallback
+        logger.warn(`[RISK_MANAGER] No ATR data available for ${asset}`);
+        return null;
+    }
+
+    /**
+     * Get current price for an asset from DriftService
+     */
+    private async getCurrentPrice(userId: string, asset: string): Promise<number | null> {
+        const driftService = this.getDriftService();
+        if (!driftService) return null;
+
+        try {
+            // Try to get from existing position first (has mark price)
+            const positions = await driftService.getPositions(userId);
+            const position = positions?.find((p: any) => p.marketSymbol === asset);
+
+            if (position?.markPrice) {
+                return parseFloat(position.markPrice);
+            }
+
+            // Otherwise try to get oracle price
+            if (typeof driftService.getOraclePrice === 'function') {
+                const oraclePrice = await driftService.getOraclePrice(asset);
+                return oraclePrice;
+            }
+
+            return null;
+        } catch (error) {
+            logger.warn(
+                `[RISK_MANAGER] Failed to get price for ${asset}:`,
+                error instanceof Error ? error.message : String(error)
+            );
             return null;
         }
     }

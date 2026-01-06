@@ -1,5 +1,6 @@
 import type { Signal } from './signals';
 import type { AutomationConfig } from './automation-config';
+import type { ATRPositionSizing } from './atr-risk';
 
 /**
  * Result of a risk assessment for a potential trade.
@@ -22,6 +23,9 @@ export interface RiskAssessment {
 
     /** Remaining capacity in USD before hitting maxExposurePct */
     remainingCapacityUsd: number;
+
+    /** ATR-based sizing details (if useAtrSizing enabled) */
+    atrSizing?: ATRPositionSizing;
 }
 
 /**
