@@ -494,6 +494,7 @@ export class StrategyLoop extends Service {
      */
     private async buildMarketContext(userId: string, signals: Signal[]): Promise<MarketUpdateContext> {
         const driftService = this.runtime.getService('DRIFT_SERVICE') as any;
+        const state = this.userStates.get(userId);
 
         let positions: MarketUpdateContext['positions'] = [];
         let collateral = 0;
@@ -506,18 +507,28 @@ export class StrategyLoop extends Service {
                 if (rawPositions && Array.isArray(rawPositions)) {
                     positions = rawPositions
                         .filter((p: any) => parseFloat(p.notionalValue) > 0)
-                        .map((pos: any) => ({
-                            marketSymbol: pos.marketSymbol,
-                            side: pos.side as 'long' | 'short',
-                            entryPrice: parseFloat(pos.entryPrice) || 0,
-                            markPrice: parseFloat(pos.markPrice) || 0,
-                            notionalValue: parseFloat(pos.notionalValue) || 0,
-                            unrealizedPnl: parseFloat(pos.unrealizedPnl) || 0,
-                            unrealizedPnlPct: calculateActualPnlPct(
-                                parseFloat(pos.unrealizedPnl) || 0,
-                                parseFloat(pos.notionalValue) || 0
-                            ),
-                        }));
+                        .map((pos: any) => {
+                            const marketSymbol = pos.marketSymbol;
+                            // Get ATR metadata for this position (if available)
+                            const metadata = state?.positionMetadata[marketSymbol];
+
+                            return {
+                                marketSymbol,
+                                side: pos.side as 'long' | 'short',
+                                entryPrice: parseFloat(pos.entryPrice) || 0,
+                                markPrice: parseFloat(pos.markPrice) || 0,
+                                notionalValue: parseFloat(pos.notionalValue) || 0,
+                                unrealizedPnl: parseFloat(pos.unrealizedPnl) || 0,
+                                unrealizedPnlPct: calculateActualPnlPct(
+                                    parseFloat(pos.unrealizedPnl) || 0,
+                                    parseFloat(pos.notionalValue) || 0
+                                ),
+                                // ATR-based risk management data
+                                stopLossPrice: metadata?.stopPrice,
+                                targetPrice: metadata?.targetPrice,
+                                breakEvenTriggered: metadata?.breakEvenTriggered ?? false,
+                            };
+                        });
                 }
 
                 // Get account info

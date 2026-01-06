@@ -20,6 +20,10 @@ export interface FormattedPosition {
     notionalValue: number;
     unrealizedPnl: number;
     unrealizedPnlPct: number;
+    // ATR-based risk management fields (optional)
+    stopLossPrice?: number;
+    targetPrice?: number;
+    breakEvenTriggered?: boolean;
 }
 
 /**
@@ -166,42 +170,192 @@ function formatMarketScan(topSignal: Signal): string {
 }
 
 /**
- * Format a holding position message with market context
+ * Calculate progress toward target (0-100%)
+ */
+function calculateTargetProgress(position: FormattedPosition): number | null {
+    if (!position.targetPrice) return null;
+
+    const entry = position.entryPrice;
+    const current = position.markPrice;
+    const target = position.targetPrice;
+
+    if (position.side === 'long') {
+        const totalDistance = target - entry;
+        if (totalDistance <= 0) return null;
+        return ((current - entry) / totalDistance) * 100;
+    } else {
+        const totalDistance = entry - target;
+        if (totalDistance <= 0) return null;
+        return ((entry - current) / totalDistance) * 100;
+    }
+}
+
+/**
+ * Calculate distance to stop (positive = above stop, negative = below)
+ */
+function calculateStopDistance(position: FormattedPosition): number | null {
+    if (!position.stopLossPrice) return null;
+
+    const current = position.markPrice;
+    const stop = position.stopLossPrice;
+
+    if (position.side === 'long') {
+        return ((current - stop) / current) * 100; // % above stop
+    } else {
+        return ((stop - current) / current) * 100; // % below stop
+    }
+}
+
+/**
+ * Pick a varied opening phrase based on position state
+ */
+function pickOpeningPhrase(position: FormattedPosition, targetProgress: number | null): string {
+    const asset = getAssetName(position.marketSymbol);
+    const side = position.side;
+    const pnlPct = position.unrealizedPnlPct;
+
+    // Break-even locked - emphasize protection
+    if (position.breakEvenTriggered) {
+        const phrases = [
+            `${asset} ${side} locked in`,
+            `${asset} ${side} protected`,
+            `Riding ${asset} ${side}`,
+            `${asset} ${side} secured`,
+        ];
+        return phrases[Math.floor(Math.random() * phrases.length)];
+    }
+
+    // Strong profit
+    if (pnlPct > 3) {
+        const phrases = [
+            `${asset} ${side} running`,
+            `${asset} ${side} pushing higher`,
+            `${asset} ${side} working`,
+            `${asset} ${side} in the green`,
+        ];
+        return phrases[Math.floor(Math.random() * phrases.length)];
+    }
+
+    // Small profit
+    if (pnlPct > 0) {
+        const phrases = [
+            `${asset} ${side} grinding`,
+            `${asset} ${side} holding`,
+            `${asset} ${side} ticking up`,
+            `Watching ${asset} ${side}`,
+        ];
+        return phrases[Math.floor(Math.random() * phrases.length)];
+    }
+
+    // Small loss
+    if (pnlPct > -2) {
+        const phrases = [
+            `${asset} ${side} consolidating`,
+            `${asset} ${side} ranging`,
+            `${asset} ${side} steady`,
+            `${asset} ${side} choppy`,
+        ];
+        return phrases[Math.floor(Math.random() * phrases.length)];
+    }
+
+    // Bigger loss
+    const phrases = [
+        `${asset} ${side} under pressure`,
+        `${asset} ${side} pulling back`,
+        `${asset} ${side} testing patience`,
+        `${asset} ${side} dipping`,
+    ];
+    return phrases[Math.floor(Math.random() * phrases.length)];
+}
+
+/**
+ * Format ATR status (progress to target, stop distance, break-even)
+ */
+function formatAtrStatus(position: FormattedPosition): string {
+    const parts: string[] = [];
+
+    const targetProgress = calculateTargetProgress(position);
+    const stopDistance = calculateStopDistance(position);
+
+    // Break-even status first
+    if (position.breakEvenTriggered) {
+        parts.push(`BE locked @ $${position.stopLossPrice!.toFixed(2)}`);
+    } else if (position.stopLossPrice && position.targetPrice) {
+        // Show progress toward break-even trigger (50%)
+        if (targetProgress !== null && targetProgress > 0) {
+            if (targetProgress >= 40 && targetProgress < 50) {
+                parts.push(`${targetProgress.toFixed(0)}% to target - BE trigger soon`);
+            } else {
+                parts.push(`${targetProgress.toFixed(0)}% to target`);
+            }
+        }
+
+        // Stop distance when in danger zone
+        if (stopDistance !== null && stopDistance < 2) {
+            parts.push(`${stopDistance.toFixed(1)}% above stop`);
+        }
+    }
+
+    // Show TP level if close
+    if (position.targetPrice && targetProgress !== null && targetProgress >= 70) {
+        parts.push(`TP @ $${position.targetPrice.toFixed(2)}`);
+    }
+
+    return parts.length > 0 ? parts.join(' · ') : '';
+}
+
+/**
+ * Format a holding position message with market context and varied phrasing
  */
 function formatHoldingMessage(position: FormattedPosition, signal: Signal | null): string {
-    const asset = getAssetName(position.marketSymbol);
     const pnl = formatPnl(position.unrealizedPnl, position.unrealizedPnlPct);
+    const targetProgress = calculateTargetProgress(position);
+
+    // Pick varied opening
+    const opening = pickOpeningPhrase(position, targetProgress);
+
+    // Core message with PnL
+    let message = `${opening}: ${pnl}.`;
+
+    // ATR status if available
+    const atrStatus = formatAtrStatus(position);
+    if (atrStatus) {
+        message += ` ${atrStatus}.`;
+    }
+
+    // Price info (condensed)
     const priceMove = ((position.markPrice - position.entryPrice) / position.entryPrice * 100);
-    const priceDirection = priceMove >= 0 ? 'up' : 'down';
+    message += ` $${position.markPrice.toFixed(2)}`;
+    if (Math.abs(priceMove) > 0.5) {
+        message += ` (${priceMove >= 0 ? '+' : ''}${priceMove.toFixed(1)}% from entry)`;
+    }
+    message += '.';
 
-    // Base position info
-    let message = `${asset} ${position.side}: ${pnl}. `;
-    message += `Price ${priceDirection} ${Math.abs(priceMove).toFixed(2)}% from entry ($${position.entryPrice.toFixed(2)} → $${position.markPrice.toFixed(2)}). `;
-
-    // Add market context from signal
+    // Market context from signal (condensed)
     if (signal) {
         const data = extractMarketData(signal);
         const contextParts: string[] = [];
 
-        if (data.priceChange7d !== undefined) {
-            contextParts.push(`7d: ${formatChange(data.priceChange7d)}`);
+        // Only show significant moves
+        if (data.priceChange24h !== undefined && Math.abs(data.priceChange24h) > 1) {
+            contextParts.push(`24h ${formatChange(data.priceChange24h)}`);
         }
-        if (data.priceChange24h !== undefined) {
-            contextParts.push(`24h: ${formatChange(data.priceChange24h)}`);
+        if (data.rsi !== undefined) {
+            if (data.rsi > 65 || data.rsi < 35) {
+                const state = data.rsi > 70 ? 'OB' : data.rsi < 30 ? 'OS' : data.rsi > 60 ? 'warm' : 'cool';
+                contextParts.push(`RSI ${data.rsi.toFixed(0)} ${state}`);
+            }
         }
 
         if (contextParts.length > 0) {
-            message += `Market: ${contextParts.join(', ')}.`;
+            message += ` ${contextParts.join(', ')}.`;
         }
 
-        // Position alignment check
-        const isAligned = (position.side === 'long' && signal.direction === 'LONG') ||
-                          (position.side === 'short' && signal.direction === 'SHORT');
+        // Contrarian warning
         const isConflicting = (position.side === 'long' && signal.direction === 'SHORT') ||
                               (position.side === 'short' && signal.direction === 'LONG');
-
-        if (isConflicting && signal.confidence > 0.4) {
-            message += ' Signal now contrarian - watching closely.';
+        if (isConflicting && signal.confidence > 0.5) {
+            message += ' ⚠️ Signal flipping.';
         }
     }
 
